@@ -29,6 +29,7 @@ class HomeScreen extends ConsumerStatefulWidget {
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
   final TextEditingController _searchController = TextEditingController();
+  String _lastSearchQuery = '';
 
   @override
   void dispose() {
@@ -38,13 +39,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   void _performSearch() {
     final query = _searchController.text.trim();
-    if (query.isNotEmpty) {
+    if (query.isNotEmpty && query != _lastSearchQuery) {
+      _lastSearchQuery = query;
       ref.read(searchQueryProvider.notifier).state = query;
     }
   }
 
   void _clearSearch() {
     _searchController.clear();
+    _lastSearchQuery = '';
     ref.read(searchQueryProvider.notifier).state = '';
   }
 
@@ -84,15 +87,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         borderSide: BorderSide.none,
                       ),
                       prefixIcon: const Icon(Icons.search),
-                      suffixIcon: _searchController.text.isNotEmpty
-                          ? IconButton(
-                              icon: const Icon(Icons.clear),
-                              onPressed: _clearSearch,
-                            )
-                          : null,
+                      suffixIcon: IconButton(
+                        icon: const Icon(Icons.clear),
+                        onPressed: _clearSearch,
+                        tooltip: 'Clear',
+                      ),
                       contentPadding: const EdgeInsets.symmetric(horizontal: 12),
                     ),
-                    onChanged: (_) => setState(() {}),
                     onSubmitted: (_) => _performSearch(),
                   ),
                 ),

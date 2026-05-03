@@ -17,6 +17,7 @@ class ApiService {
   ));
 
   Future<List<Video>> searchVideos(String query, {int limit = 20}) async {
+    _logger.i('Searching for: $query');
     try {
       final response = await _dio.get('/search', queryParameters: {
         'q': query,
@@ -26,6 +27,7 @@ class ApiService {
       if (response.data['success'] == true) {
         final List<dynamic> data = response.data['data'];
         _backendAvailable = true;
+        _logger.i('Search successful, got ${data.length} results from backend');
         return data.map((json) => Video.fromJson(json)).toList();
       } else {
         throw Exception(response.data['error'] ?? 'Search failed');
@@ -34,7 +36,9 @@ class ApiService {
       _logger.w('Backend unavailable, using mock data: $e');
       _backendAvailable = false;
       // Return mock data for development
-      return _getMockSearchResults(query, limit);
+      final results = _getMockSearchResults(query, limit);
+      _logger.i('Returning ${results.length} mock results for "$query"');
+      return results;
     }
   }
 
