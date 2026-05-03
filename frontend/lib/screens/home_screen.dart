@@ -115,61 +115,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       ),
        body: searchResults.when(
         data: (videos) {
-          if (videos.isEmpty) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons.search,
-                    size: 64,
-                    color: Colors.grey[400],
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'No videos found',
-                    style: TextStyle(
-                      fontSize: 18,
-                      color: Colors.grey[600],
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Try searching for videos using the search bar above',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.grey[500],
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 24),
-                  Text(
-                    'Example searches:',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.grey[600],
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 8,
-                    children: ['Flutter', 'Rust', 'Desktop', 'Tutorial']
-                        .map(
-                          (tag) => ActionChip(
-                            label: Text(tag),
-                            onPressed: () {
-                              _searchController.text = tag;
-                              _performSearch();
-                            },
-                          ),
-                        )
-                        .toList(),
-                  ),
-                ],
-              ),
-            );
+          if (videos.isEmpty && ref.read(searchQueryProvider).isEmpty) {
+            // Show featured videos on initial load
+            return _buildFeaturedVideos();
+          } else if (videos.isEmpty) {
+            return _buildEmptySearchResults();
           }
 
           return MasonryGridView.count(
@@ -218,4 +168,149 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     if (width > 600) return 2;
     return 1;
   }
+
+  Widget _buildFeaturedVideos() {
+    return SingleChildScrollView(
+      child: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const SizedBox(height: 40),
+              Icon(
+                Icons.play_circle_outline,
+                size: 80,
+                color: Colors.red[400],
+              ),
+              const SizedBox(height: 24),
+              const Text(
+                'Welcome to Tubular PC',
+                style: TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Ad-free video streaming with privacy in mind',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Colors.grey[500],
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 40),
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  border: Border.all(color: Colors.grey[700]!),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Column(
+                  children: [
+                    const Text(
+                      'Try searching for:',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Wrap(
+                      spacing: 12,
+                      runSpacing: 12,
+                      children: ['Flutter', 'Rust', 'Desktop', 'Tutorial', 'Development']
+                          .map(
+                            (tag) => OutlinedButton(
+                              onPressed: () {
+                                _searchController.text = tag;
+                                _performSearch();
+                              },
+                              style: OutlinedButton.styleFrom(
+                                backgroundColor: Colors.grey[850],
+                                side: BorderSide(color: Colors.red[700]!),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 20,
+                                  vertical: 12,
+                                ),
+                              ),
+                              child: Text(
+                                tag,
+                                style: TextStyle(
+                                  color: Colors.red[400],
+                                  fontSize: 14,
+                                ),
+                              ),
+                            ),
+                          )
+                          .toList(),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 40),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmptySearchResults() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.search_off,
+            size: 64,
+            color: Colors.grey[400],
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'No videos found for "${_searchController.text}"',
+            style: TextStyle(
+              fontSize: 18,
+              color: Colors.grey[600],
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Try a different search term',
+            style: TextStyle(
+              fontSize: 14,
+              color: Colors.grey[500],
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 24),
+          Text(
+            'Example searches:',
+            style: TextStyle(
+              fontSize: 12,
+              color: Colors.grey[600],
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            children: ['Flutter', 'Rust', 'Desktop', 'Tutorial']
+                .map(
+                  (tag) => ActionChip(
+                    label: Text(tag),
+                    onPressed: () {
+                      _searchController.text = tag;
+                      _performSearch();
+                    },
+                  ),
+                )
+                .toList(),
+           ),
+         ],
+       ),
+     );
+   }
 }
