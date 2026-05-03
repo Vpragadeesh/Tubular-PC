@@ -43,6 +43,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     }
   }
 
+  void _clearSearch() {
+    _searchController.clear();
+    ref.read(searchQueryProvider.notifier).state = '';
+  }
+
   void _openVideo(Video video) {
     Navigator.push(
       context,
@@ -57,39 +62,57 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final searchResults = ref.watch(searchResultsProvider);
 
     return Scaffold(
-      appBar: AppBar(
+       appBar: AppBar(
         title: const Text('Tubular PC'),
         backgroundColor: Colors.red[700],
         foregroundColor: Colors.white,
         bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(60),
+          preferredSize: const Size.fromHeight(70),
           child: Padding(
             padding: const EdgeInsets.all(8.0),
-            child: TextField(
-              controller: _searchController,
-              decoration: InputDecoration(
-                hintText: 'Search videos...',
-                filled: true,
-                fillColor: Colors.white,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide.none,
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _searchController,
+                    decoration: InputDecoration(
+                      hintText: 'Search videos...',
+                      filled: true,
+                      fillColor: Colors.white,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide.none,
+                      ),
+                      prefixIcon: const Icon(Icons.search),
+                      suffixIcon: _searchController.text.isNotEmpty
+                          ? IconButton(
+                              icon: const Icon(Icons.clear),
+                              onPressed: _clearSearch,
+                            )
+                          : null,
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+                    ),
+                    onChanged: (_) => setState(() {}),
+                    onSubmitted: (_) => _performSearch(),
+                  ),
                 ),
-                prefixIcon: const Icon(Icons.search),
-                suffixIcon: IconButton(
-                  icon: const Icon(Icons.clear),
-                  onPressed: () {
-                    _searchController.clear();
-                    ref.read(searchQueryProvider.notifier).state = '';
-                  },
+                const SizedBox(width: 8),
+                ElevatedButton.icon(
+                  onPressed: _performSearch,
+                  icon: const Icon(Icons.search),
+                  label: const Text('Search'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.red[600],
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                  ),
                 ),
-              ),
-              onSubmitted: (_) => _performSearch(),
+              ],
             ),
           ),
         ),
       ),
-      body: searchResults.when(
+       body: searchResults.when(
         data: (videos) {
           if (videos.isEmpty) {
             return Center(
@@ -103,11 +126,45 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   ),
                   const SizedBox(height: 16),
                   Text(
-                    'Search for videos',
+                    'No videos found',
                     style: TextStyle(
                       fontSize: 18,
                       color: Colors.grey[600],
+                      fontWeight: FontWeight.bold,
                     ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Try searching for videos using the search bar above',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.grey[500],
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 24),
+                  Text(
+                    'Example searches:',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey[600],
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    children: ['Flutter', 'Rust', 'Desktop', 'Tutorial']
+                        .map(
+                          (tag) => ActionChip(
+                            label: Text(tag),
+                            onPressed: () {
+                              _searchController.text = tag;
+                              _performSearch();
+                            },
+                          ),
+                        )
+                        .toList(),
                   ),
                 ],
               ),
