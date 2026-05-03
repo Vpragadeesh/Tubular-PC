@@ -1,0 +1,50 @@
+name: tubular_pc
+description: A desktop YouTube client inspired by Tubular/NewPipe - ad-free, privacy-focused video streaming.
+version: 0.1.0
+
+environment:
+  sdk: '>=3.8.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  
+  # State Management
+  riverpod: ^2.4.0
+  flutter_riverpod: ^2.4.0
+  
+  # HTTP & API
+  dio: ^5.3.0
+  http: ^1.1.0
+  
+  # Database
+  sqflite: ^2.3.0
+  
+  # Serialization
+  json_serializable: ^6.7.0
+  json_annotation: ^4.11.0
+  
+  # Video Player
+  video_player: ^2.8.0
+  
+  # UI
+  flutter_staggered_grid_view: ^0.7.0
+  cached_network_image: ^3.3.0
+  
+  # Utils
+  intl: ^0.19.0
+  logger: ^2.0.0
+  path_provider: ^2.1.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+  build_runner: ^2.4.0
+  json_serializable: ^6.7.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/images/
+    - assets/icons/

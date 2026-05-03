@@ -1,0 +1,26 @@
+[package]
+name = "tubular_backend"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+tokio = { version = "1.35", features = ["full"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+reqwest = { version = "0.11", features = ["json"] }
+sqlx = { version = "0.7", features = ["runtime-tokio-native-tls", "sqlite"] }
+axum = "0.7"
+tower = "0.4"
+tower-http = { version = "0.5", features = ["cors"] }
+anyhow = "1.0"
+tracing = "0.1"
+tracing-subscriber = "0.3"
+chrono = "0.4"
+
+[lib]
+name = "tubular_backend"
+path = "src/lib.rs"
+
+[[bin]]
+name = "tubular_backend"
+path = "src/main.rs"

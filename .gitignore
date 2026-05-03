@@ -1,0 +1,43 @@
+# Rust
+backend/target/
+backend/Cargo.lock
+backend/**/*.rs.bk
+backend/*.db
+backend/*.db-shm
+backend/*.db-wal
+
+# Flutter
+frontend/.dart_tool/
+frontend/.flutter-plugins
+frontend/.flutter-plugins-dependencies
+frontend/.packages
+frontend/.pub-cache/
+frontend/.pub/
+frontend/build/
+frontend/*.g.dart
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Database
+*.db
+*.db-shm
+*.db-wal
+
+# Logs
+*.log
+
+# Downloads
+downloads/
+Videos/
+
+# Cookies
+cookies.txt
