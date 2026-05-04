@@ -8,9 +8,40 @@ import 'player_screen.dart';
 
 final apiServiceProvider = Provider((ref) => ApiService());
 
+final subscriptionSearchProvider = StateProvider<String>((ref) => '');
+final subscriptionsSortProvider = StateProvider<String>((ref) => 'name_asc');
+
 final subscriptionsProvider = FutureProvider<List<Subscription>>((ref) async {
   final apiService = ref.watch(apiServiceProvider);
-  return await apiService.getSubscriptions();
+  final search = ref.watch(subscriptionSearchProvider);
+  final sort = ref.watch(subscriptionsSortProvider);
+  
+  List<Subscription> subs = await apiService.getSubscriptions();
+  
+  // Filter by search
+  if (search.isNotEmpty) {
+    subs = subs
+        .where((s) => s.channelName.toLowerCase().contains(search.toLowerCase()))
+        .toList();
+  }
+  
+  // Apply sorting
+  switch (sort) {
+    case 'name_asc':
+      subs.sort((a, b) => a.channelName.compareTo(b.channelName));
+      break;
+    case 'name_desc':
+      subs.sort((a, b) => b.channelName.compareTo(a.channelName));
+      break;
+    case 'date_asc':
+      subs.sort((a, b) => a.subscribedAt.compareTo(b.subscribedAt));
+      break;
+    case 'date_desc':
+    default:
+      subs.sort((a, b) => b.subscribedAt.compareTo(a.subscribedAt));
+  }
+  
+  return subs;
 });
 
 final subscriptionVideosProvider = FutureProvider.family<List<Video>, String>((ref, channelId) async {
@@ -28,114 +59,255 @@ class SubscriptionsScreen extends ConsumerStatefulWidget {
 }
 
 class _SubscriptionsScreenState extends ConsumerState<SubscriptionsScreen> {
+  late TextEditingController _searchController;
+
+  @override
+  void initState() {
+    super.initState();
+    _searchController = TextEditingController();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     final subscriptionsAsync = ref.watch(subscriptionsProvider);
+    final sort = ref.watch(subscriptionsSortProvider);
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Subscriptions'),
         backgroundColor: Colors.red[700],
         foregroundColor: Colors.white,
-      ),
-      body: subscriptionsAsync.when(
-        data: (subscriptions) {
-          if (subscriptions.isEmpty) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons.subscriptions,
-                    size: 64,
-                    color: Colors.grey[400],
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'No subscriptions yet',
-                    style: TextStyle(
-                      fontSize: 18,
-                      color: Colors.grey[600],
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Search for channels and subscribe to get started',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.grey[500],
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                ],
+        elevation: 0,
+        actions: [
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.sort),
+            tooltip: 'Sort',
+            itemBuilder: (context) => [
+              const PopupMenuItem(
+                value: 'name_asc',
+                child: Text('Name (A-Z)'),
               ),
-            );
-          }
-
-          return ListView.builder(
-            itemCount: subscriptions.length,
-            itemBuilder: (context, index) {
-              final sub = subscriptions[index];
-              return _buildSubscriptionTile(context, sub);
-            },
-          );
-        },
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, stack) => Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.error_outline, size: 64, color: Colors.red),
-              const SizedBox(height: 16),
-              Text(
-                'Error: $error',
-                textAlign: TextAlign.center,
-                style: const TextStyle(color: Colors.red),
+              const PopupMenuItem(
+                value: 'name_desc',
+                child: Text('Name (Z-A)'),
               ),
-              const SizedBox(height: 16),
-              ElevatedButton(
-                onPressed: () => ref.refresh(subscriptionsProvider),
-                child: const Text('Retry'),
+              const PopupMenuItem(
+                value: 'date_desc',
+                child: Text('Recently Subscribed'),
+              ),
+              const PopupMenuItem(
+                value: 'date_asc',
+                child: Text('Oldest First'),
               ),
             ],
+            onSelected: (value) {
+              ref.read(subscriptionsSortProvider.notifier).state = value;
+            },
           ),
-        ),
+        ],
+      ),
+      body: Column(
+        children: [
+          // Search bar
+          Container(
+            color: Colors.grey[850],
+            padding: const EdgeInsets.all(12),
+            child: TextField(
+              controller: _searchController,
+              style: const TextStyle(color: Colors.white),
+              onChanged: (value) {
+                ref.read(subscriptionSearchProvider.notifier).state = value;
+              },
+              decoration: InputDecoration(
+                hintText: 'Search subscriptions...',
+                hintStyle: TextStyle(color: Colors.grey[500]),
+                filled: true,
+                fillColor: Colors.grey[800],
+                prefixIcon: const Icon(Icons.search, color: Colors.grey),
+                suffixIcon: _searchController.text.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(Icons.clear, color: Colors.grey),
+                        onPressed: () {
+                          _searchController.clear();
+                          ref.read(subscriptionSearchProvider.notifier).state = '';
+                        },
+                      )
+                    : null,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide.none,
+                ),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+              ),
+            ),
+          ),
+          // Subscriptions list
+          Expanded(
+            child: subscriptionsAsync.when(
+              data: (subscriptions) {
+                if (subscriptions.isEmpty) {
+                  return _buildEmptyState();
+                }
+
+                return ListView.builder(
+                  itemCount: subscriptions.length,
+                  itemBuilder: (context, index) {
+                    final sub = subscriptions[index];
+                    return AnimatedOpacity(
+                      opacity: 1.0,
+                      duration: const Duration(milliseconds: 300),
+                      child: _buildSubscriptionTile(context, sub),
+                    );
+                  },
+                );
+              },
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error: (error, stack) => _buildErrorState(error.toString()),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.subscriptions,
+            size: 64,
+            color: Colors.grey[400],
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'No subscriptions',
+            style: TextStyle(
+              fontSize: 18,
+              color: Colors.grey[600],
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Search for channels and subscribe to get started',
+            style: TextStyle(
+              fontSize: 14,
+              color: Colors.grey[500],
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildErrorState(String error) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(Icons.error_outline, size: 64, color: Colors.red),
+          const SizedBox(height: 16),
+          Text(
+            'Error',
+            style: TextStyle(
+              fontSize: 18,
+              color: Colors.grey[600],
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 8),
+          SizedBox(
+            width: 300,
+            child: Text(
+              error,
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.grey[500],
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ),
+          const SizedBox(height: 16),
+          ElevatedButton(
+            onPressed: () => ref.refresh(subscriptionsProvider),
+            child: const Text('Retry'),
+          ),
+        ],
       ),
     );
   }
 
   Widget _buildSubscriptionTile(BuildContext context, Subscription sub) {
     return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         leading: CircleAvatar(
           backgroundImage: NetworkImage(sub.channelThumbnail),
-          backgroundColor: Colors.grey[700],
+          backgroundColor: Colors.red[700],
           onBackgroundImageError: (_, __) {},
           child: sub.channelThumbnail.isEmpty
               ? Icon(Icons.person, color: Colors.grey[400])
               : null,
         ),
-        title: Text(sub.channelName),
-        subtitle: Text('ID: ${sub.channelId}'),
+        title: Text(
+          sub.channelName,
+          style: const TextStyle(fontWeight: FontWeight.bold),
+        ),
+        subtitle: Text(
+          'ID: ${sub.channelId}',
+          style: TextStyle(fontSize: 12, color: Colors.grey[500]),
+        ),
         trailing: PopupMenuButton(
           itemBuilder: (context) => [
             const PopupMenuItem(
+              value: 'view_channel',
+              child: Row(
+                children: [
+                  Icon(Icons.open_in_new, size: 18),
+                  SizedBox(width: 8),
+                  Text('View Channel'),
+                ],
+              ),
+            ),
+            const PopupMenuItem(
               value: 'unsubscribe',
-              child: Text('Unsubscribe'),
+              child: Row(
+                children: [
+                  Icon(Icons.check_box, size: 18),
+                  SizedBox(width: 8),
+                  Text('Unsubscribe'),
+                ],
+              ),
             ),
           ],
           onSelected: (value) {
-            if (value == 'unsubscribe') {
+            if (value == 'view_channel') {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Channel page coming soon: ${sub.channelName}'),
+                  duration: const Duration(seconds: 2),
+                ),
+              );
+            } else if (value == 'unsubscribe') {
               _showUnsubscribeDialog(context, sub);
             }
           },
         ),
         onTap: () {
-          // Navigate to channel page
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Channel page coming soon: ${sub.channelName}')),
+            SnackBar(content: Text('Viewing channel: ${sub.channelName}')),
           );
         },
       ),
@@ -157,11 +329,14 @@ class _SubscriptionsScreenState extends ConsumerState<SubscriptionsScreen> {
             onPressed: () {
               Navigator.pop(context);
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Unsubscribed')),
+                const SnackBar(content: Text('Unsubscribed successfully')),
               );
               ref.refresh(subscriptionsProvider);
             },
-            child: const Text('Unsubscribe', style: TextStyle(color: Colors.red)),
+            child: Text(
+              'Unsubscribe',
+              style: TextStyle(color: Colors.red[700]),
+            ),
           ),
         ],
       ),

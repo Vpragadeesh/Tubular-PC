@@ -6,9 +6,51 @@ import 'player_screen.dart';
 
 final apiServiceProvider = Provider((ref) => ApiService());
 
+final historySearchProvider = StateProvider<String>((ref) => '');
+final historyFilterProvider = StateProvider<String>((ref) => 'all'); // all, today, week, month
+
 final historyProvider = FutureProvider<List<HistoryEntry>>((ref) async {
   final apiService = ref.watch(apiServiceProvider);
-  return await apiService.getHistory();
+  final search = ref.watch(historySearchProvider);
+  final filter = ref.watch(historyFilterProvider);
+  
+  List<HistoryEntry> history = await apiService.getHistory();
+  
+  // Filter by search
+  if (search.isNotEmpty) {
+    history = history
+        .where((h) => h.title.toLowerCase().contains(search.toLowerCase()) ||
+            h.channel.toLowerCase().contains(search.toLowerCase()))
+        .toList();
+  }
+  
+  // Filter by date
+  final now = DateTime.now();
+  switch (filter) {
+    case 'today':
+      history = history.where((h) {
+        final date = DateTime.tryParse(h.watchedAt) ?? now;
+        return now.difference(date).inDays == 0;
+      }).toList();
+      break;
+    case 'week':
+      history = history.where((h) {
+        final date = DateTime.tryParse(h.watchedAt) ?? now;
+        return now.difference(date).inDays <= 7;
+      }).toList();
+      break;
+    case 'month':
+      history = history.where((h) {
+        final date = DateTime.tryParse(h.watchedAt) ?? now;
+        return now.difference(date).inDays <= 30;
+      }).toList();
+      break;
+    case 'all':
+    default:
+      break;
+  }
+  
+  return history;
 });
 
 class HistoryScreen extends ConsumerStatefulWidget {
@@ -19,21 +61,44 @@ class HistoryScreen extends ConsumerStatefulWidget {
 }
 
 class _HistoryScreenState extends ConsumerState<HistoryScreen> {
+  late TextEditingController _searchController;
+
+  @override
+  void initState() {
+    super.initState();
+    _searchController = TextEditingController();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     final historyAsync = ref.watch(historyProvider);
+    final filter = ref.watch(historyFilterProvider);
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Watch History'),
         backgroundColor: Colors.red[700],
         foregroundColor: Colors.white,
+        elevation: 0,
         actions: [
           PopupMenuButton(
+            icon: const Icon(Icons.more_vert),
             itemBuilder: (context) => [
-              const PopupMenuItem(
+              PopupMenuItem(
                 value: 'clear_all',
-                child: Text('Clear History'),
+                child: Row(
+                  children: const [
+                    Icon(Icons.delete_sweep, size: 18),
+                    SizedBox(width: 8),
+                    Text('Clear All History'),
+                  ],
+                ),
               ),
             ],
             onSelected: (value) {
@@ -44,132 +109,177 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
           ),
         ],
       ),
-      body: historyAsync.when(
-        data: (history) {
-          if (history.isEmpty) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons.history,
-                    size: 64,
-                    color: Colors.grey[400],
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'No watch history',
-                    style: TextStyle(
-                      fontSize: 18,
-                      color: Colors.grey[600],
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Videos you watch will appear here',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.grey[500],
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                ],
+      body: Column(
+        children: [
+          // Search bar
+          Container(
+            color: Colors.grey[850],
+            padding: const EdgeInsets.all(12),
+            child: TextField(
+              controller: _searchController,
+              style: const TextStyle(color: Colors.white),
+              onChanged: (value) {
+                ref.read(historySearchProvider.notifier).state = value;
+              },
+              decoration: InputDecoration(
+                hintText: 'Search history...',
+                hintStyle: TextStyle(color: Colors.grey[500]),
+                filled: true,
+                fillColor: Colors.grey[800],
+                prefixIcon: const Icon(Icons.search, color: Colors.grey),
+                suffixIcon: _searchController.text.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(Icons.clear, color: Colors.grey),
+                        onPressed: () {
+                          _searchController.clear();
+                          ref.read(historySearchProvider.notifier).state = '';
+                        },
+                      )
+                    : null,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide.none,
+                ),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
               ),
-            );
-          }
-
-          // Group history by date
-          final grouped = _groupHistoryByDate(history);
-
-          return ListView.builder(
-            itemCount: grouped.length,
-            itemBuilder: (context, index) {
-              final entry = grouped[index];
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  if (index == 0 || _getDayDifference(grouped[index].watchedAt, grouped[index - 1].watchedAt) > 0)
-                    Padding(
-                      padding: const EdgeInsets.all(16.0),
-                      child: Text(
-                        _formatDateHeader(entry.watchedAt),
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.grey[500],
-                        ),
-                      ),
-                    ),
-                  _buildHistoryTile(context, entry),
-                ],
-              );
-            },
-          );
-        },
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, stack) => Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.error_outline, size: 64, color: Colors.red),
-              const SizedBox(height: 16),
-              Text(
-                'Error: $error',
-                textAlign: TextAlign.center,
-                style: const TextStyle(color: Colors.red),
-              ),
-              const SizedBox(height: 16),
-              ElevatedButton(
-                onPressed: () => ref.refresh(historyProvider),
-                child: const Text('Retry'),
-              ),
-            ],
+            ),
           ),
-        ),
+          // Filter chips
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+            child: Row(
+              children: [
+                _buildFilterChip('All', 'all', filter),
+                const SizedBox(width: 8),
+                _buildFilterChip('Today', 'today', filter),
+                const SizedBox(width: 8),
+                _buildFilterChip('This Week', 'week', filter),
+                const SizedBox(width: 8),
+                _buildFilterChip('This Month', 'month', filter),
+              ],
+            ),
+          ),
+          // History list
+          Expanded(
+            child: historyAsync.when(
+              data: (history) {
+                if (history.isEmpty) {
+                  return _buildEmptyState();
+                }
+
+                return ListView.builder(
+                  padding: const EdgeInsets.all(12),
+                  itemCount: history.length,
+                  itemBuilder: (context, index) {
+                    final entry = history[index];
+                    return AnimatedOpacity(
+                      opacity: 1.0,
+                      duration: const Duration(milliseconds: 300),
+                      child: _buildHistoryTile(context, entry),
+                    );
+                  },
+                );
+              },
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error: (error, stack) => _buildErrorState(error.toString()),
+            ),
+          ),
+        ],
       ),
     );
   }
 
-  List<HistoryEntry> _groupHistoryByDate(List<HistoryEntry> history) {
-    // Sort by date descending
-    final sorted = List<HistoryEntry>.from(history);
-    sorted.sort((a, b) {
-      final dateA = DateTime.tryParse(a.watchedAt) ?? DateTime.now();
-      final dateB = DateTime.tryParse(b.watchedAt) ?? DateTime.now();
-      return dateB.compareTo(dateA);
-    });
-    return sorted;
+  Widget _buildFilterChip(String label, String value, String currentFilter) {
+    final isSelected = value == currentFilter;
+    return FilterChip(
+      label: Text(label),
+      selected: isSelected,
+      onSelected: (_) {
+        ref.read(historyFilterProvider.notifier).state = value;
+      },
+      backgroundColor: Colors.grey[800],
+      selectedColor: Colors.red[700],
+      labelStyle: TextStyle(
+        color: isSelected ? Colors.white : Colors.grey[400],
+        fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+      ),
+    );
   }
 
-  int _getDayDifference(String dateStr1, String dateStr2) {
-    final date1 = DateTime.tryParse(dateStr1) ?? DateTime.now();
-    final date2 = DateTime.tryParse(dateStr2) ?? DateTime.now();
-    return date1.difference(date2).inDays;
+  Widget _buildEmptyState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.history, size: 64, color: Colors.grey[400]),
+          const SizedBox(height: 16),
+          Text(
+            'No watch history',
+            style: TextStyle(
+              fontSize: 18,
+              color: Colors.grey[600],
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Videos you watch will appear here',
+            style: TextStyle(
+              fontSize: 14,
+              color: Colors.grey[500],
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
   }
 
-  String _formatDateHeader(String dateStr) {
-    final date = DateTime.tryParse(dateStr) ?? DateTime.now();
-    final now = DateTime.now();
-    final difference = now.difference(date).inDays;
-
-    if (difference == 0) {
-      return 'Today';
-    } else if (difference == 1) {
-      return 'Yesterday';
-    } else if (difference < 7) {
-      return '$difference days ago';
-    } else if (difference < 30) {
-      return '${(difference / 7).floor()} weeks ago';
-    } else {
-      return '${(difference / 30).floor()} months ago';
-    }
+  Widget _buildErrorState(String error) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(Icons.error_outline, size: 64, color: Colors.red),
+          const SizedBox(height: 16),
+          Text(
+            'Error',
+            style: TextStyle(
+              fontSize: 18,
+              color: Colors.grey[600],
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 8),
+          SizedBox(
+            width: 300,
+            child: Text(
+              error,
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.grey[500],
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ),
+          const SizedBox(height: 16),
+          ElevatedButton(
+            onPressed: () => ref.refresh(historyProvider),
+            child: const Text('Retry'),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _buildHistoryTile(BuildContext context, HistoryEntry entry) {
     return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      margin: const EdgeInsets.symmetric(vertical: 6),
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         leading: Container(
           width: 60,
           height: 60,
@@ -186,30 +296,45 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
           entry.title,
           maxLines: 2,
           overflow: TextOverflow.ellipsis,
+          style: const TextStyle(fontWeight: FontWeight.w500),
         ),
         subtitle: Text(
           entry.channel,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
+          style: TextStyle(fontSize: 12, color: Colors.grey[500]),
         ),
         trailing: PopupMenuButton(
           itemBuilder: (context) => [
             const PopupMenuItem(
               value: 'remove',
-              child: Text('Remove'),
+              child: Row(
+                children: [
+                  Icon(Icons.delete, size: 18, color: Colors.red),
+                  SizedBox(width: 8),
+                  Text('Remove'),
+                ],
+              ),
             ),
           ],
           onSelected: (value) {
             if (value == 'remove') {
-              // Remove from history
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Removed from history'),
+                  duration: Duration(seconds: 1),
+                ),
+              );
               ref.refresh(historyProvider);
             }
           },
         ),
         onTap: () {
-          // Play video
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Playing: ${entry.title}')),
+            SnackBar(
+              content: Text('Playing: ${entry.title}'),
+              duration: const Duration(seconds: 1),
+            ),
           );
         },
       ),
@@ -221,7 +346,9 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Clear History'),
-        content: const Text('Are you sure you want to clear all watch history? This cannot be undone.'),
+        content: const Text(
+          'Are you sure you want to clear all watch history? This cannot be undone.',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
@@ -235,7 +362,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
               );
               ref.refresh(historyProvider);
             },
-            child: const Text('Clear', style: TextStyle(color: Colors.red)),
+            child: Text('Clear', style: TextStyle(color: Colors.red[700])),
           ),
         ],
       ),
