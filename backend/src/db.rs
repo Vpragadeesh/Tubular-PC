@@ -37,6 +37,12 @@ pub struct Download {
     pub downloaded_at: String,
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Setting {
+    pub key: String,
+    pub value: String,
+}
+
 pub async fn init_db() -> Result<()> {
     // Create database in the current directory with create-if-missing option
     let db_path = std::env::var("TUBULAR_DB_PATH")
@@ -87,6 +93,17 @@ pub async fn init_db() -> Result<()> {
             file_path TEXT NOT NULL,
             quality TEXT NOT NULL,
             downloaded_at TEXT NOT NULL
+        )
+        "#,
+    )
+    .execute(&pool)
+    .await?;
+
+    sqlx::query(
+        r#"
+        CREATE TABLE IF NOT EXISTS settings (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL
         )
         "#,
     )
@@ -205,4 +222,32 @@ pub async fn get_downloads() -> Result<Vec<Download>> {
         .fetch_all(pool)
         .await?;
     Ok(downloads)
+}
+
+// Settings operations
+pub async fn set_setting(key: &str, value: &str) -> Result<()> {
+    let pool = get_pool();
+    sqlx::query("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)")
+        .bind(key)
+        .bind(value)
+        .execute(pool)
+        .await?;
+    Ok(())
+}
+
+pub async fn get_setting(key: &str) -> Result<Option<String>> {
+    let pool = get_pool();
+    let row: Option<(String,)> = sqlx::query_as("SELECT value FROM settings WHERE key = ?")
+        .bind(key)
+        .fetch_optional(pool)
+        .await?;
+    Ok(row.map(|(v,)| v))
+}
+
+pub async fn get_all_settings() -> Result<Vec<Setting>> {
+    let pool = get_pool();
+    let settings: Vec<(String, String)> = sqlx::query_as("SELECT key, value FROM settings")
+        .fetch_all(pool)
+        .await?;
+    Ok(settings.into_iter().map(|(k, v)| Setting { key: k, value: v }).collect())
 }

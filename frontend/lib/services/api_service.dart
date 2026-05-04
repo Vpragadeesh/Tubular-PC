@@ -410,4 +410,59 @@ class ApiService {
       return [];
     }
   }
+
+  Future<String?> getSetting(String key) async {
+    try {
+      final response = await _dio.get('/settings/$key');
+
+      if (response.data['success'] == true) {
+        return response.data['data']['value'];
+      } else {
+        _logger.i('Setting "$key" not found');
+        return null;
+      }
+    } catch (e) {
+      _logger.w('Get setting error: $e');
+      return null;
+    }
+  }
+
+  Future<void> setSetting(String key, String value) async {
+    try {
+      final response = await _dio.post(
+        '/settings',
+        data: {
+          'key': key,
+          'value': value,
+        },
+      );
+
+      if (response.data['success'] != true) {
+        throw Exception(response.data['error'] ?? 'Failed to save setting');
+      }
+    } catch (e) {
+      _logger.w('Set setting error: $e');
+      throw Exception('Failed to save setting: $e');
+    }
+  }
+
+  Future<Map<String, String>> getAllSettings() async {
+    try {
+      final response = await _dio.get('/settings');
+
+      if (response.data['success'] == true) {
+        final List<dynamic> settings = response.data['data'];
+        final map = <String, String>{};
+        for (var setting in settings) {
+          map[setting['key']] = setting['value'];
+        }
+        return map;
+      } else {
+        throw Exception(response.data['error'] ?? 'Failed to get settings');
+      }
+    } catch (e) {
+      _logger.w('Get all settings error: $e');
+      return {};
+    }
+  }
 }

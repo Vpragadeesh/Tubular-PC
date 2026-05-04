@@ -297,3 +297,46 @@ pub async fn get_dislike_count(Path(id): Path<String>) -> impl IntoResponse {
         ),
     }
 }
+
+#[derive(Debug, Deserialize)]
+pub struct SetSettingRequest {
+    key: String,
+    value: String,
+}
+
+pub async fn set_setting(Json(req): Json<SetSettingRequest>) -> impl IntoResponse {
+    match db::set_setting(&req.key, &req.value).await {
+        Ok(_) => (StatusCode::OK, Json(ApiResponse::success("Setting saved".to_string()))),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiResponse::<String>::error(e.to_string())),
+        ),
+    }
+}
+
+pub async fn get_setting(Path(key): Path<String>) -> impl IntoResponse {
+    match db::get_setting(&key).await {
+        Ok(Some(value)) => (
+            StatusCode::OK,
+            Json(ApiResponse::success(serde_json::json!({ "value": value }))),
+        ),
+        Ok(None) => (
+            StatusCode::NOT_FOUND,
+            Json(ApiResponse::<serde_json::Value>::error("Setting not found".to_string())),
+        ),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiResponse::<serde_json::Value>::error(e.to_string())),
+        ),
+    }
+}
+
+pub async fn get_all_settings() -> impl IntoResponse {
+    match db::get_all_settings().await {
+        Ok(settings) => (StatusCode::OK, Json(ApiResponse::success(settings))),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiResponse::<Vec<db::Setting>>::error(e.to_string())),
+        ),
+    }
+}

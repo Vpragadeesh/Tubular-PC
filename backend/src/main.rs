@@ -49,6 +49,9 @@ async fn main() -> anyhow::Result<()> {
         .route("/history/clear", post(api::clear_history))
         .route("/sponsorblock/:id", get(api::get_sponsorblock_segments))
         .route("/dislikes/:id", get(api::get_dislike_count))
+        .route("/settings", get(api::get_all_settings))
+        .route("/settings", post(api::set_setting))
+        .route("/settings/:key", get(api::get_setting))
         .layer(CorsLayer::permissive())
         .with_state(player);
 
