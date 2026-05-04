@@ -181,7 +181,6 @@ pub async fn clear_history() -> Result<()> {
 }
 
 // Download operations
-#[allow(dead_code)]
 pub async fn add_download(video_id: &str, title: &str, file_path: &str, quality: &str) -> Result<()> {
     let pool = get_pool();
     let now = chrono::Utc::now().to_rfc3339();
@@ -200,7 +199,6 @@ pub async fn add_download(video_id: &str, title: &str, file_path: &str, quality:
     Ok(())
 }
 
-#[allow(dead_code)]
 pub async fn get_downloads() -> Result<Vec<Download>> {
     let pool = get_pool();
     let downloads = sqlx::query_as::<_, Download>("SELECT * FROM downloads ORDER BY downloaded_at DESC")

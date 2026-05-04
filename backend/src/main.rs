@@ -39,6 +39,7 @@ async fn main() -> anyhow::Result<()> {
         )
         .route("/player/stop", post(api::player_stop))
         .route("/download", post(api::download_video))
+        .route("/downloads", get(api::get_downloads))
         .route("/subscriptions", get(api::get_subscriptions))
         .route("/subscriptions", post(api::add_subscription))
         .route("/subscriptions/remove", post(api::remove_subscription))

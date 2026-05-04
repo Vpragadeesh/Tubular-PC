@@ -4,6 +4,7 @@ import 'package:logger/logger.dart';
 import '../models/video.dart';
 import '../models/subscription.dart';
 import '../models/history_entry.dart';
+import '../models/download.dart';
 
 final apiServiceProvider = Provider<ApiService>((ref) => ApiService());
 
@@ -373,6 +374,40 @@ class ApiService {
     } catch (e) {
       _logger.w('Clear history error: $e');
       throw Exception('Failed to clear history: $e');
+    }
+  }
+
+  Future<List<Download>> getDownloads() async {
+    try {
+      final response = await _dio.get('/downloads');
+
+      if (response.data['success'] == true) {
+        final List<dynamic> data = response.data['data'];
+        // Convert backend Download objects to frontend Download objects
+        // For now, we'll map them as completed downloads
+        return data.map((json) {
+          final backendDownload = json as Map<String, dynamic>;
+          return Download(
+            id: backendDownload['id'].toString(),
+            videoId: backendDownload['video_id'] ?? '',
+            title: backendDownload['title'] ?? '',
+            filePath: backendDownload['file_path'] ?? '',
+            fileSize: 0, // Backend doesn't track this yet
+            format: 'video', // Default format
+            quality: backendDownload['quality'] ?? 'unknown',
+            status: 'completed',
+            progress: 100.0,
+            createdAt: DateTime.parse(backendDownload['downloaded_at']),
+            completedAt: DateTime.parse(backendDownload['downloaded_at']),
+          );
+        }).toList();
+      } else {
+        throw Exception(response.data['error'] ?? 'Failed to get downloads');
+      }
+    } catch (e) {
+      _logger.w('Get downloads error: $e');
+      // Return empty list for development
+      return [];
     }
   }
 }

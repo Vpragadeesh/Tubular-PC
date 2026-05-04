@@ -173,6 +173,16 @@ pub async fn download_video(Json(req): Json<DownloadRequest>) -> impl IntoRespon
     }
 }
 
+pub async fn get_downloads() -> impl IntoResponse {
+    match db::get_downloads().await {
+        Ok(downloads) => (StatusCode::OK, Json(ApiResponse::success(downloads))),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiResponse::<Vec<db::Download>>::error(e.to_string())),
+        ),
+    }
+}
+
 pub async fn get_subscriptions() -> impl IntoResponse {
     match db::get_subscriptions().await {
         Ok(subs) => (StatusCode::OK, Json(ApiResponse::success(subs))),

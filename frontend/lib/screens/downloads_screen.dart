@@ -12,9 +12,8 @@ final downloadsProvider = FutureProvider<List<Download>>((ref) async {
   final apiService = ref.watch(apiServiceProvider);
   final sort = ref.watch(downloadsSortProvider);
   
-  // TODO: Fetch from backend API
-  // For now, return mock data
-  List<Download> downloads = [];
+  // Fetch downloads from backend API
+  List<Download> downloads = await apiService.getDownloads();
   
   // Apply sorting
   switch (sort) {
