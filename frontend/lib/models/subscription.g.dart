@@ -7,16 +7,18 @@ part of 'subscription.dart';
 // **************************************************************************
 
 Subscription _$SubscriptionFromJson(Map<String, dynamic> json) => Subscription(
-      id: json['id'] as String,
-      channelId: json['channelId'] as String,
-      channelName: json['channelName'] as String,
-      thumbnail: json['thumbnail'] as String,
-    );
+  id: (json['id'] as num).toInt(),
+  channelId: json['channel_id'] as String,
+  channelName: json['channel_name'] as String,
+  channelThumbnail: json['channel_thumbnail'] as String,
+  subscribedAt: json['subscribed_at'] as String,
+);
 
 Map<String, dynamic> _$SubscriptionToJson(Subscription instance) =>
     <String, dynamic>{
       'id': instance.id,
-      'channelId': instance.channelId,
-      'channelName': instance.channelName,
-      'thumbnail': instance.thumbnail,
+      'channel_id': instance.channelId,
+      'channel_name': instance.channelName,
+      'channel_thumbnail': instance.channelThumbnail,
+      'subscribed_at': instance.subscribedAt,
     };

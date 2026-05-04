@@ -10,6 +10,8 @@ mod api;
 mod db;
 mod player;
 mod yt_dlp;
+mod sponsorblock;
+mod returnyoutubedislike;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -18,6 +20,7 @@ async fn main() -> anyhow::Result<()> {
 
     // Initialize database
     db::init_db().await?;
+    let player = player::PlayerHandle::new();
 
     // Build router
     let app = Router::new()
@@ -25,17 +28,30 @@ async fn main() -> anyhow::Result<()> {
         .route("/search", get(api::search))
         .route("/video/:id", get(api::get_video_info))
         .route("/stream/:id", get(api::get_stream_url))
+        .route("/player", get(api::get_player_state))
+        .route("/player/play", post(api::player_play))
+        .route("/player/pause", post(api::player_pause))
+        .route("/player/resume", post(api::player_resume))
+        .route("/player/seek", post(api::player_seek))
+        .route(
+            "/player/background-audio",
+            post(api::player_background_audio),
+        )
+        .route("/player/stop", post(api::player_stop))
         .route("/download", post(api::download_video))
         .route("/subscriptions", get(api::get_subscriptions))
         .route("/subscriptions", post(api::add_subscription))
         .route("/history", get(api::get_history))
         .route("/history", post(api::add_to_history))
-        .layer(CorsLayer::permissive());
+        .route("/sponsorblock/:id", get(api::get_sponsorblock_segments))
+        .route("/dislikes/:id", get(api::get_dislike_count))
+        .layer(CorsLayer::permissive())
+        .with_state(player);
 
     // Start server
     let addr = SocketAddr::from(([127, 0, 0, 1], 3030));
     tracing::info!("Listening on {}", addr);
-    
+
     let listener = tokio::net::TcpListener::bind(addr).await?;
     axum::serve(listener, app).await?;
 

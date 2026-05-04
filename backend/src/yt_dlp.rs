@@ -33,13 +33,104 @@ pub struct StreamUrl {
     pub quality: String,
 }
 
-/// Search for videos using yt-dlp
+/// Search for videos using yt-dlp (supports both video search and channel search)
 pub async fn search_videos(query: &str, limit: u32) -> Result<Vec<SearchResult>> {
+    // Strategy 1: Try direct channel URL if it looks like a URL
+    if query.starts_with("http") || query.starts_with("www.") || query.contains("youtube.com") || query.contains("youtu.be") {
+        if let Ok(channel_results) = search_from_url(query, limit).await {
+            if !channel_results.is_empty() {
+                return Ok(channel_results);
+            }
+        }
+    }
+    
+    // Strategy 2: Try regular video search
+    let mut results = search_videos_internal(query, limit).await?;
+    
+    // Strategy 3: If we got very few results, also try channel search
+    if results.len() < 5 {
+        if let Ok(channel_results) = search_channel_videos(query, limit).await {
+            for channel_result in channel_results {
+                if !results.iter().any(|r| r.id == channel_result.id) {
+                    results.push(channel_result);
+                }
+            }
+        }
+    }
+    
+    // Strategy 4: If still no results, try broader search
+    if results.is_empty() {
+        if let Ok(broad_results) = search_videos_broad(query, limit).await {
+            results = broad_results;
+        }
+    }
+    
+    Ok(results)
+}
+
+/// Search from a direct URL (channel, playlist, or video)
+async fn search_from_url(url: &str, limit: u32) -> Result<Vec<SearchResult>> {
     let output = Command::new("yt-dlp")
-        .arg(format!("ytsearch{}:{}", limit, query))
+        .arg(url)
+        .arg("--flat-playlist")
+        .arg("--dump-json")
+        .arg("--playlist-end")
+        .arg(limit.to_string())
+        .arg("--no-warnings")
+        .arg("--quiet")
+        .arg("--socket-timeout")
+        .arg("20")
+        .output()
+        .context("Failed to execute yt-dlp for URL")?;
+
+    if !output.status.success() {
+        return Ok(Vec::new());
+    }
+
+    parse_search_results(&output.stdout)
+}
+
+/// Broader search with more results
+async fn search_videos_broad(query: &str, limit: u32) -> Result<Vec<SearchResult>> {
+    let search_query = format!("ytsearch{}:{}", limit * 3, query);
+    
+    let output = Command::new("yt-dlp")
+        .arg(&search_query)
         .arg("--dump-json")
         .arg("--no-playlist")
         .arg("--skip-download")
+        .arg("--no-warnings")
+        .arg("--quiet")
+        .arg("--socket-timeout")
+        .arg("20")
+        .output()
+        .context("Failed to execute yt-dlp")?;
+
+    if !output.status.success() {
+        return Ok(Vec::new());
+    }
+
+    let mut results = parse_search_results(&output.stdout)?;
+    results.truncate(limit as usize);
+    Ok(results)
+}
+
+/// Internal video search
+async fn search_videos_internal(query: &str, limit: u32) -> Result<Vec<SearchResult>> {
+    let search_query = format!("ytsearch{}:{}", limit, query);
+    
+    let output = Command::new("yt-dlp")
+        .arg(&search_query)
+        .arg("--dump-json")
+        .arg("--no-playlist")
+        .arg("--skip-download")
+        .arg("--no-warnings")
+        .arg("--quiet")
+        .arg("--no-call-home")
+        .arg("--socket-timeout")
+        .arg("20")
+        .arg("--extractor-retries")
+        .arg("3")
         .output()
         .context("Failed to execute yt-dlp")?;
 
@@ -48,7 +139,51 @@ pub async fn search_videos(query: &str, limit: u32) -> Result<Vec<SearchResult>>
         anyhow::bail!("yt-dlp search failed: {}", error);
     }
 
-    let stdout = String::from_utf8_lossy(&output.stdout);
+    parse_search_results(&output.stdout)
+}
+
+/// Search for videos from a specific channel
+async fn search_channel_videos(channel_name: &str, limit: u32) -> Result<Vec<SearchResult>> {
+    // Try multiple search strategies for channels
+    
+    // Strategy 1: Search for channel directly
+    let channel_search = format!("ytsearch{}:{} channel videos", limit, channel_name);
+    
+    let output = Command::new("yt-dlp")
+        .arg(&channel_search)
+        .arg("--dump-json")
+        .arg("--no-playlist")
+        .arg("--skip-download")
+        .arg("--no-warnings")
+        .arg("--quiet")
+        .arg("--socket-timeout")
+        .arg("20")
+        .output()
+        .context("Failed to execute yt-dlp for channel search")?;
+
+    if !output.status.success() {
+        return Ok(Vec::new());
+    }
+
+    let mut results = parse_search_results(&output.stdout)?;
+    
+    // Filter to only include videos from channels matching the query
+    let query_lower = channel_name.to_lowercase();
+    results.retain(|r| {
+        let channel_lower = r.channel.to_lowercase();
+        // Match if channel name contains query or query contains channel name
+        channel_lower.contains(&query_lower) || query_lower.contains(&channel_lower)
+    });
+    
+    // Limit results
+    results.truncate(limit as usize);
+    
+    Ok(results)
+}
+
+/// Parse yt-dlp JSON output into SearchResult vector
+fn parse_search_results(stdout: &[u8]) -> Result<Vec<SearchResult>> {
+    let stdout = String::from_utf8_lossy(stdout);
     let mut results = Vec::new();
 
     for line in stdout.lines() {
@@ -56,16 +191,27 @@ pub async fn search_videos(query: &str, limit: u32) -> Result<Vec<SearchResult>>
             continue;
         }
         
-        let json: serde_json::Value = serde_json::from_str(line)?;
-        
-        results.push(SearchResult {
-            id: json["id"].as_str().unwrap_or("").to_string(),
-            title: json["title"].as_str().unwrap_or("Unknown").to_string(),
-            channel: json["uploader"].as_str().unwrap_or("Unknown").to_string(),
-            duration: json["duration"].as_u64(),
-            view_count: json["view_count"].as_u64(),
-            thumbnail: json["thumbnail"].as_str().unwrap_or("").to_string(),
-        });
+        if let Ok(json) = serde_json::from_str::<serde_json::Value>(line) {
+            results.push(SearchResult {
+                id: json["id"].as_str().unwrap_or("").to_string(),
+                title: json["title"].as_str().unwrap_or("Unknown").to_string(),
+                channel: json["uploader"]
+                    .as_str()
+                    .or(json["channel"].as_str())
+                    .or(json["uploader_id"].as_str())
+                    .unwrap_or("Unknown")
+                    .to_string(),
+                duration: json["duration"].as_u64(),
+                view_count: json["view_count"].as_u64(),
+                thumbnail: json["thumbnail"]
+                    .as_str()
+                    .or(json["thumbnails"].as_array().and_then(|arr| {
+                        arr.last().and_then(|t| t["url"].as_str())
+                    }))
+                    .unwrap_or("")
+                    .to_string(),
+            });
+        }
     }
 
     Ok(results)
@@ -80,6 +226,10 @@ pub async fn get_video_info(video_id: &str) -> Result<VideoInfo> {
         .arg("--dump-json")
         .arg("--no-playlist")
         .arg("--skip-download")
+        .arg("--no-warnings")
+        .arg("--quiet")
+        .arg("--socket-timeout")
+        .arg("10")
         .output()
         .context("Failed to execute yt-dlp")?;
 
@@ -98,8 +248,8 @@ pub async fn get_video_info(video_id: &str) -> Result<VideoInfo> {
         duration: json["duration"].as_u64(),
         view_count: json["view_count"].as_u64(),
         like_count: json["like_count"].as_u64(),
-        channel: json["uploader"].as_str().unwrap_or("Unknown").to_string(),
-        channel_id: json["uploader_id"].as_str().unwrap_or("").to_string(),
+        channel: json["uploader"].as_str().or(json["channel"].as_str()).unwrap_or("Unknown").to_string(),
+        channel_id: json["uploader_id"].as_str().or(json["channel_id"].as_str()).unwrap_or("").to_string(),
         thumbnail: json["thumbnail"].as_str().unwrap_or("").to_string(),
         upload_date: json["upload_date"].as_str().map(|s| s.to_string()),
     })
@@ -122,6 +272,10 @@ pub async fn get_stream_url(video_id: &str, quality: &str) -> Result<StreamUrl> 
         .arg("-f")
         .arg(format)
         .arg("-g")
+        .arg("--no-warnings")
+        .arg("--quiet")
+        .arg("--socket-timeout")
+        .arg("10")
         .output()
         .context("Failed to execute yt-dlp")?;
 

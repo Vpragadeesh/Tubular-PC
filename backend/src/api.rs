@@ -1,11 +1,11 @@
 use axum::{
-    extract::{Path, Query},
+    extract::{Path, Query, State},
     http::StatusCode,
     response::{IntoResponse, Json},
 };
 use serde::{Deserialize, Serialize};
 
-use crate::{db, yt_dlp};
+use crate::{db, player, yt_dlp, sponsorblock, returnyoutubedislike};
 
 #[derive(Debug, Deserialize)]
 pub struct SearchQuery {
@@ -86,6 +86,75 @@ pub async fn get_stream_url(
     }
 }
 
+pub async fn get_player_state(State(player): State<player::PlayerHandle>) -> impl IntoResponse {
+    let state = player.snapshot().await;
+    (StatusCode::OK, Json(ApiResponse::success(state)))
+}
+
+pub async fn player_play(
+    State(player): State<player::PlayerHandle>,
+    Json(req): Json<player::PlayRequest>,
+) -> impl IntoResponse {
+    match player.play(req).await {
+        Ok(state) => (StatusCode::OK, Json(ApiResponse::success(state))),
+        Err(e) => (
+            StatusCode::BAD_REQUEST,
+            Json(ApiResponse::<player::PlayerState>::error(e.to_string())),
+        ),
+    }
+}
+
+pub async fn player_pause(State(player): State<player::PlayerHandle>) -> impl IntoResponse {
+    match player.pause().await {
+        Ok(state) => (StatusCode::OK, Json(ApiResponse::success(state))),
+        Err(e) => (
+            StatusCode::BAD_REQUEST,
+            Json(ApiResponse::<player::PlayerState>::error(e.to_string())),
+        ),
+    }
+}
+
+pub async fn player_resume(State(player): State<player::PlayerHandle>) -> impl IntoResponse {
+    match player.resume().await {
+        Ok(state) => (StatusCode::OK, Json(ApiResponse::success(state))),
+        Err(e) => (
+            StatusCode::BAD_REQUEST,
+            Json(ApiResponse::<player::PlayerState>::error(e.to_string())),
+        ),
+    }
+}
+
+pub async fn player_seek(
+    State(player): State<player::PlayerHandle>,
+    Json(req): Json<player::SeekRequest>,
+) -> impl IntoResponse {
+    match player.seek(req).await {
+        Ok(state) => (StatusCode::OK, Json(ApiResponse::success(state))),
+        Err(e) => (
+            StatusCode::BAD_REQUEST,
+            Json(ApiResponse::<player::PlayerState>::error(e.to_string())),
+        ),
+    }
+}
+
+pub async fn player_background_audio(
+    State(player): State<player::PlayerHandle>,
+    Json(req): Json<player::BackgroundAudioRequest>,
+) -> impl IntoResponse {
+    match player.set_background_audio(req).await {
+        Ok(state) => (StatusCode::OK, Json(ApiResponse::success(state))),
+        Err(e) => (
+            StatusCode::BAD_REQUEST,
+            Json(ApiResponse::<player::PlayerState>::error(e.to_string())),
+        ),
+    }
+}
+
+pub async fn player_stop(State(player): State<player::PlayerHandle>) -> impl IntoResponse {
+    let state = player.stop().await;
+    (StatusCode::OK, Json(ApiResponse::success(state)))
+}
+
 #[derive(Debug, Deserialize)]
 pub struct DownloadRequest {
     video_id: String,
@@ -155,6 +224,26 @@ pub async fn add_to_history(Json(req): Json<AddHistoryRequest>) -> impl IntoResp
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(ApiResponse::<String>::error(e.to_string())),
+        ),
+    }
+}
+
+pub async fn get_sponsorblock_segments(Path(id): Path<String>) -> impl IntoResponse {
+    match sponsorblock::get_segments(&id).await {
+        Ok(segments) => (StatusCode::OK, Json(ApiResponse::success(segments))),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiResponse::<Vec<sponsorblock::Segment>>::error(e.to_string())),
+        ),
+    }
+}
+
+pub async fn get_dislike_count(Path(id): Path<String>) -> impl IntoResponse {
+    match returnyoutubedislike::get_dislikes(&id).await {
+        Ok(data) => (StatusCode::OK, Json(ApiResponse::success(data))),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiResponse::<returnyoutubedislike::DislikeData>::error(e.to_string())),
         ),
     }
 }

@@ -6,14 +6,32 @@ part 'video.g.dart';
 class Video {
   final String id;
   final String title;
+
+  @JsonKey(name: 'channel', defaultValue: 'Unknown')
   final String channelName;
+
+  @JsonKey(name: 'channel_id', defaultValue: '')
   final String channelId;
+
+  @JsonKey(defaultValue: '')
   final String thumbnail;
+
+  @JsonKey(fromJson: _durationFromJson, toJson: _durationToJson)
   final Duration duration;
+
+  @JsonKey(name: 'view_count', defaultValue: 0)
   final int views;
+
+  @JsonKey(name: 'upload_date', fromJson: _dateFromJson, toJson: _dateToJson)
   final DateTime uploadDate;
+
+  @JsonKey(defaultValue: '')
   final String description;
+
+  @JsonKey(name: 'like_count', defaultValue: 0)
   final int likes;
+
+  @JsonKey(defaultValue: 0)
   final int dislikes;
 
   Video({
@@ -32,6 +50,43 @@ class Video {
 
   factory Video.fromJson(Map<String, dynamic> json) => _$VideoFromJson(json);
   Map<String, dynamic> toJson() => _$VideoToJson(this);
+
+  static Duration _durationFromJson(Object? value) {
+    if (value == null) {
+      return Duration.zero;
+    }
+
+    if (value is num) {
+      return Duration(seconds: value.toInt());
+    }
+
+    return Duration(seconds: int.tryParse(value.toString()) ?? 0);
+  }
+
+  static int _durationToJson(Duration duration) => duration.inSeconds;
+
+  static DateTime _dateFromJson(Object? value) {
+    if (value == null) {
+      return DateTime.now();
+    }
+
+    final rawValue = value.toString();
+    if (rawValue.isEmpty) {
+      return DateTime.now();
+    }
+
+    if (RegExp(r'^\d{8}$').hasMatch(rawValue)) {
+      final year = int.parse(rawValue.substring(0, 4));
+      final month = int.parse(rawValue.substring(4, 6));
+      final day = int.parse(rawValue.substring(6, 8));
+      return DateTime(year, month, day);
+    }
+
+    return DateTime.tryParse(rawValue) ?? DateTime.now();
+  }
+
+  static String _dateToJson(DateTime uploadDate) =>
+      uploadDate.toIso8601String();
 
   String get formattedViews {
     if (views >= 1000000) {

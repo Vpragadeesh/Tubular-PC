@@ -1,16 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../models/video.dart';
+import '../models/dislike.dart';
 
 class VideoCard extends StatelessWidget {
   final Video video;
   final VoidCallback onTap;
+  final DislikeData? dislikeData;
 
   const VideoCard({
-    Key? key,
     required this.video,
     required this.onTap,
-  }) : super(key: key);
+    this.dislikeData,
+    super.key,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -33,9 +36,7 @@ class VideoCard extends StatelessWidget {
                     fit: BoxFit.cover,
                     placeholder: (context, url) => Container(
                       color: Colors.grey[800],
-                      child: const Center(
-                        child: CircularProgressIndicator(),
-                      ),
+                      child: const Center(child: CircularProgressIndicator()),
                     ),
                     errorWidget: (context, url, error) => Container(
                       color: Colors.grey[800],
@@ -43,7 +44,7 @@ class VideoCard extends StatelessWidget {
                     ),
                   ),
                   // Duration badge
-                  if (video.duration != null)
+                  if (video.duration > Duration.zero)
                     Positioned(
                       bottom: 8,
                       right: 8,
@@ -86,23 +87,42 @@ class VideoCard extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 6),
-                   Text(
-                     video.channelName,
-                     maxLines: 1,
-                     overflow: TextOverflow.ellipsis,
-                     style: TextStyle(
-                       fontSize: 12,
-                       color: Colors.grey[600],
-                     ),
-                   ),
+                  Text(
+                    video.channelName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                  ),
                    const SizedBox(height: 2),
                    Text(
                      '${video.formattedViews} views • ${video.uploadedAgo}',
-                     style: TextStyle(
-                       fontSize: 12,
-                       color: Colors.grey[600],
-                     ),
+                     style: TextStyle(fontSize: 12, color: Colors.grey[600]),
                    ),
+                   if (dislikeData != null) ...[
+                     const SizedBox(height: 6),
+                     Row(
+                       children: [
+                         Icon(Icons.thumb_up, size: 14, color: Colors.green[600]),
+                         const SizedBox(width: 4),
+                         Text(
+                           dislikeData!.formattedLikes,
+                           style: TextStyle(fontSize: 11, color: Colors.green[600]),
+                         ),
+                         const SizedBox(width: 12),
+                         Icon(Icons.thumb_down, size: 14, color: Colors.red[600]),
+                         const SizedBox(width: 4),
+                         Text(
+                           dislikeData!.formattedDislikes,
+                           style: TextStyle(fontSize: 11, color: Colors.red[600]),
+                         ),
+                         const SizedBox(width: 12),
+                         Text(
+                           '${(dislikeData!.likePercentage).toStringAsFixed(1)}% likes',
+                           style: TextStyle(fontSize: 11, color: Colors.grey[600]),
+                         ),
+                       ],
+                     ),
+                   ],
                 ],
               ),
             ),

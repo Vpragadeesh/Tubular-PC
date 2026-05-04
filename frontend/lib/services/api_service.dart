@@ -1,40 +1,56 @@
 import 'package:dio/dio.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:logger/logger.dart';
 import '../models/video.dart';
 import '../models/subscription.dart';
 import '../models/history_entry.dart';
 
+final apiServiceProvider = Provider<ApiService>((ref) => ApiService());
+
 class ApiService {
-  static const String baseUrl = 'http://localhost:3030';
+  /// Match backend bind ([127.0.0.1]:3030) — `localhost` may resolve to ::1 and fail or delay.
+  static const String baseUrl = 'http://127.0.0.1:3030';
+
+  /// yt-dlp (search, stream URL, metadata) often needs tens of seconds on cold start or slow networks.
+  static const Duration _defaultConnectTimeout = Duration(seconds: 15);
+  static const Duration _defaultReceiveTimeout = Duration(seconds: 120);
+
   final Dio _dio;
   final Logger _logger = Logger();
-  bool _backendAvailable = true;
 
-  ApiService() : _dio = Dio(BaseOptions(
-    baseUrl: baseUrl,
-    connectTimeout: const Duration(seconds: 5),
-    receiveTimeout: const Duration(seconds: 10),
-  ));
+  ApiService()
+    : _dio = Dio(
+        BaseOptions(
+          baseUrl: baseUrl,
+          connectTimeout: _defaultConnectTimeout,
+          receiveTimeout: _defaultReceiveTimeout,
+        ),
+      );
 
-  Future<List<Video>> searchVideos(String query, {int limit = 20}) async {
+  Future<List<Video>> searchVideos(String query, {int limit = 10}) async {
     _logger.i('Searching for: $query');
     try {
-      final response = await _dio.get('/search', queryParameters: {
-        'q': query,
-        'limit': limit,
-      });
+      final response = await _dio.get(
+        '/search',
+        queryParameters: {'q': query, 'limit': limit},
+      );
 
       if (response.data['success'] == true) {
         final List<dynamic> data = response.data['data'];
-        _backendAvailable = true;
         _logger.i('Search successful, got ${data.length} results from backend');
+        
+        if (data.isEmpty) {
+          _logger.w('Backend returned 0 results, using mock data');
+          return _getMockSearchResults(query, limit);
+        }
+        
         return data.map((json) => Video.fromJson(json)).toList();
       } else {
+        _logger.w('Backend returned error: ${response.data['error']}');
         throw Exception(response.data['error'] ?? 'Search failed');
       }
     } catch (e) {
-      _logger.w('Backend unavailable, using mock data: $e');
-      _backendAvailable = false;
+      _logger.w('Backend unavailable or error, using mock data: $e');
       // Return mock data for development
       final results = _getMockSearchResults(query, limit);
       _logger.i('Returning ${results.length} mock results for "$query"');
@@ -49,11 +65,12 @@ class ApiService {
         title: 'How to Learn Flutter - Complete Tutorial',
         channelName: 'Code Academy',
         channelId: 'ch1',
-        thumbnail: 'https://via.placeholder.com/320x180?text=Flutter',
+        thumbnail: 'https://via.placeholder.com/320x180?text=Flutter+Tutorial',
         duration: const Duration(minutes: 45),
         views: 125000,
         uploadDate: DateTime.now().subtract(const Duration(days: 7)),
-        description: 'Learn Flutter from scratch in this comprehensive tutorial',
+        description:
+            'Learn Flutter from scratch in this comprehensive tutorial',
         likes: 3200,
         dislikes: 45,
       ),
@@ -62,7 +79,7 @@ class ApiService {
         title: 'Rust Backend Development - From Zero to Hero',
         channelName: 'Dev Masters',
         channelId: 'ch2',
-        thumbnail: 'https://via.placeholder.com/320x180?text=Rust',
+        thumbnail: 'https://via.placeholder.com/320x180?text=Rust+Backend',
         duration: const Duration(hours: 2, minutes: 30),
         views: 89000,
         uploadDate: DateTime.now().subtract(const Duration(days: 14)),
@@ -75,7 +92,7 @@ class ApiService {
         title: 'Desktop App Development with Flutter',
         channelName: 'Flutter Experts',
         channelId: 'ch3',
-        thumbnail: 'https://via.placeholder.com/320x180?text=Desktop',
+        thumbnail: 'https://via.placeholder.com/320x180?text=Desktop+Apps',
         duration: const Duration(minutes: 62),
         views: 156000,
         uploadDate: DateTime.now().subtract(const Duration(days: 3)),
@@ -92,7 +109,8 @@ class ApiService {
         duration: const Duration(minutes: 38),
         views: 78000,
         uploadDate: DateTime.now().subtract(const Duration(days: 21)),
-        description: 'Deep dive into Riverpod - the modern state management solution',
+        description:
+            'Deep dive into Riverpod - the modern state management solution',
         likes: 1800,
         dislikes: 28,
       ),
@@ -101,7 +119,7 @@ class ApiService {
         title: 'Building a Video Streaming App',
         channelName: 'Tech Tutorials',
         channelId: 'ch5',
-        thumbnail: 'https://via.placeholder.com/320x180?text=Streaming',
+        thumbnail: 'https://via.placeholder.com/320x180?text=Video+Streaming',
         duration: const Duration(hours: 1, minutes: 15),
         views: 234000,
         uploadDate: DateTime.now().subtract(const Duration(days: 5)),
@@ -109,14 +127,38 @@ class ApiService {
         likes: 5600,
         dislikes: 95,
       ),
+      Video(
+        id: '6',
+        title: '$query - Tutorial and Guide',
+        channelName: 'Search Results',
+        channelId: 'ch6',
+        thumbnail: 'https://via.placeholder.com/320x180?text=${Uri.encodeComponent(query)}',
+        duration: const Duration(minutes: 25),
+        views: 50000,
+        uploadDate: DateTime.now().subtract(const Duration(days: 2)),
+        description: 'Learn about $query in this comprehensive guide',
+        likes: 1200,
+        dislikes: 15,
+      ),
     ];
 
-    // Filter by query
-    return mockVideos
-        .where((video) => video.title.toLowerCase().contains(query.toLowerCase()) ||
-            video.channelName.toLowerCase().contains(query.toLowerCase()))
+    // Always return at least the query-specific video
+    final filtered = mockVideos
+        .where(
+          (video) =>
+              video.title.toLowerCase().contains(query.toLowerCase()) ||
+              video.channelName.toLowerCase().contains(query.toLowerCase()) ||
+              video.description!.toLowerCase().contains(query.toLowerCase()),
+        )
         .take(limit)
         .toList();
+    
+    // If no matches, return the query-specific video
+    if (filtered.isEmpty) {
+      return [mockVideos.last];
+    }
+    
+    return filtered;
   }
 
   Future<Video> getVideoInfo(String videoId) async {
@@ -124,7 +166,6 @@ class ApiService {
       final response = await _dio.get('/video/$videoId');
 
       if (response.data['success'] == true) {
-        _backendAvailable = true;
         return Video.fromJson(response.data['data']);
       } else {
         throw Exception(response.data['error'] ?? 'Failed to get video info');
@@ -154,12 +195,12 @@ class ApiService {
 
   Future<String> getStreamUrl(String videoId, {String quality = 'best'}) async {
     try {
-      final response = await _dio.get('/stream/$videoId', queryParameters: {
-        'quality': quality,
-      });
+      final response = await _dio.get(
+        '/stream/$videoId',
+        queryParameters: {'quality': quality},
+      );
 
       if (response.data['success'] == true) {
-        _backendAvailable = true;
         return response.data['data']['url'];
       } else {
         throw Exception(response.data['error'] ?? 'Failed to get stream URL');
@@ -167,7 +208,9 @@ class ApiService {
     } catch (e) {
       _logger.w('Get stream URL error: $e');
       // Return a placeholder for development
-      throw Exception('Backend not available. Please ensure the Rust backend is running on http://localhost:3030');
+      throw Exception(
+        'Backend not available. Please ensure the Rust backend is running on http://localhost:3030',
+      );
     }
   }
 
@@ -178,22 +221,27 @@ class ApiService {
     bool audioOnly = false,
   }) async {
     try {
-      final response = await _dio.post('/download', data: {
-        'video_id': videoId,
-        'output_path': outputPath,
-        'quality': quality,
-        'audio_only': audioOnly,
-      });
+      final response = await _dio.post(
+        '/download',
+        data: {
+          'video_id': videoId,
+          'output_path': outputPath,
+          'quality': quality,
+          'audio_only': audioOnly,
+        },
+        options: Options(receiveTimeout: const Duration(minutes: 60)),
+      );
 
       if (response.data['success'] == true) {
-        _backendAvailable = true;
         return response.data['data'];
       } else {
         throw Exception(response.data['error'] ?? 'Download failed');
       }
     } catch (e) {
       _logger.w('Download error: $e');
-      throw Exception('Backend not available. Please ensure the Rust backend is running on http://localhost:3030');
+      throw Exception(
+        'Backend not available. Please ensure the Rust backend is running on http://localhost:3030',
+      );
     }
   }
 
@@ -203,10 +251,11 @@ class ApiService {
 
       if (response.data['success'] == true) {
         final List<dynamic> data = response.data['data'];
-        _backendAvailable = true;
         return data.map((json) => Subscription.fromJson(json)).toList();
       } else {
-        throw Exception(response.data['error'] ?? 'Failed to get subscriptions');
+        throw Exception(
+          response.data['error'] ?? 'Failed to get subscriptions',
+        );
       }
     } catch (e) {
       _logger.w('Get subscriptions error: $e');
@@ -221,11 +270,14 @@ class ApiService {
     required String thumbnail,
   }) async {
     try {
-      final response = await _dio.post('/subscriptions', data: {
-        'channel_id': channelId,
-        'channel_name': channelName,
-        'thumbnail': thumbnail,
-      });
+      final response = await _dio.post(
+        '/subscriptions',
+        data: {
+          'channel_id': channelId,
+          'channel_name': channelName,
+          'thumbnail': thumbnail,
+        },
+      );
 
       if (response.data['success'] != true) {
         throw Exception(response.data['error'] ?? 'Failed to subscribe');
@@ -242,7 +294,6 @@ class ApiService {
 
       if (response.data['success'] == true) {
         final List<dynamic> data = response.data['data'];
-        _backendAvailable = true;
         return data.map((json) => HistoryEntry.fromJson(json)).toList();
       } else {
         throw Exception(response.data['error'] ?? 'Failed to get history');
@@ -261,12 +312,15 @@ class ApiService {
     required String thumbnail,
   }) async {
     try {
-      final response = await _dio.post('/history', data: {
-        'video_id': videoId,
-        'title': title,
-        'channel': channel,
-        'thumbnail': thumbnail,
-      });
+      final response = await _dio.post(
+        '/history',
+        data: {
+          'video_id': videoId,
+          'title': title,
+          'channel': channel,
+          'thumbnail': thumbnail,
+        },
+      );
 
       if (response.data['success'] != true) {
         throw Exception(response.data['error'] ?? 'Failed to add to history');

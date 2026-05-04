@@ -4,12 +4,14 @@ part 'history_entry.g.dart';
 
 @JsonSerializable()
 class HistoryEntry {
-  final String id;
+  final int id;
+  @JsonKey(name: 'video_id')
   final String videoId;
   final String title;
   final String channel;
   final String thumbnail;
-  final DateTime watchedAt;
+  @JsonKey(name: 'watched_at')
+  final String watchedAt;
   final double? progress;
 
   HistoryEntry({
@@ -22,6 +24,7 @@ class HistoryEntry {
     this.progress,
   });
 
-  factory HistoryEntry.fromJson(Map<String, dynamic> json) => _$HistoryEntryFromJson(json);
+  factory HistoryEntry.fromJson(Map<String, dynamic> json) =>
+      _$HistoryEntryFromJson(json);
   Map<String, dynamic> toJson() => _$HistoryEntryToJson(this);
 }

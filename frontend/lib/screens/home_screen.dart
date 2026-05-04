@@ -1,27 +1,27 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
+import '../controllers/player_controller.dart';
 import '../models/video.dart';
 import '../services/api_service.dart';
 import '../widgets/video_card.dart';
-import 'player_screen.dart';
-
-final apiServiceProvider = Provider((ref) => ApiService());
 
 final searchQueryProvider = StateProvider<String>((ref) => '');
 
-final searchResultsProvider = FutureProvider.autoDispose<List<Video>>((ref) async {
+final searchResultsProvider = FutureProvider.autoDispose<List<Video>>((
+  ref,
+) async {
   final query = ref.watch(searchQueryProvider);
   if (query.isEmpty) {
     return [];
   }
-  
+
   final apiService = ref.watch(apiServiceProvider);
   return await apiService.searchVideos(query);
 });
 
 class HomeScreen extends ConsumerStatefulWidget {
-  const HomeScreen({Key? key}) : super(key: key);
+  const HomeScreen({super.key});
 
   @override
   ConsumerState<HomeScreen> createState() => _HomeScreenState();
@@ -52,12 +52,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   void _openVideo(Video video) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => PlayerScreen(video: video),
-      ),
-    );
+    ref.read(playerControllerProvider.notifier).playVideo(video);
   }
 
   @override
@@ -65,7 +60,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final searchResults = ref.watch(searchResultsProvider);
 
     return Scaffold(
-       appBar: AppBar(
+      appBar: AppBar(
         title: const Text('Tubular PC'),
         backgroundColor: Colors.red[700],
         foregroundColor: Colors.white,
@@ -78,21 +73,25 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 Expanded(
                   child: TextField(
                     controller: _searchController,
+                    style: const TextStyle(color: Colors.black),
                     decoration: InputDecoration(
                       hintText: 'Search videos...',
+                      hintStyle: TextStyle(color: Colors.grey[600]),
                       filled: true,
                       fillColor: Colors.white,
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(8),
                         borderSide: BorderSide.none,
                       ),
-                      prefixIcon: const Icon(Icons.search),
+                      prefixIcon: const Icon(Icons.search, color: Colors.grey),
                       suffixIcon: IconButton(
-                        icon: const Icon(Icons.clear),
+                        icon: const Icon(Icons.clear, color: Colors.grey),
                         onPressed: _clearSearch,
                         tooltip: 'Clear',
                       ),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                      ),
                     ),
                     onSubmitted: (_) => _performSearch(),
                   ),
@@ -113,7 +112,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           ),
         ),
       ),
-       body: searchResults.when(
+      body: searchResults.when(
         data: (videos) {
           if (videos.isEmpty && ref.read(searchQueryProvider).isEmpty) {
             // Show featured videos on initial load
@@ -130,14 +129,34 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             itemCount: videos.length,
             itemBuilder: (context, index) {
               final video = videos[index];
-              return VideoCard(
-                video: video,
-                onTap: () => _openVideo(video),
-              );
+              return VideoCard(video: video, onTap: () => _openVideo(video));
             },
           );
         },
-        loading: () => const Center(child: CircularProgressIndicator()),
+        loading: () => Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const CircularProgressIndicator(),
+              const SizedBox(height: 16),
+              Text(
+                'Searching YouTube...',
+                style: TextStyle(
+                  fontSize: 16,
+                  color: Colors.grey[600],
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'This may take 10-30 seconds on first search',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.grey[500],
+                ),
+              ),
+            ],
+          ),
+        ),
         error: (error, stack) => Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -178,26 +197,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               const SizedBox(height: 40),
-              Icon(
-                Icons.play_circle_outline,
-                size: 80,
-                color: Colors.red[400],
-              ),
+              Icon(Icons.play_circle_outline, size: 80, color: Colors.red[400]),
               const SizedBox(height: 24),
               const Text(
                 'Welcome to Tubular PC',
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                ),
+                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 16),
               Text(
                 'Ad-free video streaming with privacy in mind',
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Colors.grey[500],
-                ),
+                style: TextStyle(fontSize: 14, color: Colors.grey[500]),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 40),
@@ -220,31 +229,38 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     Wrap(
                       spacing: 12,
                       runSpacing: 12,
-                      children: ['Flutter', 'Rust', 'Desktop', 'Tutorial', 'Development']
-                          .map(
-                            (tag) => OutlinedButton(
-                              onPressed: () {
-                                _searchController.text = tag;
-                                _performSearch();
-                              },
-                              style: OutlinedButton.styleFrom(
-                                backgroundColor: Colors.grey[850],
-                                side: BorderSide(color: Colors.red[700]!),
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 20,
-                                  vertical: 12,
+                      children:
+                          [
+                                'Flutter',
+                                'Rust',
+                                'Desktop',
+                                'Tutorial',
+                                'Development',
+                              ]
+                              .map(
+                                (tag) => OutlinedButton(
+                                  onPressed: () {
+                                    _searchController.text = tag;
+                                    _performSearch();
+                                  },
+                                  style: OutlinedButton.styleFrom(
+                                    backgroundColor: Colors.grey[850],
+                                    side: BorderSide(color: Colors.red[700]!),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 20,
+                                      vertical: 12,
+                                    ),
+                                  ),
+                                  child: Text(
+                                    tag,
+                                    style: TextStyle(
+                                      color: Colors.red[400],
+                                      fontSize: 14,
+                                    ),
+                                  ),
                                 ),
-                              ),
-                              child: Text(
-                                tag,
-                                style: TextStyle(
-                                  color: Colors.red[400],
-                                  fontSize: 14,
-                                ),
-                              ),
-                            ),
-                          )
-                          .toList(),
+                              )
+                              .toList(),
                     ),
                   ],
                 ),
@@ -262,11 +278,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(
-            Icons.search_off,
-            size: 64,
-            color: Colors.grey[400],
-          ),
+          Icon(Icons.search_off, size: 64, color: Colors.grey[400]),
           const SizedBox(height: 16),
           Text(
             'No videos found for "${_searchController.text}"',
@@ -279,10 +291,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           const SizedBox(height: 8),
           Text(
             'Try a different search term',
-            style: TextStyle(
-              fontSize: 14,
-              color: Colors.grey[500],
-            ),
+            style: TextStyle(fontSize: 14, color: Colors.grey[500]),
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 24),
@@ -308,9 +317,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   ),
                 )
                 .toList(),
-           ),
-         ],
-       ),
-     );
-   }
+          ),
+        ],
+      ),
+    );
+  }
 }
