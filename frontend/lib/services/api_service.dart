@@ -465,4 +465,151 @@ class ApiService {
       return {};
     }
   }
+
+  Future<int?> createDownload(String videoId, String title, String outputPath, String quality) async {
+    try {
+      final response = await _dio.post(
+        '/downloads/create',
+        data: {
+          'video_id': videoId,
+          'title': title,
+          'output_path': outputPath,
+          'quality': quality,
+          'audio_only': false,
+        },
+      );
+
+      if (response.data['success'] == true) {
+        return response.data['data']['id'] as int;
+      } else {
+        throw Exception(response.data['error'] ?? 'Failed to create download');
+      }
+    } catch (e) {
+      _logger.w('Create download error: $e');
+      throw Exception('Failed to create download: $e');
+    }
+  }
+
+  Future<List<Download>> getActiveDownloads() async {
+    try {
+      final response = await _dio.get('/downloads/active');
+
+      if (response.data['success'] == true) {
+        final List<dynamic> data = response.data['data'];
+        return data.map((json) {
+          final backendDownload = json as Map<String, dynamic>;
+          return Download(
+            id: backendDownload['id'].toString(),
+            videoId: backendDownload['video_id'] ?? '',
+            title: backendDownload['title'] ?? '',
+            filePath: backendDownload['file_path'] ?? '',
+            fileSize: backendDownload['file_size'] ?? 0,
+            format: 'video',
+            quality: backendDownload['quality'] ?? 'unknown',
+            status: backendDownload['status'] ?? 'pending',
+            progress: (backendDownload['progress'] as num?)?.toDouble() ?? 0.0,
+            createdAt: DateTime.parse(backendDownload['created_at']),
+            completedAt: backendDownload['completed_at'] != null ? DateTime.parse(backendDownload['completed_at']) : null,
+          );
+        }).toList();
+      } else {
+        throw Exception(response.data['error'] ?? 'Failed to get active downloads');
+      }
+    } catch (e) {
+      _logger.w('Get active downloads error: $e');
+      return [];
+    }
+  }
+
+  Future<void> updateDownloadProgress(int id, String status, double progress, double speed, int etaSeconds) async {
+    try {
+      final response = await _dio.post(
+        '/downloads/$id/progress',
+        data: {
+          'status': status,
+          'progress': progress,
+          'speed': speed,
+          'eta_seconds': etaSeconds,
+        },
+      );
+
+      if (response.data['success'] != true) {
+        throw Exception(response.data['error'] ?? 'Failed to update download progress');
+      }
+    } catch (e) {
+      _logger.w('Update download progress error: $e');
+      throw Exception('Failed to update download: $e');
+    }
+  }
+
+  Future<void> completeDownload(int id, int fileSize) async {
+    try {
+      final response = await _dio.post(
+        '/downloads/$id/complete',
+        data: {'file_size': fileSize},
+      );
+
+      if (response.data['success'] != true) {
+        throw Exception(response.data['error'] ?? 'Failed to complete download');
+      }
+    } catch (e) {
+      _logger.w('Complete download error: $e');
+      throw Exception('Failed to complete download: $e');
+    }
+  }
+
+  Future<void> failDownload(int id, String errorMessage) async {
+    try {
+      final response = await _dio.post(
+        '/downloads/$id/fail',
+        data: {'error_message': errorMessage},
+      );
+
+      if (response.data['success'] != true) {
+        throw Exception(response.data['error'] ?? 'Failed to mark download as failed');
+      }
+    } catch (e) {
+      _logger.w('Fail download error: $e');
+      throw Exception('Failed to fail download: $e');
+    }
+  }
+
+  Future<void> deleteDownload(int id) async {
+    try {
+      final response = await _dio.delete('/downloads/$id');
+
+      if (response.data['success'] != true) {
+        throw Exception(response.data['error'] ?? 'Failed to delete download');
+      }
+    } catch (e) {
+      _logger.w('Delete download error: $e');
+      throw Exception('Failed to delete download: $e');
+    }
+  }
+
+  /// Subscribe to a channel by ID and thumbnail
+  Future<void> subscribeToChannel({
+    required String channelId,
+    required String channelName,
+    required String thumbnail,
+  }) async {
+    await addSubscription(
+      channelId: channelId,
+      channelName: channelName,
+      thumbnail: thumbnail,
+    );
+  }
+
+  /// Subscribe from a video (useful for quick subscribe from search results)
+  Future<void> subscribeFromVideo({
+    required String channelId,
+    required String channelName,
+    required String thumbnail,
+  }) async {
+    await subscribeToChannel(
+      channelId: channelId,
+      channelName: channelName,
+      thumbnail: thumbnail,
+    );
+  }
 }

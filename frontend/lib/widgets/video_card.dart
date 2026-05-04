@@ -7,11 +7,13 @@ class VideoCard extends StatefulWidget {
   final Video video;
   final VoidCallback onTap;
   final DislikeData? dislikeData;
+  final VoidCallback? onSubscribe;
 
   const VideoCard({
     required this.video,
     required this.onTap,
     this.dislikeData,
+    this.onSubscribe,
     super.key,
   });
 
@@ -144,14 +146,48 @@ class _VideoCardState extends State<VideoCard> with SingleTickerProviderStateMix
                             fontWeight: FontWeight.w500,
                             height: 1.3,
                           ),
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          widget.video.channelName,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-                        ),
+                         ),
+                         const SizedBox(height: 6),
+                         Row(
+                           children: [
+                             Flexible(
+                               child: Text(
+                                 widget.video.channelName,
+                                 maxLines: 1,
+                                 overflow: TextOverflow.ellipsis,
+                                 style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                               ),
+                             ),
+                              if (widget.onSubscribe != null) ...[
+                                const SizedBox(width: 8),
+                                SizedBox(
+                                  height: 24,
+                                  child: GestureDetector(
+                                    onTap: widget.onSubscribe,
+                                    behavior: HitTestBehavior.opaque,
+                                    child: Container(
+                                      decoration: BoxDecoration(
+                                        color: Colors.red[700],
+                                        borderRadius: BorderRadius.circular(4),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(Icons.add, size: 14, color: Colors.white),
+                                          const SizedBox(width: 4),
+                                          const Text(
+                                            'Subscribe',
+                                            style: TextStyle(fontSize: 11, color: Colors.white),
+                                          ),
+                                          const SizedBox(width: 6),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                           ],
+                         ),
                         const SizedBox(height: 2),
                         Text(
                           '${widget.video.formattedViews} views • ${widget.video.uploadedAgo}',

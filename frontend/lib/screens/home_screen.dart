@@ -55,6 +55,34 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     ref.read(playerControllerProvider.notifier).playVideo(video);
   }
 
+  void _subscribeToChannel(BuildContext context, Video video) async {
+    final apiService = ref.read(apiServiceProvider);
+    try {
+      await apiService.subscribeFromVideo(
+        channelId: video.channelId,
+        channelName: video.channelName,
+        thumbnail: video.thumbnail,
+      );
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Subscribed to ${video.channelName}'),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to subscribe: $e'),
+            backgroundColor: Colors.red[700],
+          ),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final searchResults = ref.watch(searchResultsProvider);
@@ -129,7 +157,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             itemCount: videos.length,
             itemBuilder: (context, index) {
               final video = videos[index];
-              return VideoCard(video: video, onTap: () => _openVideo(video));
+              return VideoCard(
+                video: video,
+                onTap: () => _openVideo(video),
+                onSubscribe: () => _subscribeToChannel(context, video),
+              );
             },
           );
         },
