@@ -326,12 +326,27 @@ class _SubscriptionsScreenState extends ConsumerState<SubscriptionsScreen> {
             child: const Text('Cancel'),
           ),
           TextButton(
-            onPressed: () {
+            onPressed: () async {
               Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Unsubscribed successfully')),
-              );
-              ref.refresh(subscriptionsProvider);
+              final apiService = ref.read(apiServiceProvider);
+              try {
+                await apiService.removeSubscription(sub.channelId);
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Unsubscribed successfully')),
+                  );
+                }
+                ref.refresh(subscriptionsProvider);
+              } catch (e) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Error: $e'),
+                      backgroundColor: Colors.red[700],
+                    ),
+                  );
+                }
+              }
             },
             child: Text(
               'Unsubscribe',

@@ -127,6 +127,15 @@ pub async fn get_subscriptions() -> Result<Vec<Subscription>> {
     Ok(subs)
 }
 
+pub async fn remove_subscription(channel_id: &str) -> Result<()> {
+    let pool = get_pool();
+    sqlx::query("DELETE FROM subscriptions WHERE channel_id = ?")
+        .bind(channel_id)
+        .execute(pool)
+        .await?;
+    Ok(())
+}
+
 // History operations
 pub async fn add_to_history(video_id: &str, title: &str, channel: &str, thumbnail: &str) -> Result<()> {
     let pool = get_pool();
@@ -152,6 +161,23 @@ pub async fn get_history() -> Result<Vec<HistoryEntry>> {
         .fetch_all(pool)
         .await?;
     Ok(history)
+}
+
+pub async fn remove_from_history(id: i64) -> Result<()> {
+    let pool = get_pool();
+    sqlx::query("DELETE FROM history WHERE id = ?")
+        .bind(id)
+        .execute(pool)
+        .await?;
+    Ok(())
+}
+
+pub async fn clear_history() -> Result<()> {
+    let pool = get_pool();
+    sqlx::query("DELETE FROM history")
+        .execute(pool)
+        .await?;
+    Ok(())
 }
 
 // Download operations

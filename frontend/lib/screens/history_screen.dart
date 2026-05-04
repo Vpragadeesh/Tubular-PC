@@ -317,15 +317,30 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
               ),
             ),
           ],
-          onSelected: (value) {
+          onSelected: (value) async {
             if (value == 'remove') {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Removed from history'),
-                  duration: Duration(seconds: 1),
-                ),
-              );
-              ref.refresh(historyProvider);
+              final apiService = ref.read(apiServiceProvider);
+              try {
+                await apiService.removeFromHistory(entry.id);
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Removed from history'),
+                      duration: Duration(seconds: 1),
+                    ),
+                  );
+                }
+                ref.refresh(historyProvider);
+              } catch (e) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Error: $e'),
+                      backgroundColor: Colors.red[700],
+                    ),
+                  );
+                }
+              }
             }
           },
         ),
@@ -355,12 +370,27 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
             child: const Text('Cancel'),
           ),
           TextButton(
-            onPressed: () {
+            onPressed: () async {
               Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('History cleared')),
-              );
-              ref.refresh(historyProvider);
+              final apiService = ref.read(apiServiceProvider);
+              try {
+                await apiService.clearHistory();
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('History cleared')),
+                  );
+                }
+                ref.refresh(historyProvider);
+              } catch (e) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Error: $e'),
+                      backgroundColor: Colors.red[700],
+                    ),
+                  );
+                }
+              }
             },
             child: Text('Clear', style: TextStyle(color: Colors.red[700])),
           ),

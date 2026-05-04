@@ -184,6 +184,21 @@ pub async fn get_subscriptions() -> impl IntoResponse {
 }
 
 #[derive(Debug, Deserialize)]
+pub struct RemoveSubscriptionRequest {
+    channel_id: String,
+}
+
+pub async fn remove_subscription(Json(req): Json<RemoveSubscriptionRequest>) -> impl IntoResponse {
+    match db::remove_subscription(&req.channel_id).await {
+        Ok(_) => (StatusCode::OK, Json(ApiResponse::success("Unsubscribed".to_string()))),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiResponse::<String>::error(e.to_string())),
+        ),
+    }
+}
+
+#[derive(Debug, Deserialize)]
 pub struct AddSubscriptionRequest {
     channel_id: String,
     channel_name: String,
@@ -206,6 +221,31 @@ pub async fn get_history() -> impl IntoResponse {
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(ApiResponse::<Vec<db::HistoryEntry>>::error(e.to_string())),
+        ),
+    }
+}
+
+#[derive(Debug, Deserialize)]
+pub struct RemoveHistoryRequest {
+    id: i64,
+}
+
+pub async fn remove_from_history(Json(req): Json<RemoveHistoryRequest>) -> impl IntoResponse {
+    match db::remove_from_history(req.id).await {
+        Ok(_) => (StatusCode::OK, Json(ApiResponse::success("Removed from history".to_string()))),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiResponse::<String>::error(e.to_string())),
+        ),
+    }
+}
+
+pub async fn clear_history() -> impl IntoResponse {
+    match db::clear_history().await {
+        Ok(_) => (StatusCode::OK, Json(ApiResponse::success("History cleared".to_string()))),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiResponse::<String>::error(e.to_string())),
         ),
     }
 }

@@ -288,6 +288,22 @@ class ApiService {
     }
   }
 
+  Future<void> removeSubscription(String channelId) async {
+    try {
+      final response = await _dio.post(
+        '/subscriptions/remove',
+        data: {'channel_id': channelId},
+      );
+
+      if (response.data['success'] != true) {
+        throw Exception(response.data['error'] ?? 'Failed to unsubscribe');
+      }
+    } catch (e) {
+      _logger.w('Remove subscription error: $e');
+      throw Exception('Failed to unsubscribe: $e');
+    }
+  }
+
   Future<List<HistoryEntry>> getHistory() async {
     try {
       final response = await _dio.get('/history');
@@ -328,6 +344,35 @@ class ApiService {
     } catch (e) {
       _logger.w('Add to history error: $e');
       // Silently fail for development
+    }
+  }
+
+  Future<void> removeFromHistory(int id) async {
+    try {
+      final response = await _dio.post(
+        '/history/remove',
+        data: {'id': id},
+      );
+
+      if (response.data['success'] != true) {
+        throw Exception(response.data['error'] ?? 'Failed to remove from history');
+      }
+    } catch (e) {
+      _logger.w('Remove from history error: $e');
+      throw Exception('Failed to remove from history: $e');
+    }
+  }
+
+  Future<void> clearHistory() async {
+    try {
+      final response = await _dio.post('/history/clear');
+
+      if (response.data['success'] != true) {
+        throw Exception(response.data['error'] ?? 'Failed to clear history');
+      }
+    } catch (e) {
+      _logger.w('Clear history error: $e');
+      throw Exception('Failed to clear history: $e');
     }
   }
 }
