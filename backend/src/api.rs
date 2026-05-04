@@ -156,11 +156,30 @@ pub async fn player_stop(State(player): State<player::PlayerHandle>) -> impl Int
 }
 
 #[derive(Debug, Deserialize)]
+pub struct CreateDownloadRequest {
+    video_id: String,
+    title: String,
+    output_path: String,
+    quality: String,
+    audio_only: bool,
+}
+
+#[derive(Debug, Deserialize)]
 pub struct DownloadRequest {
     video_id: String,
     output_path: String,
     quality: String,
     audio_only: bool,
+}
+
+pub async fn create_download(Json(req): Json<CreateDownloadRequest>) -> impl IntoResponse {
+    match db::create_download(&req.video_id, &req.title, &req.output_path, &req.quality).await {
+        Ok(id) => (StatusCode::OK, Json(ApiResponse::success(serde_json::json!({ "id": id })))),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiResponse::<serde_json::Value>::error(e.to_string())),
+        ),
+    }
 }
 
 pub async fn download_video(Json(req): Json<DownloadRequest>) -> impl IntoResponse {
@@ -218,6 +237,80 @@ pub struct AddSubscriptionRequest {
 pub async fn add_subscription(Json(req): Json<AddSubscriptionRequest>) -> impl IntoResponse {
     match db::add_subscription(&req.channel_id, &req.channel_name, &req.thumbnail).await {
         Ok(_) => (StatusCode::OK, Json(ApiResponse::success("Subscribed".to_string()))),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiResponse::<String>::error(e.to_string())),
+        ),
+    }
+}
+
+pub async fn get_active_downloads() -> impl IntoResponse {
+    match db::get_active_downloads().await {
+        Ok(downloads) => (StatusCode::OK, Json(ApiResponse::success(downloads))),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiResponse::<Vec<db::Download>>::error(e.to_string())),
+        ),
+    }
+}
+
+pub async fn get_download(Path(id): Path<i64>) -> impl IntoResponse {
+    match db::get_download(id).await {
+        Ok(Some(download)) => (StatusCode::OK, Json(ApiResponse::success(download))),
+        Ok(None) => (
+            StatusCode::NOT_FOUND,
+            Json(ApiResponse::<db::Download>::error("Download not found".to_string())),
+        ),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiResponse::<db::Download>::error(e.to_string())),
+        ),
+    }
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpdateDownloadProgressRequest {
+    status: String,
+    progress: f64,
+    speed: f64,
+    eta_seconds: i64,
+}
+
+pub async fn update_download_progress(Path(id): Path<i64>, Json(req): Json<UpdateDownloadProgressRequest>) -> impl IntoResponse {
+    match db::update_download_status(id, &req.status, req.progress, req.speed, req.eta_seconds).await {
+        Ok(_) => (StatusCode::OK, Json(ApiResponse::success("Progress updated".to_string()))),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiResponse::<String>::error(e.to_string())),
+        ),
+    }
+}
+
+pub async fn complete_download(Path(id): Path<i64>, Json(data): Json<serde_json::Value>) -> impl IntoResponse {
+    let file_size = data.get("file_size").and_then(|v| v.as_i64()).unwrap_or(0);
+    match db::complete_download(id, file_size).await {
+        Ok(_) => (StatusCode::OK, Json(ApiResponse::success("Download completed".to_string()))),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiResponse::<String>::error(e.to_string())),
+        ),
+    }
+}
+
+pub async fn fail_download(Path(id): Path<i64>, Json(data): Json<serde_json::Value>) -> impl IntoResponse {
+    let error_msg = data.get("error_message").and_then(|v| v.as_str()).unwrap_or("Unknown error");
+    match db::fail_download(id, error_msg).await {
+        Ok(_) => (StatusCode::OK, Json(ApiResponse::success("Download marked as failed".to_string()))),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiResponse::<String>::error(e.to_string())),
+        ),
+    }
+}
+
+pub async fn delete_download(Path(id): Path<i64>) -> impl IntoResponse {
+    match db::delete_download(id).await {
+        Ok(_) => (StatusCode::OK, Json(ApiResponse::success("Download deleted".to_string()))),
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(ApiResponse::<String>::error(e.to_string())),

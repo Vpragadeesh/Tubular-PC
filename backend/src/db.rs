@@ -1,6 +1,6 @@
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
-use sqlx::{sqlite::{SqlitePool, SqliteConnectOptions}, Pool, Sqlite};
+use sqlx::{sqlite::{SqlitePool, SqliteConnectOptions}, Pool, Sqlite, Row};
 use std::sync::OnceLock;
 use std::str::FromStr;
 
@@ -34,7 +34,15 @@ pub struct Download {
     pub title: String,
     pub file_path: String,
     pub quality: String,
-    pub downloaded_at: String,
+    pub status: String,
+    pub progress: f64,
+    pub file_size: i64,
+    pub speed: f64,
+    pub eta_seconds: i64,
+    pub created_at: String,
+    pub started_at: Option<String>,
+    pub completed_at: Option<String>,
+    pub error_message: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -92,7 +100,15 @@ pub async fn init_db() -> Result<()> {
             title TEXT NOT NULL,
             file_path TEXT NOT NULL,
             quality TEXT NOT NULL,
-            downloaded_at TEXT NOT NULL
+            status TEXT NOT NULL DEFAULT 'pending',
+            progress REAL DEFAULT 0.0,
+            file_size INTEGER DEFAULT 0,
+            speed REAL DEFAULT 0.0,
+            eta_seconds INTEGER DEFAULT 0,
+            created_at TEXT NOT NULL,
+            started_at TEXT,
+            completed_at TEXT,
+            error_message TEXT
         )
         "#,
     )
@@ -198,12 +214,91 @@ pub async fn clear_history() -> Result<()> {
 }
 
 // Download operations
+pub async fn create_download(video_id: &str, title: &str, file_path: &str, quality: &str) -> Result<i64> {
+    let pool = get_pool();
+    let now = chrono::Utc::now().to_rfc3339();
+
+    let result = sqlx::query(
+        "INSERT INTO downloads (video_id, title, file_path, quality, status, progress, created_at) VALUES (?, ?, ?, ?, 'pending', 0.0, ?)"
+    )
+    .bind(video_id)
+    .bind(title)
+    .bind(file_path)
+    .bind(quality)
+    .bind(&now)
+    .execute(pool)
+    .await?;
+
+    Ok(result.last_insert_rowid())
+}
+
+pub async fn update_download_status(id: i64, status: &str, progress: f64, speed: f64, eta_seconds: i64) -> Result<()> {
+    let pool = get_pool();
+    
+    let started_at = if status == "downloading" {
+        sqlx::query("SELECT started_at FROM downloads WHERE id = ?")
+            .bind(id)
+            .fetch_one(pool)
+            .await
+            .ok()
+            .and_then(|row| row.get::<Option<String>, _>("started_at"))
+    } else {
+        None
+    };
+
+    sqlx::query(
+        "UPDATE downloads SET status = ?, progress = ?, speed = ?, eta_seconds = ?, started_at = COALESCE(started_at, ?) WHERE id = ?"
+    )
+    .bind(status)
+    .bind(progress)
+    .bind(speed)
+    .bind(eta_seconds)
+    .bind(if started_at.is_none() && status == "downloading" { Some(chrono::Utc::now().to_rfc3339()) } else { started_at })
+    .bind(id)
+    .execute(pool)
+    .await?;
+
+    Ok(())
+}
+
+pub async fn complete_download(id: i64, file_size: i64) -> Result<()> {
+    let pool = get_pool();
+    let now = chrono::Utc::now().to_rfc3339();
+
+    sqlx::query(
+        "UPDATE downloads SET status = 'completed', progress = 100.0, file_size = ?, completed_at = ?, speed = 0.0, eta_seconds = 0 WHERE id = ?"
+    )
+    .bind(file_size)
+    .bind(&now)
+    .bind(id)
+    .execute(pool)
+    .await?;
+
+    Ok(())
+}
+
+pub async fn fail_download(id: i64, error_message: &str) -> Result<()> {
+    let pool = get_pool();
+    let now = chrono::Utc::now().to_rfc3339();
+
+    sqlx::query(
+        "UPDATE downloads SET status = 'failed', completed_at = ?, error_message = ?, speed = 0.0, eta_seconds = 0 WHERE id = ?"
+    )
+    .bind(&now)
+    .bind(error_message)
+    .bind(id)
+    .execute(pool)
+    .await?;
+
+    Ok(())
+}
+
 pub async fn add_download(video_id: &str, title: &str, file_path: &str, quality: &str) -> Result<()> {
     let pool = get_pool();
     let now = chrono::Utc::now().to_rfc3339();
 
     sqlx::query(
-        "INSERT INTO downloads (video_id, title, file_path, quality, downloaded_at) VALUES (?, ?, ?, ?, ?)"
+        "INSERT INTO downloads (video_id, title, file_path, quality, status, progress, created_at) VALUES (?, ?, ?, ?, 'completed', 100.0, ?)"
     )
     .bind(video_id)
     .bind(title)
@@ -218,9 +313,37 @@ pub async fn add_download(video_id: &str, title: &str, file_path: &str, quality:
 
 pub async fn get_downloads() -> Result<Vec<Download>> {
     let pool = get_pool();
-    let downloads = sqlx::query_as::<_, Download>("SELECT * FROM downloads ORDER BY downloaded_at DESC")
+    let downloads = sqlx::query_as::<_, Download>("SELECT * FROM downloads ORDER BY created_at DESC")
         .fetch_all(pool)
         .await?;
+    Ok(downloads)
+}
+
+pub async fn get_download(id: i64) -> Result<Option<Download>> {
+    let pool = get_pool();
+    let download = sqlx::query_as::<_, Download>("SELECT * FROM downloads WHERE id = ?")
+        .bind(id)
+        .fetch_optional(pool)
+        .await?;
+    Ok(download)
+}
+
+pub async fn delete_download(id: i64) -> Result<()> {
+    let pool = get_pool();
+    sqlx::query("DELETE FROM downloads WHERE id = ?")
+        .bind(id)
+        .execute(pool)
+        .await?;
+    Ok(())
+}
+
+pub async fn get_active_downloads() -> Result<Vec<Download>> {
+    let pool = get_pool();
+    let downloads = sqlx::query_as::<_, Download>(
+        "SELECT * FROM downloads WHERE status IN ('pending', 'downloading') ORDER BY created_at ASC"
+    )
+    .fetch_all(pool)
+    .await?;
     Ok(downloads)
 }
 

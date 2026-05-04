@@ -1,5 +1,5 @@
 use axum::{
-    routing::{get, post},
+    routing::{get, post, delete},
     Router,
 };
 use std::net::SocketAddr;
@@ -40,6 +40,13 @@ async fn main() -> anyhow::Result<()> {
         .route("/player/stop", post(api::player_stop))
         .route("/download", post(api::download_video))
         .route("/downloads", get(api::get_downloads))
+        .route("/downloads/active", get(api::get_active_downloads))
+        .route("/downloads/create", post(api::create_download))
+        .route("/downloads/:id", get(api::get_download))
+        .route("/downloads/:id/progress", post(api::update_download_progress))
+        .route("/downloads/:id/complete", post(api::complete_download))
+        .route("/downloads/:id/fail", post(api::fail_download))
+        .route("/downloads/:id", delete(api::delete_download))
         .route("/subscriptions", get(api::get_subscriptions))
         .route("/subscriptions", post(api::add_subscription))
         .route("/subscriptions/remove", post(api::remove_subscription))
