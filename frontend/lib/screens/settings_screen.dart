@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../services/api_service.dart';
+
+final apiServiceProvider = Provider((ref) => ApiService());
 
 // Theme mode provider
 final themeModeProvider = StateProvider<ThemeMode>((ref) => ThemeMode.dark);
@@ -36,6 +39,20 @@ class SettingsScreen extends ConsumerStatefulWidget {
 }
 
 class _SettingsScreenState extends ConsumerState<SettingsScreen> {
+  void _saveSetting(String key, String value) {
+    final apiService = ref.read(apiServiceProvider);
+    apiService.setSetting(key, value).then((_) {
+      // Silent success
+    }).catchError((e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to save setting: $e'),
+          backgroundColor: Colors.red[700],
+        ),
+      );
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final themeMode = ref.watch(themeModeProvider);
@@ -75,19 +92,22 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 onChanged: (value) {
                   if (value != null) {
                     ref.read(themeModeProvider.notifier).state = value;
+                    String themeValue = value == ThemeMode.dark ? 'dark' : (value == ThemeMode.light ? 'light' : 'system');
+                    _saveSetting('theme', themeValue);
                   }
                 },
               ),
               const Divider(height: 1),
-              _buildSliderTile(
-                'Subtitle Font Size',
-                subtitleSize,
-                10,
-                30,
-                (value) {
-                  ref.read(subtitleFontSizeProvider.notifier).state = value;
-                },
-              ),
+               _buildSliderTile(
+                 'Subtitle Font Size',
+                 subtitleSize,
+                 10,
+                 30,
+                 (value) {
+                   ref.read(subtitleFontSizeProvider.notifier).state = value;
+                   _saveSetting('subtitle_font_size', value.toString());
+                 },
+               ),
             ],
           ),
           const SizedBox(height: 12),
@@ -111,6 +131,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 onChanged: (value) {
                   if (value != null) {
                     ref.read(preferredQualityProvider.notifier).state = value;
+                    _saveSetting('preferred_quality', value);
                   }
                 },
               ),
@@ -127,36 +148,40 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 onChanged: (value) {
                   if (value != null) {
                     ref.read(preferredFormatProvider.notifier).state = value;
+                    _saveSetting('preferred_format', value);
                   }
                 },
               ),
               const Divider(height: 1),
               _buildSwitchTile(
-                'Audio-Only Mode',
-                'Default to audio playback',
-                audioOnly,
-                (value) {
-                  ref.read(audioOnlyModeProvider.notifier).state = value;
-                },
-              ),
-              const Divider(height: 1),
-              _buildSwitchTile(
-                'Auto-Play Next',
-                'Automatically play next video',
-                autoPlay,
-                (value) {
-                  ref.read(autoPlayProvider.notifier).state = value;
-                },
-              ),
-              const Divider(height: 1),
-              _buildSwitchTile(
-                'Show Subtitles',
-                'Display subtitles when available',
-                subtitles,
-                (value) {
-                  ref.read(enableSubtitlesProvider.notifier).state = value;
-                },
-              ),
+                 'Audio-Only Mode',
+                 'Default to audio playback',
+                 audioOnly,
+                 (value) {
+                   ref.read(audioOnlyModeProvider.notifier).state = value;
+                   _saveSetting('audio_only_mode', value.toString());
+                 },
+               ),
+               const Divider(height: 1),
+               _buildSwitchTile(
+                 'Auto-Play Next',
+                 'Automatically play next video',
+                 autoPlay,
+                 (value) {
+                   ref.read(autoPlayProvider.notifier).state = value;
+                   _saveSetting('auto_play', value.toString());
+                 },
+               ),
+               const Divider(height: 1),
+                _buildSwitchTile(
+                 'Show Subtitles',
+                 'Display subtitles when available',
+                 subtitles,
+                 (value) {
+                   ref.read(enableSubtitlesProvider.notifier).state = value;
+                   _saveSetting('enable_subtitles', value.toString());
+                 },
+               ),
             ],
           ),
           const SizedBox(height: 12),
@@ -165,23 +190,25 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           _buildSectionHeader(context, 'Features', Icons.star),
           _buildSectionCard(
             children: [
-              _buildSwitchTile(
-                'SponsorBlock',
-                'Skip sponsored segments automatically',
-                sponsorBlock,
-                (value) {
-                  ref.read(enableSponsorBlockProvider.notifier).state = value;
-                },
-              ),
-              const Divider(height: 1),
-              _buildSwitchTile(
-                'Show Dislike Counts',
-                'Display community dislike counts',
-                dislikeCounts,
-                (value) {
-                  ref.read(enableDislikeCountsProvider.notifier).state = value;
-                },
-              ),
+               _buildSwitchTile(
+                 'SponsorBlock',
+                 'Skip sponsored segments automatically',
+                 sponsorBlock,
+                 (value) {
+                   ref.read(enableSponsorBlockProvider.notifier).state = value;
+                   _saveSetting('enable_sponsorblock', value.toString());
+                 },
+               ),
+               const Divider(height: 1),
+               _buildSwitchTile(
+                 'Show Dislike Counts',
+                 'Display community dislike counts',
+                 dislikeCounts,
+                 (value) {
+                   ref.read(enableDislikeCountsProvider.notifier).state = value;
+                   _saveSetting('enable_dislike_counts', value.toString());
+                 },
+               ),
             ],
           ),
           const SizedBox(height: 12),
