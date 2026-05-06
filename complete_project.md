@@ -25,6 +25,7 @@ Tubular-PC
 │       ├── sponsorblock.rs
 │       └── yt_dlp.rs
 ├── complete_project.md
+├── features.md
 ├── frontend
 │   ├── README.md
 │   ├── analysis_options.yaml
@@ -37,14 +38,25 @@ Tubular-PC
 │   │   │   └── player_controller.dart
 │   │   ├── main.dart
 │   │   ├── models
+│   │   │   ├── dislike.dart
+│   │   │   ├── dislike.g.dart
+│   │   │   ├── download.dart
+│   │   │   ├── download.g.dart
 │   │   │   ├── history_entry.dart
 │   │   │   ├── history_entry.g.dart
+│   │   │   ├── sponsorblock.dart
+│   │   │   ├── sponsorblock.g.dart
 │   │   │   ├── subscription.dart
 │   │   │   ├── subscription.g.dart
 │   │   │   ├── video.dart
 │   │   │   └── video.g.dart
 │   │   ├── screens
-│   │   │   └── home_screen.dart
+│   │   │   ├── downloads_screen.dart
+│   │   │   ├── history_screen.dart
+│   │   │   ├── home_screen.dart
+│   │   │   ├── player_screen.dart
+│   │   │   ├── settings_screen.dart
+│   │   │   └── subscriptions_screen.dart
 │   │   ├── services
 │   │   │   ├── api_service.dart
 │   │   │   └── player_service.dart
@@ -69,6 +81,7 @@ Tubular-PC
 │   └── test
 │       └── widget_test.dart
 ├── plan.md
+├── prompt.md
 ├── start.bat
 └── start.sh
 
@@ -1826,11 +1839,30 @@ pub async fn player_stop(State(player): State<player::PlayerHandle>) -> impl Int
 }
 
 #[derive(Debug, Deserialize)]
+pub struct CreateDownloadRequest {
+    video_id: String,
+    title: String,
+    output_path: String,
+    quality: String,
+    audio_only: bool,
+}
+
+#[derive(Debug, Deserialize)]
 pub struct DownloadRequest {
     video_id: String,
     output_path: String,
     quality: String,
     audio_only: bool,
+}
+
+pub async fn create_download(Json(req): Json<CreateDownloadRequest>) -> impl IntoResponse {
+    match db::create_download(&req.video_id, &req.title, &req.output_path, &req.quality).await {
+        Ok(id) => (StatusCode::OK, Json(ApiResponse::success(serde_json::json!({ "id": id })))),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiResponse::<serde_json::Value>::error(e.to_string())),
+        ),
+    }
 }
 
 pub async fn download_video(Json(req): Json<DownloadRequest>) -> impl IntoResponse {
@@ -1843,12 +1875,37 @@ pub async fn download_video(Json(req): Json<DownloadRequest>) -> impl IntoRespon
     }
 }
 
+pub async fn get_downloads() -> impl IntoResponse {
+    match db::get_downloads().await {
+        Ok(downloads) => (StatusCode::OK, Json(ApiResponse::success(downloads))),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiResponse::<Vec<db::Download>>::error(e.to_string())),
+        ),
+    }
+}
+
 pub async fn get_subscriptions() -> impl IntoResponse {
     match db::get_subscriptions().await {
         Ok(subs) => (StatusCode::OK, Json(ApiResponse::success(subs))),
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(ApiResponse::<Vec<db::Subscription>>::error(e.to_string())),
+        ),
+    }
+}
+
+#[derive(Debug, Deserialize)]
+pub struct RemoveSubscriptionRequest {
+    channel_id: String,
+}
+
+pub async fn remove_subscription(Json(req): Json<RemoveSubscriptionRequest>) -> impl IntoResponse {
+    match db::remove_subscription(&req.channel_id).await {
+        Ok(_) => (StatusCode::OK, Json(ApiResponse::success("Unsubscribed".to_string()))),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiResponse::<String>::error(e.to_string())),
         ),
     }
 }
@@ -1870,12 +1927,111 @@ pub async fn add_subscription(Json(req): Json<AddSubscriptionRequest>) -> impl I
     }
 }
 
+pub async fn get_active_downloads() -> impl IntoResponse {
+    match db::get_active_downloads().await {
+        Ok(downloads) => (StatusCode::OK, Json(ApiResponse::success(downloads))),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiResponse::<Vec<db::Download>>::error(e.to_string())),
+        ),
+    }
+}
+
+pub async fn get_download(Path(id): Path<i64>) -> impl IntoResponse {
+    match db::get_download(id).await {
+        Ok(Some(download)) => (StatusCode::OK, Json(ApiResponse::success(download))),
+        Ok(None) => (
+            StatusCode::NOT_FOUND,
+            Json(ApiResponse::<db::Download>::error("Download not found".to_string())),
+        ),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiResponse::<db::Download>::error(e.to_string())),
+        ),
+    }
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpdateDownloadProgressRequest {
+    status: String,
+    progress: f64,
+    speed: f64,
+    eta_seconds: i64,
+}
+
+pub async fn update_download_progress(Path(id): Path<i64>, Json(req): Json<UpdateDownloadProgressRequest>) -> impl IntoResponse {
+    match db::update_download_status(id, &req.status, req.progress, req.speed, req.eta_seconds).await {
+        Ok(_) => (StatusCode::OK, Json(ApiResponse::success("Progress updated".to_string()))),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiResponse::<String>::error(e.to_string())),
+        ),
+    }
+}
+
+pub async fn complete_download(Path(id): Path<i64>, Json(data): Json<serde_json::Value>) -> impl IntoResponse {
+    let file_size = data.get("file_size").and_then(|v| v.as_i64()).unwrap_or(0);
+    match db::complete_download(id, file_size).await {
+        Ok(_) => (StatusCode::OK, Json(ApiResponse::success("Download completed".to_string()))),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiResponse::<String>::error(e.to_string())),
+        ),
+    }
+}
+
+pub async fn fail_download(Path(id): Path<i64>, Json(data): Json<serde_json::Value>) -> impl IntoResponse {
+    let error_msg = data.get("error_message").and_then(|v| v.as_str()).unwrap_or("Unknown error");
+    match db::fail_download(id, error_msg).await {
+        Ok(_) => (StatusCode::OK, Json(ApiResponse::success("Download marked as failed".to_string()))),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiResponse::<String>::error(e.to_string())),
+        ),
+    }
+}
+
+pub async fn delete_download(Path(id): Path<i64>) -> impl IntoResponse {
+    match db::delete_download(id).await {
+        Ok(_) => (StatusCode::OK, Json(ApiResponse::success("Download deleted".to_string()))),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiResponse::<String>::error(e.to_string())),
+        ),
+    }
+}
+
 pub async fn get_history() -> impl IntoResponse {
     match db::get_history().await {
         Ok(history) => (StatusCode::OK, Json(ApiResponse::success(history))),
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(ApiResponse::<Vec<db::HistoryEntry>>::error(e.to_string())),
+        ),
+    }
+}
+
+#[derive(Debug, Deserialize)]
+pub struct RemoveHistoryRequest {
+    id: i64,
+}
+
+pub async fn remove_from_history(Json(req): Json<RemoveHistoryRequest>) -> impl IntoResponse {
+    match db::remove_from_history(req.id).await {
+        Ok(_) => (StatusCode::OK, Json(ApiResponse::success("Removed from history".to_string()))),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiResponse::<String>::error(e.to_string())),
+        ),
+    }
+}
+
+pub async fn clear_history() -> impl IntoResponse {
+    match db::clear_history().await {
+        Ok(_) => (StatusCode::OK, Json(ApiResponse::success("History cleared".to_string()))),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiResponse::<String>::error(e.to_string())),
         ),
     }
 }
@@ -1918,6 +2074,49 @@ pub async fn get_dislike_count(Path(id): Path<String>) -> impl IntoResponse {
     }
 }
 
+#[derive(Debug, Deserialize)]
+pub struct SetSettingRequest {
+    key: String,
+    value: String,
+}
+
+pub async fn set_setting(Json(req): Json<SetSettingRequest>) -> impl IntoResponse {
+    match db::set_setting(&req.key, &req.value).await {
+        Ok(_) => (StatusCode::OK, Json(ApiResponse::success("Setting saved".to_string()))),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiResponse::<String>::error(e.to_string())),
+        ),
+    }
+}
+
+pub async fn get_setting(Path(key): Path<String>) -> impl IntoResponse {
+    match db::get_setting(&key).await {
+        Ok(Some(value)) => (
+            StatusCode::OK,
+            Json(ApiResponse::success(serde_json::json!({ "value": value }))),
+        ),
+        Ok(None) => (
+            StatusCode::NOT_FOUND,
+            Json(ApiResponse::<serde_json::Value>::error("Setting not found".to_string())),
+        ),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiResponse::<serde_json::Value>::error(e.to_string())),
+        ),
+    }
+}
+
+pub async fn get_all_settings() -> impl IntoResponse {
+    match db::get_all_settings().await {
+        Ok(settings) => (StatusCode::OK, Json(ApiResponse::success(settings))),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiResponse::<Vec<db::Setting>>::error(e.to_string())),
+        ),
+    }
+}
+
 ```
 
 `backend/src/db.rs`:
@@ -1925,7 +2124,7 @@ pub async fn get_dislike_count(Path(id): Path<String>) -> impl IntoResponse {
 ```rs
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
-use sqlx::{sqlite::{SqlitePool, SqliteConnectOptions}, Pool, Sqlite};
+use sqlx::{sqlite::{SqlitePool, SqliteConnectOptions}, Pool, Sqlite, Row};
 use std::sync::OnceLock;
 use std::str::FromStr;
 
@@ -1959,7 +2158,21 @@ pub struct Download {
     pub title: String,
     pub file_path: String,
     pub quality: String,
-    pub downloaded_at: String,
+    pub status: String,
+    pub progress: f64,
+    pub file_size: i64,
+    pub speed: f64,
+    pub eta_seconds: i64,
+    pub created_at: String,
+    pub started_at: Option<String>,
+    pub completed_at: Option<String>,
+    pub error_message: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Setting {
+    pub key: String,
+    pub value: String,
 }
 
 pub async fn init_db() -> Result<()> {
@@ -2011,7 +2224,26 @@ pub async fn init_db() -> Result<()> {
             title TEXT NOT NULL,
             file_path TEXT NOT NULL,
             quality TEXT NOT NULL,
-            downloaded_at TEXT NOT NULL
+            status TEXT NOT NULL DEFAULT 'pending',
+            progress REAL DEFAULT 0.0,
+            file_size INTEGER DEFAULT 0,
+            speed REAL DEFAULT 0.0,
+            eta_seconds INTEGER DEFAULT 0,
+            created_at TEXT NOT NULL,
+            started_at TEXT,
+            completed_at TEXT,
+            error_message TEXT
+        )
+        "#,
+    )
+    .execute(&pool)
+    .await?;
+
+    sqlx::query(
+        r#"
+        CREATE TABLE IF NOT EXISTS settings (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL
         )
         "#,
     )
@@ -2052,6 +2284,15 @@ pub async fn get_subscriptions() -> Result<Vec<Subscription>> {
     Ok(subs)
 }
 
+pub async fn remove_subscription(channel_id: &str) -> Result<()> {
+    let pool = get_pool();
+    sqlx::query("DELETE FROM subscriptions WHERE channel_id = ?")
+        .bind(channel_id)
+        .execute(pool)
+        .await?;
+    Ok(())
+}
+
 // History operations
 pub async fn add_to_history(video_id: &str, title: &str, channel: &str, thumbnail: &str) -> Result<()> {
     let pool = get_pool();
@@ -2079,14 +2320,109 @@ pub async fn get_history() -> Result<Vec<HistoryEntry>> {
     Ok(history)
 }
 
+pub async fn remove_from_history(id: i64) -> Result<()> {
+    let pool = get_pool();
+    sqlx::query("DELETE FROM history WHERE id = ?")
+        .bind(id)
+        .execute(pool)
+        .await?;
+    Ok(())
+}
+
+pub async fn clear_history() -> Result<()> {
+    let pool = get_pool();
+    sqlx::query("DELETE FROM history")
+        .execute(pool)
+        .await?;
+    Ok(())
+}
+
 // Download operations
-#[allow(dead_code)]
+pub async fn create_download(video_id: &str, title: &str, file_path: &str, quality: &str) -> Result<i64> {
+    let pool = get_pool();
+    let now = chrono::Utc::now().to_rfc3339();
+
+    let result = sqlx::query(
+        "INSERT INTO downloads (video_id, title, file_path, quality, status, progress, created_at) VALUES (?, ?, ?, ?, 'pending', 0.0, ?)"
+    )
+    .bind(video_id)
+    .bind(title)
+    .bind(file_path)
+    .bind(quality)
+    .bind(&now)
+    .execute(pool)
+    .await?;
+
+    Ok(result.last_insert_rowid())
+}
+
+pub async fn update_download_status(id: i64, status: &str, progress: f64, speed: f64, eta_seconds: i64) -> Result<()> {
+    let pool = get_pool();
+    
+    let started_at = if status == "downloading" {
+        sqlx::query("SELECT started_at FROM downloads WHERE id = ?")
+            .bind(id)
+            .fetch_one(pool)
+            .await
+            .ok()
+            .and_then(|row| row.get::<Option<String>, _>("started_at"))
+    } else {
+        None
+    };
+
+    sqlx::query(
+        "UPDATE downloads SET status = ?, progress = ?, speed = ?, eta_seconds = ?, started_at = COALESCE(started_at, ?) WHERE id = ?"
+    )
+    .bind(status)
+    .bind(progress)
+    .bind(speed)
+    .bind(eta_seconds)
+    .bind(if started_at.is_none() && status == "downloading" { Some(chrono::Utc::now().to_rfc3339()) } else { started_at })
+    .bind(id)
+    .execute(pool)
+    .await?;
+
+    Ok(())
+}
+
+pub async fn complete_download(id: i64, file_size: i64) -> Result<()> {
+    let pool = get_pool();
+    let now = chrono::Utc::now().to_rfc3339();
+
+    sqlx::query(
+        "UPDATE downloads SET status = 'completed', progress = 100.0, file_size = ?, completed_at = ?, speed = 0.0, eta_seconds = 0 WHERE id = ?"
+    )
+    .bind(file_size)
+    .bind(&now)
+    .bind(id)
+    .execute(pool)
+    .await?;
+
+    Ok(())
+}
+
+pub async fn fail_download(id: i64, error_message: &str) -> Result<()> {
+    let pool = get_pool();
+    let now = chrono::Utc::now().to_rfc3339();
+
+    sqlx::query(
+        "UPDATE downloads SET status = 'failed', completed_at = ?, error_message = ?, speed = 0.0, eta_seconds = 0 WHERE id = ?"
+    )
+    .bind(&now)
+    .bind(error_message)
+    .bind(id)
+    .execute(pool)
+    .await?;
+
+    Ok(())
+}
+
 pub async fn add_download(video_id: &str, title: &str, file_path: &str, quality: &str) -> Result<()> {
     let pool = get_pool();
     let now = chrono::Utc::now().to_rfc3339();
 
     sqlx::query(
-        "INSERT INTO downloads (video_id, title, file_path, quality, downloaded_at) VALUES (?, ?, ?, ?, ?)"
+        "INSERT INTO downloads (video_id, title, file_path, quality, status, progress, created_at) VALUES (?, ?, ?, ?, 'completed', 100.0, ?)"
     )
     .bind(video_id)
     .bind(title)
@@ -2099,13 +2435,68 @@ pub async fn add_download(video_id: &str, title: &str, file_path: &str, quality:
     Ok(())
 }
 
-#[allow(dead_code)]
 pub async fn get_downloads() -> Result<Vec<Download>> {
     let pool = get_pool();
-    let downloads = sqlx::query_as::<_, Download>("SELECT * FROM downloads ORDER BY downloaded_at DESC")
+    let downloads = sqlx::query_as::<_, Download>("SELECT * FROM downloads ORDER BY created_at DESC")
         .fetch_all(pool)
         .await?;
     Ok(downloads)
+}
+
+pub async fn get_download(id: i64) -> Result<Option<Download>> {
+    let pool = get_pool();
+    let download = sqlx::query_as::<_, Download>("SELECT * FROM downloads WHERE id = ?")
+        .bind(id)
+        .fetch_optional(pool)
+        .await?;
+    Ok(download)
+}
+
+pub async fn delete_download(id: i64) -> Result<()> {
+    let pool = get_pool();
+    sqlx::query("DELETE FROM downloads WHERE id = ?")
+        .bind(id)
+        .execute(pool)
+        .await?;
+    Ok(())
+}
+
+pub async fn get_active_downloads() -> Result<Vec<Download>> {
+    let pool = get_pool();
+    let downloads = sqlx::query_as::<_, Download>(
+        "SELECT * FROM downloads WHERE status IN ('pending', 'downloading') ORDER BY created_at ASC"
+    )
+    .fetch_all(pool)
+    .await?;
+    Ok(downloads)
+}
+
+// Settings operations
+pub async fn set_setting(key: &str, value: &str) -> Result<()> {
+    let pool = get_pool();
+    sqlx::query("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)")
+        .bind(key)
+        .bind(value)
+        .execute(pool)
+        .await?;
+    Ok(())
+}
+
+pub async fn get_setting(key: &str) -> Result<Option<String>> {
+    let pool = get_pool();
+    let row: Option<(String,)> = sqlx::query_as("SELECT value FROM settings WHERE key = ?")
+        .bind(key)
+        .fetch_optional(pool)
+        .await?;
+    Ok(row.map(|(v,)| v))
+}
+
+pub async fn get_all_settings() -> Result<Vec<Setting>> {
+    let pool = get_pool();
+    let settings: Vec<(String, String)> = sqlx::query_as("SELECT key, value FROM settings")
+        .fetch_all(pool)
+        .await?;
+    Ok(settings.into_iter().map(|(k, v)| Setting { key: k, value: v }).collect())
 }
 
 ```
@@ -2126,7 +2517,7 @@ pub mod returnyoutubedislike;
 
 ```rs
 use axum::{
-    routing::{get, post},
+    routing::{get, post, delete},
     Router,
 };
 use std::net::SocketAddr;
@@ -2166,12 +2557,26 @@ async fn main() -> anyhow::Result<()> {
         )
         .route("/player/stop", post(api::player_stop))
         .route("/download", post(api::download_video))
+        .route("/downloads", get(api::get_downloads))
+        .route("/downloads/active", get(api::get_active_downloads))
+        .route("/downloads/create", post(api::create_download))
+        .route("/downloads/:id", get(api::get_download))
+        .route("/downloads/:id/progress", post(api::update_download_progress))
+        .route("/downloads/:id/complete", post(api::complete_download))
+        .route("/downloads/:id/fail", post(api::fail_download))
+        .route("/downloads/:id", delete(api::delete_download))
         .route("/subscriptions", get(api::get_subscriptions))
         .route("/subscriptions", post(api::add_subscription))
+        .route("/subscriptions/remove", post(api::remove_subscription))
         .route("/history", get(api::get_history))
         .route("/history", post(api::add_to_history))
+        .route("/history/remove", post(api::remove_from_history))
+        .route("/history/clear", post(api::clear_history))
         .route("/sponsorblock/:id", get(api::get_sponsorblock_segments))
         .route("/dislikes/:id", get(api::get_dislike_count))
+        .route("/settings", get(api::get_all_settings))
+        .route("/settings", post(api::set_setting))
+        .route("/settings/:key", get(api::get_setting))
         .layer(CorsLayer::permissive())
         .with_state(player);
 
@@ -2917,6 +3322,755 @@ pub async fn download_video(
 
 ```
 
+`features.md`:
+
+```md
+# 🔴 MISSING FEATURES - Tubular PC
+
+> **Based on your current project status** | All features NOT yet implemented in Tubular-PC
+
+---
+
+## 📊 IMPLEMENTATION STATUS BREAKDOWN
+
+### ✅ CURRENTLY IMPLEMENTED (MVP Phase)
+```
+✓ Backend API server (Rust)
+✓ Frontend UI (Flutter)
+✓ Video search functionality
+✓ Video playback (mpv integration)
+✓ Download functionality (basic)
+✓ Subscriptions management (backend)
+✓ Watch history tracking (backend)
+✓ SQLite database
+✓ REST API endpoints
+✓ Video card widget
+✓ Player screen (basic)
+✓ Home screen with search
+```
+
+### 🟡 IN PROGRESS
+```
+🔄 Download progress tracking UI
+🔄 Subscriptions screen UI
+🔄 History screen UI
+🔄 Settings page
+```
+
+---
+
+## 🔴 MISSING FEATURES (PRIORITY ORDER)
+
+---
+
+## TIER 1: CRITICAL FEATURES (UI/UX Screens)
+
+### 1. **Subscriptions Screen** (UI Not Implemented)
+- **Status**: Backend exists, **Frontend missing**
+- **What's needed**:
+  - Display list of subscribed channels
+  - Show latest uploads from subscribed channels
+  - Subscribe/unsubscribe buttons
+  - Manage channel groups
+  - Bulk subscription operations
+  - Sort/filter subscriptions (by upload date, name, etc.)
+  - Notification badges for new uploads
+  - Channel info cards (thumbnail, subscriber count, description)
+  - Quick access to channel page
+
+---
+
+### 2. **History Screen** (UI Not Implemented)
+- **Status**: Backend exists, **Frontend missing**
+- **What's needed**:
+  - Display watch history timeline
+  - Clear history options (all/selected/date range)
+  - Continue watching (resume from last timestamp)
+  - Search/filter history
+  - Group by date
+  - Remove individual history entries
+  - Hide/show videos in history
+  - Export history
+  - History statistics (most watched, time spent, etc.)
+
+---
+
+### 3. **Downloads Screen** (Partial - UI missing features)
+- **Status**: Basic download exists, **Enhanced UI missing**
+- **What's needed**:
+  - Download queue management UI
+  - **Pause/Resume downloads**
+  - **Cancel downloads**
+  - Download progress indicators (per file)
+  - File size estimates
+  - Download location selector
+  - Format selection before download (audio/video quality)
+  - Batch download operations
+  - Downloaded video organization (by date, channel, playlist)
+  - Delete downloaded files
+  - Search downloaded videos
+  - Sort downloads (date added, size, duration)
+  - Mark favorites from downloads
+  - Move/rename downloaded files
+
+---
+
+### 4. **Settings/Preferences Screen** (MISSING)
+- **Status**: Backend may have partial support, **UI completely missing**
+- **What's needed**:
+
+  **Playback Settings**:
+  - Default video quality (360p, 480p, 720p, 1080p, 4K)
+  - Playback speed presets
+  - Subtitle preferences (font size, color, language)
+  - Caption auto-enable
+  - Continue playing after screen off
+  - Player controls customization
+  - Remember playback position
+  - Skip intro/outro automatically
+
+  **Download Settings**:
+  - Default download path/location
+  - Default download quality
+  - Download naming pattern
+  - Max concurrent downloads
+  - Auto-download new uploads from favorite channels
+  - Subtitles download preference
+
+  **Privacy & Content**:
+  - Search history on/off
+  - Watch history on/off
+  - Restricted mode (hide mature content)
+  - Regional content preferences
+  - Cookie/authentication storage
+
+  **UI Customization**:
+  - Theme selection (light/dark/AMOLED black)
+  - Accent color selection
+  - Font size adjustment
+  - Layout options (compact/comfortable)
+  - Language selection
+  - Sidebar position
+  - Always show player controls
+
+  **SponsorBlock Settings** (when implemented):
+  - Enable/disable SponsorBlock
+  - Skip categories (sponsors, intros, outros, etc.)
+  - Auto-skip or notify
+  - Show skipped segments counter
+  - Report segments permission
+
+  **Return YouTube Dislike Settings**:
+  - Enable/disable dislikes display
+  - Show as percentage vs. count
+  - Hide if below threshold
+
+  **Application**:
+  - Notification settings
+  - Update checks
+  - Debug mode
+  - App cache clearing
+  - Database export/import
+  - About/version info
+
+---
+
+## TIER 2: CORE INTEGRATIONS (Not Implemented)
+
+### 5. **SponsorBlock Integration** (PLANNED)
+- **Status**: Rust backend module exists, **NOT integrated with player**
+- **What's needed**:
+  - API calls to SponsorBlock database
+  - Extract video ID from URL
+  - Get skip segments for video
+  - **Automatic segment skipping in mpv** (critical)
+  - **Show skip notifications** ("Sponsor skipped - 2:34 saved")
+  - **Cumulative time saved counter**
+  - Manual skip controls
+  - Report incorrect segments
+  - Whitelist channels
+  - Choose categories to skip (sponsor, intro, outro, interaction, etc.)
+  - Skip timing adjustments
+  - Visual indicator of sponsor segments on timeline
+  - Cache skip data locally
+
+---
+
+### 6. **ReturnYouTubeDislike Integration** (PLANNED)
+- **Status**: Rust backend module exists, **NOT integrated with UI**
+- **What's needed**:
+  - API calls to RYD database
+  - Fetch dislike counts for video
+  - **Display on video cards** (before opening video)
+  - **Display on player screen** (like/dislike ratio)
+  - **Show as bar graph** (visual representation)
+  - Show count as text
+  - Like/dislike percentage
+  - Aggregate rating (thumbs up/down)
+  - Cache dislike data locally
+  - Update on demand
+
+---
+
+## TIER 3: ADVANCED FEATURES (Not Implemented)
+
+### 7. **Playlists System** (MISSING)
+- **Status**: No implementation at all
+- **What's needed**:
+  - Create custom playlists
+  - Add videos to playlists
+  - Remove videos from playlists
+  - Reorder videos in playlists
+  - Delete playlists
+  - Rename playlists
+  - Playlist UI (dedicated screen)
+  - Playlist descriptions
+  - Share playlists
+  - Import playlists
+  - Export playlists (JSON/CSV)
+  - YouTube playlist support (fetch/play YouTube playlists)
+  - Save channel favorites to playlist
+  - Auto-playlist for channels (latest uploads)
+
+---
+
+### 8. **Channel/Creator Pages** (MISSING)
+- **Status**: No implementation at all
+- **What's needed**:
+  - Channel info display (banner, profile pic, subscriber count, description)
+  - Channel uploads list
+  - Channel playlists
+  - Channel featured videos
+  - Channel tabs (uploads, playlists, featured, community)
+  - Subscribe/unsubscribe button
+  - All videos/videos/shorts sorting
+  - Search within channel
+  - Channel statistics
+  - Channel notifications
+  - Channel pinned video indicator
+  - Channel community posts (if available)
+
+---
+
+### 9. **Comments Section** (PLANNED in UI)
+- **Status**: UI widget exists, **NOT functional**
+- **What's needed**:
+  - Fetch comments from yt-dlp/YouTube
+  - Display comment threads
+  - Load more comments (pagination)
+  - Nested replies support
+  - Sort comments (top/newest)
+  - Like/unlike comments
+  - Timestamp links in comments
+  - User avatars in comments
+  - Comment author badges
+  - Pinned comments
+  - Video author replies highlight
+  - Reply to comments
+  - Delete own comments
+  - Report comments
+  - Search comments
+
+---
+
+### 10. **Trending/Discovery** (MISSING)
+- **Status**: No implementation
+- **What's needed**:
+  - Trending videos feed
+  - Category-based trending (music, gaming, news, etc.)
+  - Regional trending support
+  - Trending by time period (today/this week/this month)
+  - Recommendations based on watch history
+  - Similar videos (when viewing video)
+  - "Recommended for you" feed
+  - Explore/discovery page
+  - Random video suggestion
+  - Category exploration
+
+---
+
+### 11. **Multi-Language & Localization** (MISSING)
+- **Status**: No implementation
+- **What's needed**:
+  - App UI translation (all screens)
+  - Settings for language selection
+  - Support for multiple language packs
+  - Subtitle language preferences
+  - Searchable content in different languages
+  - Regional video content support
+  - RTL language support (Arabic, Hebrew)
+  - Currency support (for regional pricing if applicable)
+  - Date/time format localization
+
+---
+
+## TIER 4: PLAYER ENHANCEMENTS (Partial Implementation)
+
+### 12. **Advanced Player Controls** (Partially missing)
+- **Status**: Basic mpv integration exists
+- **What's needed**:
+  - **Video quality selector UI** (select before/during playback)
+  - **Playback speed control UI** (0.25x - 2x)
+  - **Subtitle selection & customization**
+    - Font size
+    - Font color
+    - Background opacity
+    - Subtitle language selection
+  - **Audio track selection** (for multilingual videos)
+  - **Aspect ratio controls** (fit/fill/zoom)
+  - **Theater mode** (wider player)
+  - **Picture-in-Picture mode**
+  - **Fullscreen mode** (proper implementation)
+  - **Keyboard shortcuts** (documented & customizable)
+  - **Mouse wheel volume control**
+  - **Click-to-pause/play**
+  - **Gesture controls** (swipe for seeking, volume)
+  - **Hardware acceleration** settings
+
+---
+
+### 13. **Background Playback** (PLANNED)
+- **Status**: No implementation
+- **What's needed**:
+  - Continue playback when app minimized
+  - Audio-only playback (extract audio)
+  - Lock screen controls
+  - System media controls integration
+  - Notification controls
+  - Pause when other app plays audio
+  - Resume when other audio stops
+
+---
+
+### 14. **Video Timeline/Chapters** (MISSING)
+- **Status**: No implementation
+- **What's needed**:
+  - Display chapter markers on timeline
+  - Jump to chapters
+  - Show chapter names on hover
+  - Auto-generated chapters (if YouTube provides)
+  - Custom chapter creation
+  - Timeline preview/thumbnails on hover
+  - Timestamp links in descriptions
+  - Keyframe seeking (faster scrubbing)
+
+---
+
+## TIER 5: BACKEND/CORE SYSTEMS (Missing/Incomplete)
+
+### 15. **Robust Error Handling** (Incomplete)
+- **Status**: Minimal implementation
+- **What's needed**:
+  - Network error recovery
+  - Timeout handling
+  - Rate limiting handling
+  - Graceful degradation
+  - User-friendly error messages
+  - Error logging system
+  - Error reporting (optional)
+  - Offline mode support
+  - Retry mechanisms with exponential backoff
+  - Connection status indicator
+
+---
+
+### 16. **Caching System** (Missing)
+- **Status**: No implementation
+- **What's needed**:
+  - Thumbnail caching
+  - Search results caching
+  - Video metadata caching
+  - Comments caching
+  - Channel info caching
+  - Cache invalidation strategy
+  - Cache size management
+  - Clear cache option
+  - Cache expiration settings
+
+---
+
+### 17. **Search Enhancements** (Basic only)
+- **Status**: Only basic text search implemented
+- **What's needed**:
+  - Search filters (date, duration, upload date, etc.)
+  - Filter by channel
+  - Filter by video type (video/music/shorts)
+  - Search within results
+  - Search history
+  - Saved searches
+  - Advanced search syntax
+  - Autocomplete suggestions
+  - Search by URL/video ID
+  - Fuzzy search support
+
+---
+
+### 18. **Update System** (Missing)
+- **Status**: No implementation
+- **What's needed**:
+  - Check for app updates
+  - Auto-update mechanism
+  - yt-dlp auto-update (critical)
+  - Update progress indicator
+  - Changelog display
+  - Rollback option
+  - Update notifications
+
+---
+
+## TIER 6: DATA MANAGEMENT (Partial)
+
+### 19. **Database Features** (Incomplete)
+- **Status**: Basic SQLite schema, **many features missing**
+- **What's needed**:
+  - **Database schema migrations**
+  - **Data integrity checks**
+  - **Backup/restore system**
+  - **Database cleanup/optimization**
+  - **Statistics dashboard** (total watch time, videos downloaded, etc.)
+  - **Data export options** (JSON/CSV for subscriptions, history)
+  - **Database encryption** (for privacy)
+  - **Sync across devices** (cloud optional)
+  - **Data size management**
+
+---
+
+### 20. **Auto-Download/Sync** (PLANNED)
+- **Status**: No implementation
+- **What's needed**:
+  - Auto-download latest uploads from channels
+  - Scheduling for auto-downloads
+  - Smart download (avoid duplicates)
+  - Queue management
+  - Bandwidth limiting
+  - Storage quota management
+  - Smart delete (remove old downloads)
+
+---
+
+## TIER 7: ADVANCED UI/UX (Missing)
+
+### 21. **Notifications** (Missing)
+- **Status**: No implementation
+- **What's needed**:
+  - New upload notifications (subscribed channels)
+  - Download complete notifications
+  - App update notifications
+  - SponsorBlock skip notifications
+  - Custom notification preferences
+  - Notification history
+  - Do not disturb mode
+  - Sound/vibration settings
+
+---
+
+### 22. **Search UI Enhancement** (Basic only)
+- **Status**: Basic search box only
+- **What's needed**:
+  - Search suggestions dropdown
+  - Recent searches
+  - Trending searches
+  - Saved searches
+  - Search categories sidebar
+  - Search results filters UI
+  - Search results sorting
+  - Search result view options (grid/list)
+
+---
+
+### 23. **Keyboard Shortcuts** (Missing)
+- **Status**: No implementation
+- **What's needed**:
+  - Spacebar to play/pause
+  - Arrow keys for seeking
+  - Volume control (+ / -)
+  - Fullscreen (F)
+  - Mute (M)
+  - Numbers for seeking (0-9)
+  - > / < for playback speed
+  - L for like/dislike
+  - S for settings
+  - Customizable shortcuts
+  - Shortcut help dialog (?)
+
+---
+
+### 24. **Accessibility Features** (Missing)
+- **Status**: No implementation
+- **What's needed**:
+  - Screen reader support
+  - High contrast mode
+  - Font size adjustment
+  - Keyboard-only navigation
+  - Focus indicators
+  - Alt text for images
+  - Audio descriptions
+  - Captions/subtitles support
+  - Color blind modes
+  - Dyslexia-friendly font option
+
+---
+
+## TIER 8: CROSS-PLATFORM (Incomplete)
+
+### 25. **Multi-Platform Support** (Partial)
+- **Status**: Linux support mostly done, **Windows/macOS need work**
+- **What's needed**:
+  - **Windows native packaging** (.exe installer)
+  - **macOS support** (build & package)
+  - **macOS .dmg distribution**
+  - **Linux AppImage** packaging
+  - **Linux Flatpak** support
+  - **Linux Snap** support
+  - **Auto-update mechanism** per platform
+  - **System tray icon** (minimize to tray)
+  - **Launch on startup** option
+  - Platform-specific shortcuts
+  - Native file dialogs per OS
+  - Drag & drop file support
+
+---
+
+### 26. **Platform-Specific Features** (Missing)
+- **Status**: No implementation
+- **What's needed**:
+  - Windows:
+    - System media controls (multimedia keys)
+    - Windows Notification API
+    - Registry integration
+  - Linux:
+    - D-Bus integration
+    - MPRIS protocol (media control)
+    - Desktop file integration
+  - macOS:
+    - TouchBar support
+    - Spotlight search integration
+    - Handoff support (if cloud sync)
+
+---
+
+## TIER 9: TESTING & QA (Missing)
+
+### 27. **Testing Coverage** (Minimal)
+- **Status**: Basic widget test only
+- **What's needed**:
+  - Unit tests (backend & frontend)
+  - Integration tests
+  - API endpoint tests
+  - Database tests
+  - Player integration tests
+  - Download tests
+  - Search functionality tests
+  - Performance tests
+  - Stress tests
+  - End-to-end UI tests
+
+---
+
+### 28. **Documentation** (Incomplete)
+- **Status**: Basic READMEs exist, **detailed docs missing**
+- **What's needed**:
+  - API documentation (OpenAPI/Swagger)
+  - Installation guides per OS
+  - Configuration guide
+  - Troubleshooting guide
+  - Developer setup guide
+  - Architecture documentation
+  - Code comments/doc strings
+  - User manual
+  - Video tutorial
+  - Keyboard shortcuts documentation
+  - FAQ page
+  - Contributing guidelines (exists but incomplete)
+
+---
+
+## TIER 10: PERFORMANCE & OPTIMIZATION (Missing)
+
+### 29. **Performance Optimization** (Not done)
+- **Status**: No optimization phase yet
+- **What's needed**:
+  - Lazy loading for lists
+  - Virtual scrolling for large lists
+  - Image optimization (compression, resizing)
+  - Streaming optimization
+  - Database query optimization
+  - Memory profiling & leaks fixes
+  - Startup time optimization
+  - UI render optimization
+  - Network request batching
+  - Connection pooling
+
+---
+
+### 30. **Resource Management** (Missing)
+- **Status**: Basic implementation only
+- **What's needed**:
+  - Memory usage limits
+  - CPU usage optimization
+  - Bandwidth limiting
+  - Storage quota management
+  - Download pause on low battery
+  - Download pause on mobile data (desktop not applicable but conceptually)
+  - Cleanup old cache automatically
+
+---
+
+## TIER 11: SECURITY & PRIVACY (Missing)
+
+### 31. **Security Features** (Missing)
+- **Status**: No security implementation
+- **What's needed**:
+  - HTTPS enforcement
+  - Certificate pinning
+  - Input validation/sanitization
+  - XSS/CSRF protection
+  - Rate limiting
+  - DDoS protection
+  - Secure credential storage
+  - API key management
+  - OAuth support (future)
+  - Security audit
+
+---
+
+### 32. **Privacy Features** (Partial)
+- **Status**: Basic, needs enhancement
+- **What's needed**:
+  - No telemetry/tracking
+  - Data privacy policy
+  - Cookie management
+  - Do-not-track header
+  - Anonymous search support
+  - Encrypted local storage (optional)
+  - Clear all data option
+  - Data deletion on uninstall
+  - GDPR compliance
+  - Privacy audit
+
+---
+
+## TIER 12: NICE-TO-HAVE FEATURES (Bonus)
+
+### 33. **Community/Social** (Not planned)
+- **Status**: No implementation
+- **What's needed**:
+  - Share videos with link
+  - Share timestamp links
+  - Playlist sharing
+  - Social media integration
+  - Discord rich presence
+  - Watch party (future)
+  - Comments/reviews (future)
+
+---
+
+### 34. **Plugins/Extensions** (Not planned)
+- **Status**: No implementation
+- **What's needed**:
+  - Plugin system
+  - Custom theme support
+  - Custom codec support
+  - API for third-party tools
+
+---
+
+### 35. **Analytics/Stats** (Missing)
+- **Status**: No implementation
+- **What's needed**:
+  - Total watch time
+  - Most watched channels
+  - Most watched videos
+  - Watch time by date
+  - Download statistics
+  - Playback statistics
+  - Data visualization (charts)
+
+---
+
+## 📋 SUMMARY TABLE
+
+| Feature | Status | Priority | Difficulty |
+|---------|--------|----------|------------|
+| Subscriptions UI | 🔴 Missing | P0 | Medium |
+| History UI | 🔴 Missing | P0 | Medium |
+| Downloads UI (Enhanced) | 🟡 Partial | P0 | Medium |
+| Settings Screen | 🔴 Missing | P0 | Hard |
+| SponsorBlock Integration | 🟡 Partial | P1 | Medium |
+| ReturnYouTubeDislike Integration | 🟡 Partial | P1 | Easy |
+| Playlists System | 🔴 Missing | P1 | Hard |
+| Channel Pages | 🔴 Missing | P1 | Hard |
+| Comments Section | 🟡 Partial | P1 | Medium |
+| Trending/Discovery | 🔴 Missing | P2 | Hard |
+| Multi-Language | 🔴 Missing | P2 | Medium |
+| Background Playback | 🔴 Missing | P1 | Medium |
+| Video Quality Selector | 🔴 Missing | P1 | Easy |
+| Subtitle Customization | 🔴 Missing | P1 | Medium |
+| Search Enhancements | 🟡 Partial | P1 | Medium |
+| Database Features | 🟡 Partial | P2 | Hard |
+| Auto-Download/Sync | 🔴 Missing | P2 | Hard |
+| Notifications | 🔴 Missing | P1 | Medium |
+| Keyboard Shortcuts | 🔴 Missing | P2 | Easy |
+| Accessibility | 🔴 Missing | P3 | Hard |
+| Error Handling | 🟡 Partial | P1 | Medium |
+| Caching System | 🔴 Missing | P2 | Hard |
+| Update System | 🔴 Missing | P2 | Medium |
+| Cross-Platform Packaging | 🟡 Partial | P1 | Hard |
+| Testing | 🟡 Minimal | P3 | Hard |
+| Documentation | 🟡 Partial | P2 | Medium |
+| Performance Optimization | 🔴 Missing | P3 | Hard |
+
+---
+
+## 🎯 RECOMMENDED IMPLEMENTATION ORDER
+
+### **Phase 1 (MVP Completion)** - Next 2-3 weeks
+1. **Subscriptions UI Screen**
+2. **Settings Screen** (basic)
+3. **History UI Screen**
+4. **SponsorBlock automatic skipping**
+5. **ReturnYouTubeDislike display**
+6. **Video quality selector**
+
+### **Phase 2 (Core Features)** - Weeks 4-6
+1. **Playlists system**
+2. **Channel pages**
+3. **Comments section** (functional)
+4. **Enhanced downloads UI**
+5. **Search enhancements**
+6. **Background playback**
+
+### **Phase 3 (Polish)** - Weeks 7-9
+1. **Keyboard shortcuts**
+2. **Notifications system**
+3. **Multi-language support**
+4. **Performance optimization**
+5. **Error handling improvements**
+6. **Caching system**
+
+### **Phase 4 (Advanced)** - Weeks 10+
+1. **Trending/Discovery**
+2. **Accessibility features**
+3. **Cross-platform packaging**
+4. **Comprehensive testing**
+5. **Documentation**
+
+---
+
+## 🔗 NOTES
+
+- **Total Missing Features**: ~35 major feature areas
+- **Estimated Completion Time**: 3-6 months (with dedicated team)
+- **Most Critical**: Settings, Subscriptions UI, History UI, SponsorBlock integration
+- **Highest Impact**: Playlists, Channel pages, Background playback
+- **Quick Wins**: Keyboard shortcuts, Notifications, Quality selector
+
+---
+
+*Generated for Pragadeesh | Tubular PC Project | 2026*
+
+```
+
 `frontend/README.md`:
 
 ```md
@@ -3317,7 +4471,13 @@ class PlayerController extends StateNotifier<PlayerState> {
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'screens/home_screen.dart';
+import 'screens/subscriptions_screen.dart';
+import 'screens/history_screen.dart';
+import 'screens/downloads_screen.dart';
+import 'screens/settings_screen.dart';
 import 'widgets/player_shell.dart';
+
+final navigationIndexProvider = StateProvider<int>((ref) => 0);
 
 void main() {
   runApp(const ProviderScope(child: TubularApp()));
@@ -3351,10 +4511,303 @@ class TubularApp extends StatelessWidget {
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         ),
       ),
-      home: const PlayerShell(child: HomeScreen()),
+      home: const PlayerShell(child: MainNavigation()),
     );
   }
 }
+
+class MainNavigation extends ConsumerWidget {
+  const MainNavigation({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final currentIndex = ref.watch(navigationIndexProvider);
+
+    final screens = [
+      const HomeScreen(),
+      const SubscriptionsScreen(),
+      const HistoryScreen(),
+      const DownloadsScreen(),
+    ];
+
+    return Scaffold(
+      body: Row(
+        children: [
+          // Navigation rail for desktop
+          NavigationRail(
+            selectedIndex: currentIndex,
+            onDestinationSelected: (index) {
+              ref.read(navigationIndexProvider.notifier).state = index;
+            },
+            labelType: NavigationRailLabelType.all,
+            backgroundColor: Colors.grey[900],
+            selectedIconTheme: IconThemeData(color: Colors.red[700]),
+            selectedLabelTextStyle: TextStyle(color: Colors.red[700]),
+            destinations: const [
+              NavigationRailDestination(
+                icon: Icon(Icons.home),
+                label: Text('Home'),
+              ),
+              NavigationRailDestination(
+                icon: Icon(Icons.subscriptions),
+                label: Text('Subscriptions'),
+              ),
+              NavigationRailDestination(
+                icon: Icon(Icons.history),
+                label: Text('History'),
+              ),
+              NavigationRailDestination(
+                icon: Icon(Icons.download),
+                label: Text('Downloads'),
+              ),
+            ],
+            trailing: Expanded(
+              child: Align(
+                alignment: Alignment.bottomCenter,
+                child: NavigationRail(
+                  selectedIndex: 0,
+                  onDestinationSelected: (_) {
+                    // Navigate to settings
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Settings coming soon')),
+                    );
+                  },
+                  labelType: NavigationRailLabelType.all,
+                  backgroundColor: Colors.transparent,
+                  destinations: const [
+                    NavigationRailDestination(
+                      icon: Icon(Icons.settings),
+                      label: Text('Settings'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          // Main content
+          Expanded(
+            child: screens[currentIndex],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+
+```
+
+`frontend/lib/models/dislike.dart`:
+
+```dart
+import 'package:json_annotation/json_annotation.dart';
+
+part 'dislike.g.dart';
+
+@JsonSerializable()
+class DislikeData {
+  final String videoId;
+  final int likes;
+  final int dislikes;
+  final double rating;
+  final int viewCount;
+  final DateTime? retrievedAt;
+
+  DislikeData({
+    required this.videoId,
+    required this.likes,
+    required this.dislikes,
+    required this.rating,
+    required this.viewCount,
+    this.retrievedAt,
+  });
+
+  factory DislikeData.fromJson(Map<String, dynamic> json) =>
+      _$DislikeDataFromJson(json);
+  Map<String, dynamic> toJson() => _$DislikeDataToJson(this);
+
+  int get totalVotes => likes + dislikes;
+  double get likePercentage => totalVotes > 0 ? (likes / totalVotes) * 100 : 0;
+  double get dislikePercentage => totalVotes > 0 ? (dislikes / totalVotes) * 100 : 0;
+
+  String get formattedLikes {
+    if (likes >= 1000000) {
+      return '${(likes / 1000000).toStringAsFixed(1)}M';
+    } else if (likes >= 1000) {
+      return '${(likes / 1000).toStringAsFixed(1)}K';
+    }
+    return likes.toString();
+  }
+
+  String get formattedDislikes {
+    if (dislikes >= 1000000) {
+      return '${(dislikes / 1000000).toStringAsFixed(1)}M';
+    } else if (dislikes >= 1000) {
+      return '${(dislikes / 1000).toStringAsFixed(1)}K';
+    }
+    return dislikes.toString();
+  }
+
+  String get formattedViewCount {
+    if (viewCount >= 1000000) {
+      return '${(viewCount / 1000000).toStringAsFixed(1)}M';
+    } else if (viewCount >= 1000) {
+      return '${(viewCount / 1000).toStringAsFixed(1)}K';
+    }
+    return viewCount.toString();
+  }
+}
+
+```
+
+`frontend/lib/models/dislike.g.dart`:
+
+```dart
+// GENERATED CODE - DO NOT MODIFY BY HAND
+
+part of 'dislike.dart';
+
+// **************************************************************************
+// JsonSerializableGenerator
+// **************************************************************************
+
+DislikeData _$DislikeDataFromJson(Map<String, dynamic> json) => DislikeData(
+      videoId: json['videoId'] as String,
+      likes: json['likes'] as int,
+      dislikes: json['dislikes'] as int,
+      rating: (json['rating'] as num).toDouble(),
+      viewCount: json['viewCount'] as int,
+      retrievedAt: json['retrievedAt'] == null
+          ? null
+          : DateTime.parse(json['retrievedAt'] as String),
+    );
+
+Map<String, dynamic> _$DislikeDataToJson(DislikeData instance) =>
+    <String, dynamic>{
+      'videoId': instance.videoId,
+      'likes': instance.likes,
+      'dislikes': instance.dislikes,
+      'rating': instance.rating,
+      'viewCount': instance.viewCount,
+      'retrievedAt': instance.retrievedAt?.toIso8601String(),
+    };
+
+```
+
+`frontend/lib/models/download.dart`:
+
+```dart
+import 'package:json_annotation/json_annotation.dart';
+
+part 'download.g.dart';
+
+@JsonSerializable()
+class Download {
+  final String id;
+  final String videoId;
+  final String title;
+  final String filePath;
+  final int fileSize;
+  final String format; // 'video', 'audio', 'both'
+  final String quality; // '360p', '720p', '1080p'
+  final String status; // 'pending', 'downloading', 'completed', 'failed', 'paused'
+  final double progress; // 0-100
+  final DateTime createdAt;
+  final DateTime? completedAt;
+  final String? errorMessage;
+
+  Download({
+    required this.id,
+    required this.videoId,
+    required this.title,
+    required this.filePath,
+    required this.fileSize,
+    required this.format,
+    required this.quality,
+    required this.status,
+    required this.progress,
+    required this.createdAt,
+    this.completedAt,
+    this.errorMessage,
+  });
+
+  factory Download.fromJson(Map<String, dynamic> json) => _$DownloadFromJson(json);
+  Map<String, dynamic> toJson() => _$DownloadToJson(this);
+
+  bool get isDownloading => status == 'downloading';
+  bool get isCompleted => status == 'completed';
+  bool get isFailed => status == 'failed';
+  bool get isPaused => status == 'paused';
+  
+  String get progressText => '${progress.toStringAsFixed(1)}%';
+  
+  String get statusText {
+    switch (status) {
+      case 'pending':
+        return 'Pending';
+      case 'downloading':
+        return 'Downloading';
+      case 'completed':
+        return 'Completed';
+      case 'failed':
+        return 'Failed';
+      case 'paused':
+        return 'Paused';
+      default:
+        return 'Unknown';
+    }
+  }
+
+  String get formattedFileSize {
+    if (fileSize < 1024) return '$fileSize B';
+    if (fileSize < 1024 * 1024) return '${(fileSize / 1024).toStringAsFixed(1)} KB';
+    if (fileSize < 1024 * 1024 * 1024) return '${(fileSize / (1024 * 1024)).toStringAsFixed(1)} MB';
+    return '${(fileSize / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB';
+  }
+}
+
+```
+
+`frontend/lib/models/download.g.dart`:
+
+```dart
+// GENERATED CODE - DO NOT MODIFY BY HAND
+
+part of 'download.dart';
+
+// **************************************************************************
+// JsonSerializableGenerator
+// **************************************************************************
+
+Download _$DownloadFromJson(Map<String, dynamic> json) => Download(
+      id: json['id'] as String,
+      videoId: json['videoId'] as String,
+      title: json['title'] as String,
+      filePath: json['filePath'] as String,
+      fileSize: json['fileSize'] as int,
+      format: json['format'] as String,
+      quality: json['quality'] as String,
+      status: json['status'] as String,
+      progress: (json['progress'] as num).toDouble(),
+      createdAt: DateTime.parse(json['createdAt'] as String),
+      completedAt: json['completedAt'] == null ? null : DateTime.parse(json['completedAt'] as String),
+      errorMessage: json['errorMessage'] as String?,
+    );
+
+Map<String, dynamic> _$DownloadToJson(Download instance) => <String, dynamic>{
+      'id': instance.id,
+      'videoId': instance.videoId,
+      'title': instance.title,
+      'filePath': instance.filePath,
+      'fileSize': instance.fileSize,
+      'format': instance.format,
+      'quality': instance.quality,
+      'status': instance.status,
+      'progress': instance.progress,
+      'createdAt': instance.createdAt.toIso8601String(),
+      'completedAt': instance.completedAt?.toIso8601String(),
+      'errorMessage': instance.errorMessage,
+    };
 
 ```
 
@@ -3424,6 +4877,110 @@ Map<String, dynamic> _$HistoryEntryToJson(HistoryEntry instance) =>
       'thumbnail': instance.thumbnail,
       'watched_at': instance.watchedAt,
       'progress': instance.progress,
+    };
+
+```
+
+`frontend/lib/models/sponsorblock.dart`:
+
+```dart
+import 'package:flutter/material.dart';
+import 'package:json_annotation/json_annotation.dart';
+
+part 'sponsorblock.g.dart';
+
+@JsonSerializable()
+class SponsorBlockSegment {
+  final String category; // 'sponsor', 'intro', 'outro', 'interlude', 'break'
+  final double startTime; // seconds
+  final double endTime; // seconds
+  final int votes;
+  final bool isVoted;
+
+  SponsorBlockSegment({
+    required this.category,
+    required this.startTime,
+    required this.endTime,
+    required this.votes,
+    this.isVoted = false,
+  });
+
+  factory SponsorBlockSegment.fromJson(Map<String, dynamic> json) =>
+      _$SponsorBlockSegmentFromJson(json);
+  Map<String, dynamic> toJson() => _$SponsorBlockSegmentToJson(this);
+
+  String get categoryLabel {
+    switch (category) {
+      case 'sponsor':
+        return 'Sponsor';
+      case 'intro':
+        return 'Intro';
+      case 'outro':
+        return 'Outro';
+      case 'interlude':
+        return 'Interlude';
+      case 'break':
+        return 'Break';
+      default:
+        return category;
+    }
+  }
+
+  Color get categoryColor {
+    switch (category) {
+      case 'sponsor':
+        return Color(0xFF00D400);
+      case 'intro':
+        return Color(0xFF00FFFF);
+      case 'outro':
+        return Color(0xFF0071DB);
+      case 'interlude':
+        return Color(0xFFFF9000);
+      case 'break':
+        return Color(0xFF4B4498);
+      default:
+        return Color(0xFF999999);
+    }
+  }
+
+  String get durationText {
+    final duration = (endTime - startTime).toInt();
+    return '${duration}s';
+  }
+
+  Duration get startDuration => Duration(milliseconds: (startTime * 1000).toInt());
+  Duration get endDuration => Duration(milliseconds: (endTime * 1000).toInt());
+}
+
+```
+
+`frontend/lib/models/sponsorblock.g.dart`:
+
+```dart
+// GENERATED CODE - DO NOT MODIFY BY HAND
+
+part of 'sponsorblock.dart';
+
+// **************************************************************************
+// JsonSerializableGenerator
+// **************************************************************************
+
+SponsorBlockSegment _$SponsorBlockSegmentFromJson(Map<String, dynamic> json) =>
+    SponsorBlockSegment(
+      category: json['category'] as String,
+      startTime: (json['startTime'] as num).toDouble(),
+      endTime: (json['endTime'] as num).toDouble(),
+      votes: json['votes'] as int,
+      isVoted: json['isVoted'] as bool? ?? false,
+    );
+
+Map<String, dynamic> _$SponsorBlockSegmentToJson(SponsorBlockSegment instance) =>
+    <String, dynamic>{
+      'category': instance.category,
+      'startTime': instance.startTime,
+      'endTime': instance.endTime,
+      'votes': instance.votes,
+      'isVoted': instance.isVoted,
     };
 
 ```
@@ -3670,6 +5227,1133 @@ Map<String, dynamic> _$VideoToJson(Video instance) => <String, dynamic>{
 
 ```
 
+`frontend/lib/screens/downloads_screen.dart`:
+
+```dart
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../models/download.dart';
+import '../services/api_service.dart';
+
+final apiServiceProvider = Provider((ref) => ApiService());
+
+// Sort options
+final downloadsSortProvider = StateProvider<String>((ref) => 'date_desc');
+
+final downloadsProvider = FutureProvider<List<Download>>((ref) async {
+  final apiService = ref.watch(apiServiceProvider);
+  final sort = ref.watch(downloadsSortProvider);
+  
+  // Fetch downloads from backend API
+  List<Download> downloads = await apiService.getDownloads();
+  
+  // Apply sorting
+  switch (sort) {
+    case 'name_asc':
+      downloads.sort((a, b) => a.title.compareTo(b.title));
+      break;
+    case 'name_desc':
+      downloads.sort((a, b) => b.title.compareTo(a.title));
+      break;
+    case 'size_asc':
+      downloads.sort((a, b) => a.fileSize.compareTo(b.fileSize));
+      break;
+    case 'size_desc':
+      downloads.sort((a, b) => b.fileSize.compareTo(a.fileSize));
+      break;
+    case 'date_asc':
+      downloads.sort((a, b) => a.createdAt.compareTo(b.createdAt));
+      break;
+    case 'date_desc':
+    default:
+      downloads.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+  }
+  
+  return downloads;
+});
+
+final activeDownloadsProvider = FutureProvider<List<Download>>((ref) async {
+  final downloads = await ref.watch(downloadsProvider.future);
+  return downloads.where((d) => d.isDownloading || d.isPaused).toList();
+});
+
+final completedDownloadsProvider = FutureProvider<List<Download>>((ref) async {
+  final downloads = await ref.watch(downloadsProvider.future);
+  return downloads.where((d) => d.isCompleted).toList();
+});
+
+final failedDownloadsProvider = FutureProvider<List<Download>>((ref) async {
+  final downloads = await ref.watch(downloadsProvider.future);
+  return downloads.where((d) => d.isFailed).toList();
+});
+
+// Stats providers
+final totalDownloadsSizeProvider = FutureProvider<int>((ref) async {
+  final downloads = await ref.watch(downloadsProvider.future);
+  return downloads.fold<int>(0, (sum, d) => sum + d.fileSize);
+});
+
+final totalActiveDownloadsSizeProvider = FutureProvider<int>((ref) async {
+  final downloads = await ref.watch(activeDownloadsProvider.future);
+  return downloads.fold<int>(0, (sum, d) => sum + d.fileSize);
+});
+
+class DownloadsScreen extends ConsumerStatefulWidget {
+  const DownloadsScreen({Key? key}) : super(key: key);
+
+  @override
+  ConsumerState<DownloadsScreen> createState() => _DownloadsScreenState();
+}
+
+class _DownloadsScreenState extends ConsumerState<DownloadsScreen>
+    with SingleTickerProviderStateMixin {
+  late TabController _tabController;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 3, vsync: this);
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final totalSize = ref.watch(totalDownloadsSizeProvider);
+    final sort = ref.watch(downloadsSortProvider);
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Downloads'),
+        backgroundColor: Colors.red[700],
+        foregroundColor: Colors.white,
+        elevation: 0,
+        actions: [
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.sort),
+            tooltip: 'Sort',
+            itemBuilder: (context) => [
+              const PopupMenuItem(
+                value: 'date_desc',
+                child: Text('Newest First'),
+              ),
+              const PopupMenuItem(
+                value: 'date_asc',
+                child: Text('Oldest First'),
+              ),
+              const PopupMenuItem(
+                value: 'name_asc',
+                child: Text('Name (A-Z)'),
+              ),
+              const PopupMenuItem(
+                value: 'name_desc',
+                child: Text('Name (Z-A)'),
+              ),
+              const PopupMenuItem(
+                value: 'size_desc',
+                child: Text('Largest First'),
+              ),
+              const PopupMenuItem(
+                value: 'size_asc',
+                child: Text('Smallest First'),
+              ),
+            ],
+            onSelected: (value) {
+              ref.read(downloadsSortProvider.notifier).state = value;
+            },
+          ),
+        ],
+        bottom: TabBar(
+          controller: _tabController,
+          tabs: const [
+            Tab(icon: Icon(Icons.cloud_download), text: 'Active'),
+            Tab(icon: Icon(Icons.check_circle), text: 'Completed'),
+            Tab(icon: Icon(Icons.error), text: 'Failed'),
+          ],
+        ),
+      ),
+      body: Column(
+        children: [
+        // Stats bar
+        Container(
+          color: Colors.grey[850],
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              _buildStatItem(
+                icon: Icons.storage,
+                label: 'Total Size',
+                value: totalSize.when(
+                  data: (size) => _formatBytes(size),
+                  loading: () => '...',
+                  error: (_, __) => 'N/A',
+                ),
+              ),
+              _buildStatItem(
+                icon: Icons.speed,
+                label: 'Active',
+                value: '0 B',
+              ),
+              _buildStatItem(
+                icon: Icons.list,
+                label: 'Total',
+                value: 'N/A',
+              ),
+            ],
+          ),
+        ),
+          // Tab content
+          Expanded(
+            child: TabBarView(
+              controller: _tabController,
+              children: [
+                _buildActiveTab(),
+                _buildCompletedTab(),
+                _buildFailedTab(),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatItem({
+    required IconData icon,
+    required String label,
+    required String value,
+  }) {
+    return Column(
+      children: [
+        Icon(icon, color: Colors.red[700], size: 24),
+        const SizedBox(height: 4),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            color: Colors.grey[400],
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          value,
+          style: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+            color: Colors.white,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildActiveTab() {
+    final activeAsync = ref.watch(activeDownloadsProvider);
+
+    return activeAsync.when(
+      data: (downloads) {
+        if (downloads.isEmpty) {
+          return _buildEmptyState(
+            icon: Icons.cloud_download,
+            title: 'No active downloads',
+            subtitle: 'Search for videos to start downloading',
+          );
+        }
+
+        return ListView.separated(
+          padding: const EdgeInsets.all(12),
+          itemCount: downloads.length,
+          separatorBuilder: (_, __) => const SizedBox(height: 8),
+          itemBuilder: (context, index) {
+            final download = downloads[index];
+            return AnimatedOpacity(
+              opacity: 1.0,
+              duration: const Duration(milliseconds: 300),
+              child: _buildDownloadTile(context, download),
+            );
+          },
+        );
+      },
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (error, stack) => _buildErrorState(error.toString()),
+    );
+  }
+
+  Widget _buildCompletedTab() {
+    final completedAsync = ref.watch(completedDownloadsProvider);
+
+    return completedAsync.when(
+      data: (downloads) {
+        if (downloads.isEmpty) {
+          return _buildEmptyState(
+            icon: Icons.check_circle_outline,
+            title: 'No completed downloads',
+            subtitle: 'Your downloads will appear here',
+          );
+        }
+
+        return ListView.separated(
+          padding: const EdgeInsets.all(12),
+          itemCount: downloads.length,
+          separatorBuilder: (_, __) => const SizedBox(height: 8),
+          itemBuilder: (context, index) {
+            final download = downloads[index];
+            return AnimatedOpacity(
+              opacity: 1.0,
+              duration: const Duration(milliseconds: 300),
+              child: _buildCompletedDownloadTile(context, download),
+            );
+          },
+        );
+      },
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (error, stack) => _buildErrorState(error.toString()),
+    );
+  }
+
+  Widget _buildFailedTab() {
+    final failedAsync = ref.watch(failedDownloadsProvider);
+
+    return failedAsync.when(
+      data: (downloads) {
+        if (downloads.isEmpty) {
+          return _buildEmptyState(
+            icon: Icons.error_outline,
+            title: 'No failed downloads',
+            subtitle: 'All your downloads completed successfully',
+          );
+        }
+
+        return ListView.separated(
+          padding: const EdgeInsets.all(12),
+          itemCount: downloads.length,
+          separatorBuilder: (_, __) => const SizedBox(height: 8),
+          itemBuilder: (context, index) {
+            final download = downloads[index];
+            return AnimatedOpacity(
+              opacity: 1.0,
+              duration: const Duration(milliseconds: 300),
+              child: _buildFailedDownloadTile(context, download),
+            );
+          },
+        );
+      },
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (error, stack) => _buildErrorState(error.toString()),
+    );
+  }
+
+  Widget _buildEmptyState({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+  }) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(icon, size: 64, color: Colors.grey[400]),
+          const SizedBox(height: 16),
+          Text(
+            title,
+            style: TextStyle(
+              fontSize: 18,
+              color: Colors.grey[600],
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            subtitle,
+            style: TextStyle(
+              fontSize: 14,
+              color: Colors.grey[500],
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildErrorState(String error) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(Icons.error_outline, size: 64, color: Colors.red),
+          const SizedBox(height: 16),
+          Text(
+            'Error',
+            style: TextStyle(
+              fontSize: 18,
+              color: Colors.grey[600],
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 8),
+          SizedBox(
+            width: 300,
+            child: Text(
+              error,
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.grey[500],
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ),
+          const SizedBox(height: 16),
+          ElevatedButton(
+            onPressed: () => ref.refresh(downloadsProvider),
+            child: const Text('Retry'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDownloadTile(BuildContext context, Download download) {
+    final downloadSpeed =
+        download.progress > 0 ? '${(download.progress * 10).toStringAsFixed(1)} MB/s' : 'Starting...';
+    final eta = download.progress > 0 ? '~${((100 - download.progress) / download.progress * 2).toStringAsFixed(0)}s' : '--';
+
+    return Card(
+      margin: EdgeInsets.zero,
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(8),
+          border: Border(
+            left: BorderSide(width: 4, color: Colors.red[700]!),
+          ),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Title and actions
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          download.title,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Wrap(
+                          spacing: 8,
+                          children: [
+                            Chip(
+                              label: Text(download.quality),
+                              labelStyle: const TextStyle(fontSize: 11),
+                              visualDensity: VisualDensity.compact,
+                            ),
+                            Chip(
+                              label: Text(download.format),
+                              labelStyle: const TextStyle(fontSize: 11),
+                              visualDensity: VisualDensity.compact,
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  PopupMenuButton(
+                    itemBuilder: (context) => [
+                      PopupMenuItem(
+                        value: 'pause',
+                        child: Row(
+                          children: [
+                            Icon(
+                              download.isPaused ? Icons.play_arrow : Icons.pause,
+                              size: 18,
+                            ),
+                            const SizedBox(width: 8),
+                            Text(download.isPaused ? 'Resume' : 'Pause'),
+                          ],
+                        ),
+                      ),
+                      const PopupMenuItem(
+                        value: 'cancel',
+                        child: Row(
+                          children: [
+                            Icon(Icons.close, size: 18),
+                            SizedBox(width: 8),
+                            Text('Cancel'),
+                          ],
+                        ),
+                      ),
+                    ],
+                    onSelected: (value) {
+                      if (value == 'pause') {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(download.isPaused ? 'Resumed' : 'Paused'),
+                            duration: const Duration(seconds: 1),
+                          ),
+                        );
+                      } else if (value == 'cancel') {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Download cancelled'),
+                            duration: Duration(seconds: 1),
+                          ),
+                        );
+                      }
+                    },
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+
+              // Progress visualization
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(4),
+                    child: LinearProgressIndicator(
+                      value: download.progress / 100,
+                      minHeight: 8,
+                      backgroundColor: Colors.grey[700],
+                      valueColor: AlwaysStoppedAnimation<Color>(
+                        download.isFailed ? Colors.red : Colors.green,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        '${download.progressText} • ${download.formattedFileSize}',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey[400],
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      Text(
+                        'ETA: $eta',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey[400],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        downloadSpeed,
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: Colors.grey[500],
+                        ),
+                      ),
+                      Text(
+                        download.statusText,
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: Colors.red[400],
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCompletedDownloadTile(BuildContext context, Download download) {
+    return Card(
+      margin: EdgeInsets.zero,
+      elevation: 1,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(8),
+          border: const Border(
+            left: BorderSide(width: 4, color: Colors.green),
+          ),
+        ),
+        child: ListTile(
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          leading: const Icon(Icons.check_circle, color: Colors.green, size: 28),
+          title: Text(
+            download.title,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontWeight: FontWeight.w500),
+          ),
+          subtitle: Text(
+            '${download.quality} • ${download.formattedFileSize}',
+            style: TextStyle(fontSize: 12, color: Colors.grey[500]),
+          ),
+          trailing: PopupMenuButton(
+            itemBuilder: (context) => [
+              const PopupMenuItem(
+                value: 'open',
+                child: Row(
+                  children: [
+                    Icon(Icons.folder_open, size: 18),
+                    SizedBox(width: 8),
+                    Text('Open'),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'show_in_folder',
+                child: Row(
+                  children: [
+                    Icon(Icons.folder, size: 18),
+                    SizedBox(width: 8),
+                    Text('Show in Folder'),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'delete',
+                child: Row(
+                  children: [
+                    Icon(Icons.delete, size: 18, color: Colors.red),
+                    SizedBox(width: 8),
+                    Text('Delete'),
+                  ],
+                ),
+              ),
+            ],
+            onSelected: (value) {
+              if (value == 'open') {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Opening download'), duration: Duration(seconds: 1)),
+                );
+              } else if (value == 'show_in_folder') {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Opening folder'), duration: Duration(seconds: 1)),
+                );
+              } else if (value == 'delete') {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Download deleted'), duration: Duration(seconds: 1)),
+                );
+                ref.refresh(downloadsProvider);
+              }
+            },
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFailedDownloadTile(BuildContext context, Download download) {
+    return Card(
+      margin: EdgeInsets.zero,
+      elevation: 1,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(8),
+          border: const Border(
+            left: BorderSide(width: 4, color: Colors.red),
+          ),
+        ),
+        child: ListTile(
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          leading: const Icon(Icons.error, color: Colors.red, size: 28),
+          title: Text(
+            download.title,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontWeight: FontWeight.w500),
+          ),
+          subtitle: Text(
+            download.errorMessage ?? 'Download failed',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(fontSize: 12, color: Colors.red[300]),
+          ),
+          trailing: PopupMenuButton(
+            itemBuilder: (context) => [
+              const PopupMenuItem(
+                value: 'retry',
+                child: Row(
+                  children: [
+                    Icon(Icons.refresh, size: 18),
+                    SizedBox(width: 8),
+                    Text('Retry'),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'delete',
+                child: Row(
+                  children: [
+                    Icon(Icons.delete, size: 18, color: Colors.red),
+                    SizedBox(width: 8),
+                    Text('Delete'),
+                  ],
+                ),
+              ),
+            ],
+            onSelected: (value) {
+              if (value == 'retry') {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Retrying download'), duration: Duration(seconds: 1)),
+                );
+              } else if (value == 'delete') {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Download deleted'), duration: Duration(seconds: 1)),
+                );
+                ref.refresh(downloadsProvider);
+              }
+            },
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _formatBytes(int bytes) {
+    if (bytes < 1024) return '$bytes B';
+    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
+    if (bytes < 1024 * 1024 * 1024) return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+    return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB';
+  }
+}
+
+```
+
+`frontend/lib/screens/history_screen.dart`:
+
+```dart
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../models/history_entry.dart';
+import '../services/api_service.dart';
+import 'player_screen.dart';
+
+final apiServiceProvider = Provider((ref) => ApiService());
+
+final historySearchProvider = StateProvider<String>((ref) => '');
+final historyFilterProvider = StateProvider<String>((ref) => 'all'); // all, today, week, month
+
+final historyProvider = FutureProvider<List<HistoryEntry>>((ref) async {
+  final apiService = ref.watch(apiServiceProvider);
+  final search = ref.watch(historySearchProvider);
+  final filter = ref.watch(historyFilterProvider);
+  
+  List<HistoryEntry> history = await apiService.getHistory();
+  
+  // Filter by search
+  if (search.isNotEmpty) {
+    history = history
+        .where((h) => h.title.toLowerCase().contains(search.toLowerCase()) ||
+            h.channel.toLowerCase().contains(search.toLowerCase()))
+        .toList();
+  }
+  
+  // Filter by date
+  final now = DateTime.now();
+  switch (filter) {
+    case 'today':
+      history = history.where((h) {
+        final date = DateTime.tryParse(h.watchedAt) ?? now;
+        return now.difference(date).inDays == 0;
+      }).toList();
+      break;
+    case 'week':
+      history = history.where((h) {
+        final date = DateTime.tryParse(h.watchedAt) ?? now;
+        return now.difference(date).inDays <= 7;
+      }).toList();
+      break;
+    case 'month':
+      history = history.where((h) {
+        final date = DateTime.tryParse(h.watchedAt) ?? now;
+        return now.difference(date).inDays <= 30;
+      }).toList();
+      break;
+    case 'all':
+    default:
+      break;
+  }
+  
+  return history;
+});
+
+class HistoryScreen extends ConsumerStatefulWidget {
+  const HistoryScreen({Key? key}) : super(key: key);
+
+  @override
+  ConsumerState<HistoryScreen> createState() => _HistoryScreenState();
+}
+
+class _HistoryScreenState extends ConsumerState<HistoryScreen> {
+  late TextEditingController _searchController;
+
+  @override
+  void initState() {
+    super.initState();
+    _searchController = TextEditingController();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final historyAsync = ref.watch(historyProvider);
+    final filter = ref.watch(historyFilterProvider);
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Watch History'),
+        backgroundColor: Colors.red[700],
+        foregroundColor: Colors.white,
+        elevation: 0,
+        actions: [
+          PopupMenuButton(
+            icon: const Icon(Icons.more_vert),
+            itemBuilder: (context) => [
+              PopupMenuItem(
+                value: 'clear_all',
+                child: Row(
+                  children: const [
+                    Icon(Icons.delete_sweep, size: 18),
+                    SizedBox(width: 8),
+                    Text('Clear All History'),
+                  ],
+                ),
+              ),
+            ],
+            onSelected: (value) {
+              if (value == 'clear_all') {
+                _showClearHistoryDialog(context);
+              }
+            },
+          ),
+        ],
+      ),
+      body: Column(
+        children: [
+          // Search bar
+          Container(
+            color: Colors.grey[850],
+            padding: const EdgeInsets.all(12),
+            child: TextField(
+              controller: _searchController,
+              style: const TextStyle(color: Colors.white),
+              onChanged: (value) {
+                ref.read(historySearchProvider.notifier).state = value;
+              },
+              decoration: InputDecoration(
+                hintText: 'Search history...',
+                hintStyle: TextStyle(color: Colors.grey[500]),
+                filled: true,
+                fillColor: Colors.grey[800],
+                prefixIcon: const Icon(Icons.search, color: Colors.grey),
+                suffixIcon: _searchController.text.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(Icons.clear, color: Colors.grey),
+                        onPressed: () {
+                          _searchController.clear();
+                          ref.read(historySearchProvider.notifier).state = '';
+                        },
+                      )
+                    : null,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide.none,
+                ),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+              ),
+            ),
+          ),
+          // Filter chips
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+            child: Row(
+              children: [
+                _buildFilterChip('All', 'all', filter),
+                const SizedBox(width: 8),
+                _buildFilterChip('Today', 'today', filter),
+                const SizedBox(width: 8),
+                _buildFilterChip('This Week', 'week', filter),
+                const SizedBox(width: 8),
+                _buildFilterChip('This Month', 'month', filter),
+              ],
+            ),
+          ),
+          // History list
+          Expanded(
+            child: historyAsync.when(
+              data: (history) {
+                if (history.isEmpty) {
+                  return _buildEmptyState();
+                }
+
+                return ListView.builder(
+                  padding: const EdgeInsets.all(12),
+                  itemCount: history.length,
+                  itemBuilder: (context, index) {
+                    final entry = history[index];
+                    return AnimatedOpacity(
+                      opacity: 1.0,
+                      duration: const Duration(milliseconds: 300),
+                      child: _buildHistoryTile(context, entry),
+                    );
+                  },
+                );
+              },
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error: (error, stack) => _buildErrorState(error.toString()),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFilterChip(String label, String value, String currentFilter) {
+    final isSelected = value == currentFilter;
+    return FilterChip(
+      label: Text(label),
+      selected: isSelected,
+      onSelected: (_) {
+        ref.read(historyFilterProvider.notifier).state = value;
+      },
+      backgroundColor: Colors.grey[800],
+      selectedColor: Colors.red[700],
+      labelStyle: TextStyle(
+        color: isSelected ? Colors.white : Colors.grey[400],
+        fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+      ),
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.history, size: 64, color: Colors.grey[400]),
+          const SizedBox(height: 16),
+          Text(
+            'No watch history',
+            style: TextStyle(
+              fontSize: 18,
+              color: Colors.grey[600],
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Videos you watch will appear here',
+            style: TextStyle(
+              fontSize: 14,
+              color: Colors.grey[500],
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildErrorState(String error) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(Icons.error_outline, size: 64, color: Colors.red),
+          const SizedBox(height: 16),
+          Text(
+            'Error',
+            style: TextStyle(
+              fontSize: 18,
+              color: Colors.grey[600],
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 8),
+          SizedBox(
+            width: 300,
+            child: Text(
+              error,
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.grey[500],
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ),
+          const SizedBox(height: 16),
+          ElevatedButton(
+            onPressed: () => ref.refresh(historyProvider),
+            child: const Text('Retry'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHistoryTile(BuildContext context, HistoryEntry entry) {
+    return Card(
+      margin: const EdgeInsets.symmetric(vertical: 6),
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        leading: Container(
+          width: 60,
+          height: 60,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(4),
+            image: DecorationImage(
+              image: NetworkImage(entry.thumbnail),
+              fit: BoxFit.cover,
+            ),
+            color: Colors.grey[700],
+          ),
+        ),
+        title: Text(
+          entry.title,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(fontWeight: FontWeight.w500),
+        ),
+        subtitle: Text(
+          entry.channel,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(fontSize: 12, color: Colors.grey[500]),
+        ),
+        trailing: PopupMenuButton(
+          itemBuilder: (context) => [
+            const PopupMenuItem(
+              value: 'remove',
+              child: Row(
+                children: [
+                  Icon(Icons.delete, size: 18, color: Colors.red),
+                  SizedBox(width: 8),
+                  Text('Remove'),
+                ],
+              ),
+            ),
+          ],
+          onSelected: (value) async {
+            if (value == 'remove') {
+              final apiService = ref.read(apiServiceProvider);
+              try {
+                await apiService.removeFromHistory(entry.id);
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Removed from history'),
+                      duration: Duration(seconds: 1),
+                    ),
+                  );
+                }
+                ref.refresh(historyProvider);
+              } catch (e) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Error: $e'),
+                      backgroundColor: Colors.red[700],
+                    ),
+                  );
+                }
+              }
+            }
+          },
+        ),
+        onTap: () {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Playing: ${entry.title}'),
+              duration: const Duration(seconds: 1),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  void _showClearHistoryDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Clear History'),
+        content: const Text(
+          'Are you sure you want to clear all watch history? This cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              final apiService = ref.read(apiServiceProvider);
+              try {
+                await apiService.clearHistory();
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('History cleared')),
+                  );
+                }
+                ref.refresh(historyProvider);
+              } catch (e) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Error: $e'),
+                      backgroundColor: Colors.red[700],
+                    ),
+                  );
+                }
+              }
+            },
+            child: Text('Clear', style: TextStyle(color: Colors.red[700])),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+```
+
 `frontend/lib/screens/home_screen.dart`:
 
 ```dart
@@ -3728,6 +6412,34 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   void _openVideo(Video video) {
     ref.read(playerControllerProvider.notifier).playVideo(video);
+  }
+
+  void _subscribeToChannel(BuildContext context, Video video) async {
+    final apiService = ref.read(apiServiceProvider);
+    try {
+      await apiService.subscribeFromVideo(
+        channelId: video.channelId,
+        channelName: video.channelName,
+        thumbnail: video.thumbnail,
+      );
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Subscribed to ${video.channelName}'),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to subscribe: $e'),
+            backgroundColor: Colors.red[700],
+          ),
+        );
+      }
+    }
   }
 
   @override
@@ -3804,7 +6516,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             itemCount: videos.length,
             itemBuilder: (context, index) {
               final video = videos[index];
-              return VideoCard(video: video, onTap: () => _openVideo(video));
+              return VideoCard(
+                video: video,
+                onTap: () => _openVideo(video),
+                onSubscribe: () => _subscribeToChannel(context, video),
+              );
             },
           );
         },
@@ -4001,6 +6717,1259 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
 ```
 
+`frontend/lib/screens/player_screen.dart`:
+
+```dart
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../models/video.dart';
+import '../models/sponsorblock.dart';
+import '../models/dislike.dart';
+import '../services/api_service.dart';
+
+final apiServiceProvider = Provider((ref) => ApiService());
+
+final sponsorBlockProvider = FutureProvider.family<List<SponsorBlockSegment>, String>((ref, videoId) async {
+  final apiService = ref.watch(apiServiceProvider);
+  try {
+    // TODO: Fetch from backend API
+    // return await apiService.getSponsorBlockSegments(videoId);
+    return [];
+  } catch (e) {
+    return [];
+  }
+});
+
+final dislikeProvider = FutureProvider.family<DislikeData?, String>((ref, videoId) async {
+  final apiService = ref.watch(apiServiceProvider);
+  try {
+    // TODO: Fetch from backend API
+    // return await apiService.getDislikeData(videoId);
+    return null;
+  } catch (e) {
+    return null;
+  }
+});
+
+final playerPositionProvider = StateProvider<Duration>((ref) => Duration.zero);
+final playerDurationProvider = StateProvider<Duration>((ref) => const Duration(minutes: 10));
+final isPlayingProvider = StateProvider<bool>((ref) => false);
+final autoSkipSponsorProvider = StateProvider<bool>((ref) => true);
+
+class PlayerScreen extends ConsumerStatefulWidget {
+  final Video video;
+
+  const PlayerScreen({
+    Key? key,
+    required this.video,
+  }) : super(key: key);
+
+  @override
+  ConsumerState<PlayerScreen> createState() => _PlayerScreenState();
+}
+
+class _PlayerScreenState extends ConsumerState<PlayerScreen> {
+  @override
+  Widget build(BuildContext context) {
+    final sponsorBlockAsync = ref.watch(sponsorBlockProvider(widget.video.id));
+    final dislikeAsync = ref.watch(dislikeProvider(widget.video.id));
+    final isPlaying = ref.watch(isPlayingProvider);
+    final position = ref.watch(playerPositionProvider);
+    final duration = ref.watch(playerDurationProvider);
+
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        backgroundColor: Colors.black87,
+        title: const Text('Now Playing'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.settings),
+            onPressed: () {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Player settings coming soon')),
+              );
+            },
+          ),
+        ],
+      ),
+      body: Column(
+        children: [
+          // Video player area
+          Expanded(
+            flex: 3,
+            child: Container(
+              color: Colors.black,
+              child: Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.play_circle_outline,
+                      size: 80,
+                      color: Colors.red[700],
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      widget.video.title,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      widget.video.channelName,
+                      style: TextStyle(
+                        color: Colors.grey[400],
+                        fontSize: 14,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+
+          // Progress bar with SponsorBlock segments
+          Container(
+            color: Colors.black87,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // SponsorBlock segments timeline
+                sponsorBlockAsync.when(
+                  data: (segments) {
+                    if (segments.isNotEmpty) {
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Skip Segments',
+                            style: TextStyle(
+                              color: Colors.grey[400],
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          _buildSponsorBlockTimeline(segments, duration),
+                          const SizedBox(height: 12),
+                        ],
+                      );
+                    }
+                    return const SizedBox.shrink();
+                  },
+                  loading: () => const SizedBox.shrink(),
+                  error: (_, __) => const SizedBox.shrink(),
+                ),
+
+                // Progress bar
+                SliderTheme(
+                  data: SliderThemeData(
+                    trackHeight: 4,
+                    thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
+                    overlayShape: const RoundSliderOverlayShape(overlayRadius: 12),
+                  ),
+                  child: Slider(
+                    value: position.inSeconds.toDouble(),
+                    max: duration.inSeconds.toDouble(),
+                    onChanged: (value) {
+                      ref.read(playerPositionProvider.notifier).state =
+                          Duration(seconds: value.toInt());
+                    },
+                    activeColor: Colors.red[700],
+                    inactiveColor: Colors.grey[700],
+                  ),
+                ),
+
+                // Time display
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      _formatDuration(position),
+                      style: TextStyle(
+                        color: Colors.grey[400],
+                        fontSize: 12,
+                      ),
+                    ),
+                    Text(
+                      _formatDuration(duration),
+                      style: TextStyle(
+                        color: Colors.grey[400],
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+
+          // Player controls
+          Container(
+            color: Colors.black87,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.skip_previous, color: Colors.white),
+                  onPressed: () {
+                    ref.read(playerPositionProvider.notifier).state =
+                        Duration(seconds: (position.inSeconds - 10).clamp(0, double.infinity).toInt());
+                  },
+                ),
+                IconButton(
+                  icon: Icon(
+                    isPlaying ? Icons.pause_circle : Icons.play_circle,
+                    color: Colors.white,
+                    size: 40,
+                  ),
+                  onPressed: () {
+                    ref.read(isPlayingProvider.notifier).state = !isPlaying;
+                  },
+                ),
+                IconButton(
+                  icon: const Icon(Icons.skip_next, color: Colors.white),
+                  onPressed: () {
+                    ref.read(playerPositionProvider.notifier).state =
+                        Duration(seconds: position.inSeconds + 10);
+                  },
+                ),
+                IconButton(
+                  icon: const Icon(Icons.volume_up, color: Colors.white),
+                  onPressed: () {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Volume control coming soon')),
+                    );
+                  },
+                ),
+                IconButton(
+                  icon: const Icon(Icons.fullscreen, color: Colors.white),
+                  onPressed: () {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Fullscreen coming soon')),
+                    );
+                  },
+                ),
+              ],
+            ),
+          ),
+
+          // Video info with dislikes
+          Expanded(
+            flex: 2,
+            child: Container(
+              color: Colors.black87,
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Title
+                    Text(
+                      widget.video.title,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+
+                    // Channel and stats
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          widget.video.channelName,
+                          style: TextStyle(
+                            color: Colors.red[700],
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        dislikeAsync.when(
+                          data: (dislike) {
+                            if (dislike != null) {
+                              return Row(
+                                children: [
+                                  Row(
+                                    children: [
+                                      Icon(Icons.thumb_up, color: Colors.grey[400], size: 16),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        dislike.formattedLikes,
+                                        style: TextStyle(color: Colors.grey[400], fontSize: 12),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Row(
+                                    children: [
+                                      Icon(Icons.thumb_down, color: Colors.grey[400], size: 16),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        dislike.formattedDislikes,
+                                        style: TextStyle(color: Colors.grey[400], fontSize: 12),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              );
+                            }
+                            return const SizedBox.shrink();
+                          },
+                          loading: () => const SizedBox.shrink(),
+                          error: (_, __) => const SizedBox.shrink(),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+
+                    // View count and upload date
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          '${widget.video.formattedViews} views',
+                          style: TextStyle(color: Colors.grey[400], fontSize: 12),
+                        ),
+                        Text(
+                          widget.video.uploadedAgo,
+                          style: TextStyle(color: Colors.grey[400], fontSize: 12),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Description
+                    Text(
+                      'Description coming soon',
+                      style: TextStyle(
+                        color: Colors.grey[400],
+                        fontSize: 12,
+                        height: 1.5,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          // SponsorBlock segments (outside of Column for AsyncValue handling)
+          Expanded(
+            flex: 1,
+            child: sponsorBlockAsync.when(
+              data: (segments) {
+                if (segments.isEmpty) {
+                  return const SizedBox.shrink();
+                }
+                return SingleChildScrollView(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Sponsor Segments',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Column(
+                        children: segments
+                            .map((segment) =>
+                                _buildSegmentTile(segment, context))
+                            .toList(),
+                      ),
+                    ],
+                  ),
+                );
+              },
+              loading: () => const SizedBox.shrink(),
+              error: (_, __) => const SizedBox.shrink(),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSponsorBlockTimeline(List<SponsorBlockSegment> segments, Duration duration) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(4),
+      child: SizedBox(
+        height: 24,
+        child: Stack(
+          children: [
+            // Background bar
+            Container(
+              color: Colors.grey[800],
+            ),
+            // Segments
+            Row(
+              children: segments.map((segment) {
+                final totalDuration = duration.inMilliseconds.toDouble();
+                final startPercent = (segment.startTime * 1000) / totalDuration;
+                final widthPercent =
+                    ((segment.endTime - segment.startTime) * 1000) / totalDuration;
+
+                return Expanded(
+                  flex: 0,
+                  child: Padding(
+                    padding: EdgeInsets.only(left: startPercent.toStringAsFixed(0) as double? ?? 0),
+                    child: Container(
+                      width: (widthPercent * 100).toStringAsFixed(0) as double? ?? 0,
+                      color: segment.categoryColor,
+                      child: Tooltip(
+                        message: '${segment.categoryLabel} (${segment.durationText})',
+                        child: const SizedBox.expand(),
+                      ),
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSegmentTile(SponsorBlockSegment segment, BuildContext context) {
+    return Card(
+      color: Colors.grey[900],
+      margin: const EdgeInsets.only(bottom: 8),
+      child: ListTile(
+        leading: Container(
+          width: 4,
+          color: segment.categoryColor,
+        ),
+        title: Text(
+          segment.categoryLabel,
+          style: const TextStyle(color: Colors.white, fontSize: 13),
+        ),
+        subtitle: Text(
+          '${_formatDuration(segment.startDuration)} - ${_formatDuration(segment.endDuration)} (${segment.durationText})',
+          style: TextStyle(color: Colors.grey[400], fontSize: 11),
+        ),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.thumb_up, color: Colors.grey[400], size: 16),
+            const SizedBox(width: 4),
+            Text(
+              segment.votes.toString(),
+              style: TextStyle(color: Colors.grey[400], fontSize: 12),
+            ),
+          ],
+        ),
+        onTap: () {
+          ref.read(playerPositionProvider.notifier).state = segment.startDuration;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Jumping to ${segment.categoryLabel}')),
+          );
+        },
+      ),
+    );
+  }
+
+  String _formatDuration(Duration duration) {
+    final hours = duration.inHours;
+    final minutes = duration.inMinutes % 60;
+    final seconds = duration.inSeconds % 60;
+
+    if (hours > 0) {
+      return '${hours.toString().padLeft(2, '0')}:${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
+    }
+    return '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
+  }
+}
+
+```
+
+`frontend/lib/screens/settings_screen.dart`:
+
+```dart
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../services/api_service.dart';
+
+final apiServiceProvider = Provider((ref) => ApiService());
+
+// Theme mode provider
+final themeModeProvider = StateProvider<ThemeMode>((ref) => ThemeMode.dark);
+
+// Quality preference provider
+final preferredQualityProvider = StateProvider<String>((ref) => '720p');
+
+// Format preference provider (video, audio, both)
+final preferredFormatProvider = StateProvider<String>((ref) => 'video');
+
+// Audio-only mode provider
+final audioOnlyModeProvider = StateProvider<bool>((ref) => false);
+
+// Auto-play provider
+final autoPlayProvider = StateProvider<bool>((ref) => true);
+
+// Download folder provider
+final downloadFolderProvider = StateProvider<String>((ref) => '~/Downloads/Tubular');
+
+// Subtitle font size provider
+final subtitleFontSizeProvider = StateProvider<double>((ref) => 14.0);
+
+// Additional settings
+final enableSponsorBlockProvider = StateProvider<bool>((ref) => true);
+final enableDislikeCountsProvider = StateProvider<bool>((ref) => true);
+final enableSubtitlesProvider = StateProvider<bool>((ref) => true);
+final enableNotificationsProvider = StateProvider<bool>((ref) => false);
+
+class SettingsScreen extends ConsumerStatefulWidget {
+  const SettingsScreen({Key? key}) : super(key: key);
+
+  @override
+  ConsumerState<SettingsScreen> createState() => _SettingsScreenState();
+}
+
+class _SettingsScreenState extends ConsumerState<SettingsScreen> {
+  void _saveSetting(String key, String value) {
+    final apiService = ref.read(apiServiceProvider);
+    apiService.setSetting(key, value).then((_) {
+      // Silent success
+    }).catchError((e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to save setting: $e'),
+          backgroundColor: Colors.red[700],
+        ),
+      );
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final themeMode = ref.watch(themeModeProvider);
+    final preferredQuality = ref.watch(preferredQualityProvider);
+    final preferredFormat = ref.watch(preferredFormatProvider);
+    final audioOnly = ref.watch(audioOnlyModeProvider);
+    final autoPlay = ref.watch(autoPlayProvider);
+    final downloadFolder = ref.watch(downloadFolderProvider);
+    final subtitleSize = ref.watch(subtitleFontSizeProvider);
+    final sponsorBlock = ref.watch(enableSponsorBlockProvider);
+    final dislikeCounts = ref.watch(enableDislikeCountsProvider);
+    final subtitles = ref.watch(enableSubtitlesProvider);
+    final notifications = ref.watch(enableNotificationsProvider);
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Settings'),
+        backgroundColor: Colors.red[700],
+        foregroundColor: Colors.white,
+        elevation: 0,
+      ),
+      body: ListView(
+        children: [
+          // =========== APPEARANCE SECTION ===========
+          _buildSectionHeader(context, 'Appearance', Icons.palette),
+          _buildSectionCard(
+            children: [
+              _buildDropdownTile(
+                context,
+                'Theme',
+                themeMode == ThemeMode.dark ? 'Dark' : 'Light',
+                items: const [
+                  DropdownMenuItem(value: ThemeMode.light, child: Text('Light')),
+                  DropdownMenuItem(value: ThemeMode.dark, child: Text('Dark')),
+                  DropdownMenuItem(value: ThemeMode.system, child: Text('System')),
+                ],
+                onChanged: (value) {
+                  if (value != null) {
+                    ref.read(themeModeProvider.notifier).state = value;
+                    String themeValue = value == ThemeMode.dark ? 'dark' : (value == ThemeMode.light ? 'light' : 'system');
+                    _saveSetting('theme', themeValue);
+                  }
+                },
+              ),
+              const Divider(height: 1),
+               _buildSliderTile(
+                 'Subtitle Font Size',
+                 subtitleSize,
+                 10,
+                 30,
+                 (value) {
+                   ref.read(subtitleFontSizeProvider.notifier).state = value;
+                   _saveSetting('subtitle_font_size', value.toString());
+                 },
+               ),
+            ],
+          ),
+          const SizedBox(height: 12),
+
+          // =========== PLAYBACK SECTION ===========
+          _buildSectionHeader(context, 'Playback', Icons.videogame_asset),
+          _buildSectionCard(
+            children: [
+              _buildDropdownTile(
+                context,
+                'Preferred Quality',
+                preferredQuality,
+                items: const [
+                  DropdownMenuItem(value: '360p', child: Text('360p')),
+                  DropdownMenuItem(value: '480p', child: Text('480p')),
+                  DropdownMenuItem(value: '720p', child: Text('720p')),
+                  DropdownMenuItem(value: '1080p', child: Text('1080p')),
+                  DropdownMenuItem(value: '1440p', child: Text('1440p')),
+                  DropdownMenuItem(value: '2160p', child: Text('2160p')),
+                ],
+                onChanged: (value) {
+                  if (value != null) {
+                    ref.read(preferredQualityProvider.notifier).state = value;
+                    _saveSetting('preferred_quality', value);
+                  }
+                },
+              ),
+              const Divider(height: 1),
+              _buildDropdownTile(
+                context,
+                'Preferred Format',
+                preferredFormat,
+                items: const [
+                  DropdownMenuItem(value: 'video', child: Text('Video')),
+                  DropdownMenuItem(value: 'audio', child: Text('Audio Only')),
+                  DropdownMenuItem(value: 'both', child: Text('Both')),
+                ],
+                onChanged: (value) {
+                  if (value != null) {
+                    ref.read(preferredFormatProvider.notifier).state = value;
+                    _saveSetting('preferred_format', value);
+                  }
+                },
+              ),
+              const Divider(height: 1),
+              _buildSwitchTile(
+                 'Audio-Only Mode',
+                 'Default to audio playback',
+                 audioOnly,
+                 (value) {
+                   ref.read(audioOnlyModeProvider.notifier).state = value;
+                   _saveSetting('audio_only_mode', value.toString());
+                 },
+               ),
+               const Divider(height: 1),
+               _buildSwitchTile(
+                 'Auto-Play Next',
+                 'Automatically play next video',
+                 autoPlay,
+                 (value) {
+                   ref.read(autoPlayProvider.notifier).state = value;
+                   _saveSetting('auto_play', value.toString());
+                 },
+               ),
+               const Divider(height: 1),
+                _buildSwitchTile(
+                 'Show Subtitles',
+                 'Display subtitles when available',
+                 subtitles,
+                 (value) {
+                   ref.read(enableSubtitlesProvider.notifier).state = value;
+                   _saveSetting('enable_subtitles', value.toString());
+                 },
+               ),
+            ],
+          ),
+          const SizedBox(height: 12),
+
+          // =========== FEATURES SECTION ===========
+          _buildSectionHeader(context, 'Features', Icons.star),
+          _buildSectionCard(
+            children: [
+               _buildSwitchTile(
+                 'SponsorBlock',
+                 'Skip sponsored segments automatically',
+                 sponsorBlock,
+                 (value) {
+                   ref.read(enableSponsorBlockProvider.notifier).state = value;
+                   _saveSetting('enable_sponsorblock', value.toString());
+                 },
+               ),
+               const Divider(height: 1),
+               _buildSwitchTile(
+                 'Show Dislike Counts',
+                 'Display community dislike counts',
+                 dislikeCounts,
+                 (value) {
+                   ref.read(enableDislikeCountsProvider.notifier).state = value;
+                   _saveSetting('enable_dislike_counts', value.toString());
+                 },
+               ),
+            ],
+          ),
+          const SizedBox(height: 12),
+
+          // =========== DOWNLOADS SECTION ===========
+          _buildSectionHeader(context, 'Downloads', Icons.download),
+          _buildSectionCard(
+            children: [
+              ListTile(
+                title: const Text('Download Folder'),
+                subtitle: Text(downloadFolder),
+                trailing: const Icon(Icons.folder_open),
+                onTap: () {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Folder picker coming soon')),
+                  );
+                },
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+
+          // =========== PRIVACY & NOTIFICATIONS ===========
+          _buildSectionHeader(context, 'Privacy & Notifications', Icons.lock),
+          _buildSectionCard(
+            children: [
+              _buildSwitchTile(
+                'Notifications',
+                'Show download and update notifications',
+                notifications,
+                (value) {
+                  ref.read(enableNotificationsProvider.notifier).state = value;
+                },
+              ),
+              const Divider(height: 1),
+              ListTile(
+                title: const Text('Clear Cache'),
+                subtitle: const Text('Remove cached images and data'),
+                trailing: const Icon(Icons.cleaning_services),
+                onTap: () {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Cache cleared')),
+                  );
+                },
+              ),
+              const Divider(height: 1),
+              ListTile(
+                title: const Text('Privacy Policy'),
+                trailing: const Icon(Icons.open_in_new),
+                onTap: () {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Opening privacy policy')),
+                  );
+                },
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+
+          // =========== ABOUT SECTION ===========
+          _buildSectionHeader(context, 'About', Icons.info),
+          _buildSectionCard(
+            children: [
+              const ListTile(
+                title: Text('Version'),
+                subtitle: Text('1.0.0'),
+                trailing: Icon(Icons.info_outline),
+              ),
+              const Divider(height: 1),
+              ListTile(
+                title: const Text('GitHub Repository'),
+                subtitle: const Text('View source code'),
+                trailing: const Icon(Icons.open_in_new),
+                onTap: () {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Opening GitHub')),
+                  );
+                },
+              ),
+              const Divider(height: 1),
+              ListTile(
+                title: const Text('Check for Updates'),
+                trailing: const Icon(Icons.system_update),
+                onTap: () {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('You are on the latest version')),
+                  );
+                },
+              ),
+              const Divider(height: 1),
+              ListTile(
+                title: const Text('Report an Issue'),
+                trailing: const Icon(Icons.bug_report),
+                onTap: () {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Opening issue tracker')),
+                  );
+                },
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSectionHeader(BuildContext context, String title, IconData icon) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+      child: Row(
+        children: [
+          Icon(icon, size: 20, color: Colors.red[700]),
+          const SizedBox(width: 12),
+          Text(
+            title,
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: Colors.red[700],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSectionCard({required List<Widget> children}) {
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 12),
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      child: Column(children: children),
+    );
+  }
+
+  Widget _buildDropdownTile(
+    BuildContext context,
+    String title,
+    String currentValue, {
+    required List<DropdownMenuItem<dynamic>> items,
+    required ValueChanged<dynamic> onChanged,
+  }) {
+    return ListTile(
+      title: Text(title),
+      subtitle: Text(currentValue),
+      trailing: DropdownButton(
+        value: currentValue,
+        items: items,
+        onChanged: onChanged,
+        underline: const SizedBox(),
+      ),
+    );
+  }
+
+  Widget _buildSliderTile(
+    String title,
+    double value,
+    double min,
+    double max,
+    ValueChanged<double> onChanged,
+  ) {
+    return ListTile(
+      title: Text(title),
+      subtitle: Slider(
+        value: value,
+        min: min,
+        max: max,
+        divisions: (max - min).toInt(),
+        label: value.toStringAsFixed(0),
+        onChanged: onChanged,
+        activeColor: Colors.red[700],
+      ),
+    );
+  }
+
+  Widget _buildSwitchTile(
+    String title,
+    String subtitle,
+    bool value,
+    ValueChanged<bool> onChanged,
+  ) {
+    return SwitchListTile(
+      title: Text(title),
+      subtitle: Text(subtitle),
+      value: value,
+      onChanged: onChanged,
+      activeColor: Colors.red[700],
+    );
+  }
+}
+
+```
+
+`frontend/lib/screens/subscriptions_screen.dart`:
+
+```dart
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../models/subscription.dart';
+import '../models/video.dart';
+import '../services/api_service.dart';
+import '../widgets/video_card.dart';
+import 'player_screen.dart';
+
+final apiServiceProvider = Provider((ref) => ApiService());
+
+final subscriptionSearchProvider = StateProvider<String>((ref) => '');
+final subscriptionsSortProvider = StateProvider<String>((ref) => 'name_asc');
+
+final subscriptionsProvider = FutureProvider<List<Subscription>>((ref) async {
+  final apiService = ref.watch(apiServiceProvider);
+  final search = ref.watch(subscriptionSearchProvider);
+  final sort = ref.watch(subscriptionsSortProvider);
+  
+  List<Subscription> subs = await apiService.getSubscriptions();
+  
+  // Filter by search
+  if (search.isNotEmpty) {
+    subs = subs
+        .where((s) => s.channelName.toLowerCase().contains(search.toLowerCase()))
+        .toList();
+  }
+  
+  // Apply sorting
+  switch (sort) {
+    case 'name_asc':
+      subs.sort((a, b) => a.channelName.compareTo(b.channelName));
+      break;
+    case 'name_desc':
+      subs.sort((a, b) => b.channelName.compareTo(a.channelName));
+      break;
+    case 'date_asc':
+      subs.sort((a, b) => a.subscribedAt.compareTo(b.subscribedAt));
+      break;
+    case 'date_desc':
+    default:
+      subs.sort((a, b) => b.subscribedAt.compareTo(a.subscribedAt));
+  }
+  
+  return subs;
+});
+
+final subscriptionVideosProvider = FutureProvider.family<List<Video>, String>((ref, channelId) async {
+  final apiService = ref.watch(apiServiceProvider);
+  // This would fetch latest videos from the channel
+  // For now, return empty list
+  return [];
+});
+
+class SubscriptionsScreen extends ConsumerStatefulWidget {
+  const SubscriptionsScreen({Key? key}) : super(key: key);
+
+  @override
+  ConsumerState<SubscriptionsScreen> createState() => _SubscriptionsScreenState();
+}
+
+class _SubscriptionsScreenState extends ConsumerState<SubscriptionsScreen> {
+  late TextEditingController _searchController;
+
+  @override
+  void initState() {
+    super.initState();
+    _searchController = TextEditingController();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final subscriptionsAsync = ref.watch(subscriptionsProvider);
+    final sort = ref.watch(subscriptionsSortProvider);
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Subscriptions'),
+        backgroundColor: Colors.red[700],
+        foregroundColor: Colors.white,
+        elevation: 0,
+        actions: [
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.sort),
+            tooltip: 'Sort',
+            itemBuilder: (context) => [
+              const PopupMenuItem(
+                value: 'name_asc',
+                child: Text('Name (A-Z)'),
+              ),
+              const PopupMenuItem(
+                value: 'name_desc',
+                child: Text('Name (Z-A)'),
+              ),
+              const PopupMenuItem(
+                value: 'date_desc',
+                child: Text('Recently Subscribed'),
+              ),
+              const PopupMenuItem(
+                value: 'date_asc',
+                child: Text('Oldest First'),
+              ),
+            ],
+            onSelected: (value) {
+              ref.read(subscriptionsSortProvider.notifier).state = value;
+            },
+          ),
+        ],
+      ),
+      body: Column(
+        children: [
+          // Search bar
+          Container(
+            color: Colors.grey[850],
+            padding: const EdgeInsets.all(12),
+            child: TextField(
+              controller: _searchController,
+              style: const TextStyle(color: Colors.white),
+              onChanged: (value) {
+                ref.read(subscriptionSearchProvider.notifier).state = value;
+              },
+              decoration: InputDecoration(
+                hintText: 'Search subscriptions...',
+                hintStyle: TextStyle(color: Colors.grey[500]),
+                filled: true,
+                fillColor: Colors.grey[800],
+                prefixIcon: const Icon(Icons.search, color: Colors.grey),
+                suffixIcon: _searchController.text.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(Icons.clear, color: Colors.grey),
+                        onPressed: () {
+                          _searchController.clear();
+                          ref.read(subscriptionSearchProvider.notifier).state = '';
+                        },
+                      )
+                    : null,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide.none,
+                ),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+              ),
+            ),
+          ),
+          // Subscriptions list
+          Expanded(
+            child: subscriptionsAsync.when(
+              data: (subscriptions) {
+                if (subscriptions.isEmpty) {
+                  return _buildEmptyState();
+                }
+
+                return ListView.builder(
+                  itemCount: subscriptions.length,
+                  itemBuilder: (context, index) {
+                    final sub = subscriptions[index];
+                    return AnimatedOpacity(
+                      opacity: 1.0,
+                      duration: const Duration(milliseconds: 300),
+                      child: _buildSubscriptionTile(context, sub),
+                    );
+                  },
+                );
+              },
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error: (error, stack) => _buildErrorState(error.toString()),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.subscriptions,
+            size: 64,
+            color: Colors.grey[400],
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'No subscriptions',
+            style: TextStyle(
+              fontSize: 18,
+              color: Colors.grey[600],
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Search for channels and subscribe to get started',
+            style: TextStyle(
+              fontSize: 14,
+              color: Colors.grey[500],
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildErrorState(String error) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(Icons.error_outline, size: 64, color: Colors.red),
+          const SizedBox(height: 16),
+          Text(
+            'Error',
+            style: TextStyle(
+              fontSize: 18,
+              color: Colors.grey[600],
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 8),
+          SizedBox(
+            width: 300,
+            child: Text(
+              error,
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.grey[500],
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ),
+          const SizedBox(height: 16),
+          ElevatedButton(
+            onPressed: () => ref.refresh(subscriptionsProvider),
+            child: const Text('Retry'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSubscriptionTile(BuildContext context, Subscription sub) {
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        leading: CircleAvatar(
+          backgroundImage: NetworkImage(sub.channelThumbnail),
+          backgroundColor: Colors.red[700],
+          onBackgroundImageError: (_, __) {},
+          child: sub.channelThumbnail.isEmpty
+              ? Icon(Icons.person, color: Colors.grey[400])
+              : null,
+        ),
+        title: Text(
+          sub.channelName,
+          style: const TextStyle(fontWeight: FontWeight.bold),
+        ),
+        subtitle: Text(
+          'ID: ${sub.channelId}',
+          style: TextStyle(fontSize: 12, color: Colors.grey[500]),
+        ),
+        trailing: PopupMenuButton(
+          itemBuilder: (context) => [
+            const PopupMenuItem(
+              value: 'view_channel',
+              child: Row(
+                children: [
+                  Icon(Icons.open_in_new, size: 18),
+                  SizedBox(width: 8),
+                  Text('View Channel'),
+                ],
+              ),
+            ),
+            const PopupMenuItem(
+              value: 'unsubscribe',
+              child: Row(
+                children: [
+                  Icon(Icons.check_box, size: 18),
+                  SizedBox(width: 8),
+                  Text('Unsubscribe'),
+                ],
+              ),
+            ),
+          ],
+          onSelected: (value) {
+            if (value == 'view_channel') {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Channel page coming soon: ${sub.channelName}'),
+                  duration: const Duration(seconds: 2),
+                ),
+              );
+            } else if (value == 'unsubscribe') {
+              _showUnsubscribeDialog(context, sub);
+            }
+          },
+        ),
+        onTap: () {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Viewing channel: ${sub.channelName}')),
+          );
+        },
+      ),
+    );
+  }
+
+  void _showUnsubscribeDialog(BuildContext context, Subscription sub) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Unsubscribe'),
+        content: Text('Unsubscribe from ${sub.channelName}?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              final apiService = ref.read(apiServiceProvider);
+              try {
+                await apiService.removeSubscription(sub.channelId);
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Unsubscribed successfully')),
+                  );
+                }
+                ref.refresh(subscriptionsProvider);
+              } catch (e) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Error: $e'),
+                      backgroundColor: Colors.red[700],
+                    ),
+                  );
+                }
+              }
+            },
+            child: Text(
+              'Unsubscribe',
+              style: TextStyle(color: Colors.red[700]),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+```
+
 `frontend/lib/services/api_service.dart`:
 
 ```dart
@@ -4010,6 +7979,7 @@ import 'package:logger/logger.dart';
 import '../models/video.dart';
 import '../models/subscription.dart';
 import '../models/history_entry.dart';
+import '../models/download.dart';
 
 final apiServiceProvider = Provider<ApiService>((ref) => ApiService());
 
@@ -4294,6 +8264,22 @@ class ApiService {
     }
   }
 
+  Future<void> removeSubscription(String channelId) async {
+    try {
+      final response = await _dio.post(
+        '/subscriptions/remove',
+        data: {'channel_id': channelId},
+      );
+
+      if (response.data['success'] != true) {
+        throw Exception(response.data['error'] ?? 'Failed to unsubscribe');
+      }
+    } catch (e) {
+      _logger.w('Remove subscription error: $e');
+      throw Exception('Failed to unsubscribe: $e');
+    }
+  }
+
   Future<List<HistoryEntry>> getHistory() async {
     try {
       final response = await _dio.get('/history');
@@ -4335,6 +8321,271 @@ class ApiService {
       _logger.w('Add to history error: $e');
       // Silently fail for development
     }
+  }
+
+  Future<void> removeFromHistory(int id) async {
+    try {
+      final response = await _dio.post(
+        '/history/remove',
+        data: {'id': id},
+      );
+
+      if (response.data['success'] != true) {
+        throw Exception(response.data['error'] ?? 'Failed to remove from history');
+      }
+    } catch (e) {
+      _logger.w('Remove from history error: $e');
+      throw Exception('Failed to remove from history: $e');
+    }
+  }
+
+  Future<void> clearHistory() async {
+    try {
+      final response = await _dio.post('/history/clear');
+
+      if (response.data['success'] != true) {
+        throw Exception(response.data['error'] ?? 'Failed to clear history');
+      }
+    } catch (e) {
+      _logger.w('Clear history error: $e');
+      throw Exception('Failed to clear history: $e');
+    }
+  }
+
+  Future<List<Download>> getDownloads() async {
+    try {
+      final response = await _dio.get('/downloads');
+
+      if (response.data['success'] == true) {
+        final List<dynamic> data = response.data['data'];
+        // Convert backend Download objects to frontend Download objects
+        // For now, we'll map them as completed downloads
+        return data.map((json) {
+          final backendDownload = json as Map<String, dynamic>;
+          return Download(
+            id: backendDownload['id'].toString(),
+            videoId: backendDownload['video_id'] ?? '',
+            title: backendDownload['title'] ?? '',
+            filePath: backendDownload['file_path'] ?? '',
+            fileSize: 0, // Backend doesn't track this yet
+            format: 'video', // Default format
+            quality: backendDownload['quality'] ?? 'unknown',
+            status: 'completed',
+            progress: 100.0,
+            createdAt: DateTime.parse(backendDownload['downloaded_at']),
+            completedAt: DateTime.parse(backendDownload['downloaded_at']),
+          );
+        }).toList();
+      } else {
+        throw Exception(response.data['error'] ?? 'Failed to get downloads');
+      }
+    } catch (e) {
+      _logger.w('Get downloads error: $e');
+      // Return empty list for development
+      return [];
+    }
+  }
+
+  Future<String?> getSetting(String key) async {
+    try {
+      final response = await _dio.get('/settings/$key');
+
+      if (response.data['success'] == true) {
+        return response.data['data']['value'];
+      } else {
+        _logger.i('Setting "$key" not found');
+        return null;
+      }
+    } catch (e) {
+      _logger.w('Get setting error: $e');
+      return null;
+    }
+  }
+
+  Future<void> setSetting(String key, String value) async {
+    try {
+      final response = await _dio.post(
+        '/settings',
+        data: {
+          'key': key,
+          'value': value,
+        },
+      );
+
+      if (response.data['success'] != true) {
+        throw Exception(response.data['error'] ?? 'Failed to save setting');
+      }
+    } catch (e) {
+      _logger.w('Set setting error: $e');
+      throw Exception('Failed to save setting: $e');
+    }
+  }
+
+  Future<Map<String, String>> getAllSettings() async {
+    try {
+      final response = await _dio.get('/settings');
+
+      if (response.data['success'] == true) {
+        final List<dynamic> settings = response.data['data'];
+        final map = <String, String>{};
+        for (var setting in settings) {
+          map[setting['key']] = setting['value'];
+        }
+        return map;
+      } else {
+        throw Exception(response.data['error'] ?? 'Failed to get settings');
+      }
+    } catch (e) {
+      _logger.w('Get all settings error: $e');
+      return {};
+    }
+  }
+
+  Future<int?> createDownload(String videoId, String title, String outputPath, String quality) async {
+    try {
+      final response = await _dio.post(
+        '/downloads/create',
+        data: {
+          'video_id': videoId,
+          'title': title,
+          'output_path': outputPath,
+          'quality': quality,
+          'audio_only': false,
+        },
+      );
+
+      if (response.data['success'] == true) {
+        return response.data['data']['id'] as int;
+      } else {
+        throw Exception(response.data['error'] ?? 'Failed to create download');
+      }
+    } catch (e) {
+      _logger.w('Create download error: $e');
+      throw Exception('Failed to create download: $e');
+    }
+  }
+
+  Future<List<Download>> getActiveDownloads() async {
+    try {
+      final response = await _dio.get('/downloads/active');
+
+      if (response.data['success'] == true) {
+        final List<dynamic> data = response.data['data'];
+        return data.map((json) {
+          final backendDownload = json as Map<String, dynamic>;
+          return Download(
+            id: backendDownload['id'].toString(),
+            videoId: backendDownload['video_id'] ?? '',
+            title: backendDownload['title'] ?? '',
+            filePath: backendDownload['file_path'] ?? '',
+            fileSize: backendDownload['file_size'] ?? 0,
+            format: 'video',
+            quality: backendDownload['quality'] ?? 'unknown',
+            status: backendDownload['status'] ?? 'pending',
+            progress: (backendDownload['progress'] as num?)?.toDouble() ?? 0.0,
+            createdAt: DateTime.parse(backendDownload['created_at']),
+            completedAt: backendDownload['completed_at'] != null ? DateTime.parse(backendDownload['completed_at']) : null,
+          );
+        }).toList();
+      } else {
+        throw Exception(response.data['error'] ?? 'Failed to get active downloads');
+      }
+    } catch (e) {
+      _logger.w('Get active downloads error: $e');
+      return [];
+    }
+  }
+
+  Future<void> updateDownloadProgress(int id, String status, double progress, double speed, int etaSeconds) async {
+    try {
+      final response = await _dio.post(
+        '/downloads/$id/progress',
+        data: {
+          'status': status,
+          'progress': progress,
+          'speed': speed,
+          'eta_seconds': etaSeconds,
+        },
+      );
+
+      if (response.data['success'] != true) {
+        throw Exception(response.data['error'] ?? 'Failed to update download progress');
+      }
+    } catch (e) {
+      _logger.w('Update download progress error: $e');
+      throw Exception('Failed to update download: $e');
+    }
+  }
+
+  Future<void> completeDownload(int id, int fileSize) async {
+    try {
+      final response = await _dio.post(
+        '/downloads/$id/complete',
+        data: {'file_size': fileSize},
+      );
+
+      if (response.data['success'] != true) {
+        throw Exception(response.data['error'] ?? 'Failed to complete download');
+      }
+    } catch (e) {
+      _logger.w('Complete download error: $e');
+      throw Exception('Failed to complete download: $e');
+    }
+  }
+
+  Future<void> failDownload(int id, String errorMessage) async {
+    try {
+      final response = await _dio.post(
+        '/downloads/$id/fail',
+        data: {'error_message': errorMessage},
+      );
+
+      if (response.data['success'] != true) {
+        throw Exception(response.data['error'] ?? 'Failed to mark download as failed');
+      }
+    } catch (e) {
+      _logger.w('Fail download error: $e');
+      throw Exception('Failed to fail download: $e');
+    }
+  }
+
+  Future<void> deleteDownload(int id) async {
+    try {
+      final response = await _dio.delete('/downloads/$id');
+
+      if (response.data['success'] != true) {
+        throw Exception(response.data['error'] ?? 'Failed to delete download');
+      }
+    } catch (e) {
+      _logger.w('Delete download error: $e');
+      throw Exception('Failed to delete download: $e');
+    }
+  }
+
+  /// Subscribe to a channel by ID and thumbnail
+  Future<void> subscribeToChannel({
+    required String channelId,
+    required String channelName,
+    required String thumbnail,
+  }) async {
+    await addSubscription(
+      channelId: channelId,
+      channelName: channelName,
+      thumbnail: thumbnail,
+    );
+  }
+
+  /// Subscribe from a video (useful for quick subscribe from search results)
+  Future<void> subscribeFromVideo({
+    required String channelId,
+    required String channelName,
+    required String thumbnail,
+  }) async {
+    await subscribeToChannel(
+      channelId: channelId,
+      channelName: channelName,
+      thumbnail: thumbnail,
+    );
   }
 }
 
@@ -5022,98 +9273,251 @@ String _formatDuration(Duration duration) {
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../models/video.dart';
+import '../models/dislike.dart';
 
-class VideoCard extends StatelessWidget {
+class VideoCard extends StatefulWidget {
   final Video video;
   final VoidCallback onTap;
+  final DislikeData? dislikeData;
+  final VoidCallback? onSubscribe;
 
-  const VideoCard({required this.video, required this.onTap, super.key});
+  const VideoCard({
+    required this.video,
+    required this.onTap,
+    this.dislikeData,
+    this.onSubscribe,
+    super.key,
+  });
+
+  @override
+  State<VideoCard> createState() => _VideoCardState();
+}
+
+class _VideoCardState extends State<VideoCard> with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _scaleAnimation;
+  bool _isHovering = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      duration: const Duration(milliseconds: 200),
+      vsync: this,
+    );
+    _scaleAnimation = Tween<double>(begin: 1.0, end: 1.05).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      clipBehavior: Clip.antiAlias,
-      elevation: 2,
-      child: InkWell(
-        onTap: onTap,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Thumbnail
-            AspectRatio(
-              aspectRatio: 16 / 9,
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  CachedNetworkImage(
-                    imageUrl: video.thumbnail,
-                    fit: BoxFit.cover,
-                    placeholder: (context, url) => Container(
-                      color: Colors.grey[800],
-                      child: const Center(child: CircularProgressIndicator()),
-                    ),
-                    errorWidget: (context, url, error) => Container(
-                      color: Colors.grey[800],
-                      child: const Icon(Icons.error, color: Colors.white),
-                    ),
-                  ),
-                  // Duration badge
-                  if (video.duration > Duration.zero)
-                    Positioned(
-                      bottom: 8,
-                      right: 8,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 6,
-                          vertical: 2,
+    return MouseRegion(
+      onEnter: (_) {
+        setState(() => _isHovering = true);
+        _controller.forward();
+      },
+      onExit: (_) {
+        setState(() => _isHovering = false);
+        _controller.reverse();
+      },
+      child: ScaleTransition(
+        scale: _scaleAnimation,
+        child: Card(
+          clipBehavior: Clip.antiAlias,
+          elevation: _isHovering ? 8 : 2,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          child: InkWell(
+            onTap: widget.onTap,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Thumbnail with overlay
+                AspectRatio(
+                  aspectRatio: 16 / 9,
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      CachedNetworkImage(
+                        imageUrl: widget.video.thumbnail,
+                        fit: BoxFit.cover,
+                        placeholder: (context, url) => Container(
+                          color: Colors.grey[800],
+                          child: const Center(child: CircularProgressIndicator()),
                         ),
-                        decoration: BoxDecoration(
-                          color: Colors.black87,
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Text(
-                          video.formattedDuration,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w500,
-                          ),
+                        errorWidget: (context, url, error) => Container(
+                          color: Colors.grey[800],
+                          child: const Icon(Icons.error, color: Colors.white),
                         ),
                       ),
+                      // Hover overlay
+                      if (_isHovering)
+                        AnimatedOpacity(
+                          opacity: _isHovering ? 0.3 : 0.0,
+                          duration: const Duration(milliseconds: 200),
+                          child: Container(color: Colors.black),
+                        ),
+                      // Play icon on hover
+                      if (_isHovering)
+                        Center(
+                          child: ScaleTransition(
+                            scale: _scaleAnimation,
+                            child: Icon(
+                              Icons.play_circle_filled,
+                              color: Colors.white,
+                              size: 60,
+                            ),
+                          ),
+                        ),
+                      // Duration badge
+                      if (widget.video.duration > Duration.zero)
+                        Positioned(
+                          bottom: 8,
+                          right: 8,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.black87,
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              widget.video.formattedDuration,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                // Video info
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          widget.video.title,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                            height: 1.3,
+                          ),
+                         ),
+                         const SizedBox(height: 6),
+                         Row(
+                           children: [
+                             Flexible(
+                               child: Text(
+                                 widget.video.channelName,
+                                 maxLines: 1,
+                                 overflow: TextOverflow.ellipsis,
+                                 style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                               ),
+                             ),
+                              if (widget.onSubscribe != null) ...[
+                                const SizedBox(width: 8),
+                                SizedBox(
+                                  height: 24,
+                                  child: GestureDetector(
+                                    onTap: widget.onSubscribe,
+                                    behavior: HitTestBehavior.opaque,
+                                    child: Container(
+                                      decoration: BoxDecoration(
+                                        color: Colors.red[700],
+                                        borderRadius: BorderRadius.circular(4),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(Icons.add, size: 14, color: Colors.white),
+                                          const SizedBox(width: 4),
+                                          const Text(
+                                            'Subscribe',
+                                            style: TextStyle(fontSize: 11, color: Colors.white),
+                                          ),
+                                          const SizedBox(width: 6),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                           ],
+                         ),
+                        const SizedBox(height: 2),
+                        Text(
+                          '${widget.video.formattedViews} views • ${widget.video.uploadedAgo}',
+                          style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                        ),
+                        // Dislike information with better display
+                        if (widget.dislikeData != null) ...[
+                          const SizedBox(height: 8),
+                          _buildDislikeBar(widget.dislikeData!),
+                          const SizedBox(height: 6),
+                          Row(
+                            children: [
+                              Icon(Icons.thumb_up,
+                                  size: 14, color: Colors.green[600]),
+                              const SizedBox(width: 4),
+                              Text(
+                                widget.dislikeData!.formattedLikes,
+                                style: TextStyle(
+                                    fontSize: 11, color: Colors.green[600]),
+                              ),
+                              const SizedBox(width: 8),
+                              Icon(Icons.thumb_down,
+                                  size: 14, color: Colors.red[600]),
+                              const SizedBox(width: 4),
+                              Text(
+                                widget.dislikeData!.formattedDislikes,
+                                style: TextStyle(
+                                    fontSize: 11, color: Colors.red[600]),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ],
                     ),
-                ],
-              ),
+                  ),
+                ),
+              ],
             ),
-            // Video info
-            Padding(
-              padding: const EdgeInsets.all(12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    video.title,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
-                      height: 1.3,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    video.channelName,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    '${video.formattedViews} views • ${video.uploadedAgo}',
-                    style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-                  ),
-                ],
-              ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDislikeBar(DislikeData data) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(2),
+      child: SizedBox(
+        height: 4,
+        child: Row(
+          children: [
+            Flexible(
+              flex: (data.likePercentage * 100).toInt(),
+              child: Container(color: Colors.green[600]),
+            ),
+            Flexible(
+              flex: (data.dislikePercentage * 100).toInt(),
+              child: Container(color: Colors.red[600]),
             ),
           ],
         ),
@@ -5121,6 +9525,7 @@ class VideoCard extends StatelessWidget {
     );
   }
 }
+
 
 ```
 
@@ -6988,6 +11393,1431 @@ flutter build macos
 
 * Extraction breaks often
 * Must update regularly
+
+```
+
+`prompt.md`:
+
+```md
+# 🎯 TUBULAR PC - COMPLETE BUILD PROMPT
+
+> **Master Development Guide** | Complete architecture, implementation strategy, code patterns, and execution plan for Tubular PC (Desktop YouTube Client)
+
+---
+
+## 📋 TABLE OF CONTENTS
+
+1. [Project Overview](#project-overview)
+2. [Architecture & Tech Stack](#architecture--tech-stack)
+3. [Project Structure](#project-structure)
+4. [Database Schema](#database-schema)
+5. [API Design](#api-design)
+6. [Implementation Guidelines](#implementation-guidelines)
+7. [Code Patterns & Examples](#code-patterns--examples)
+8. [Phase-by-Phase Roadmap](#phase-by-phase-roadmap)
+9. [Testing Strategy](#testing-strategy)
+10. [Development Workflow](#development-workflow)
+
+---
+
+## PROJECT OVERVIEW
+
+### **What is Tubular PC?**
+
+Tubular PC is a **desktop-native YouTube client** combining:
+- ✅ Privacy-first video streaming (no Google API)
+- ✅ SponsorBlock automatic skip
+- ✅ Return YouTube Dislike integration
+- ✅ Lightweight, no ads, open-source
+- ✅ Desktop optimization (Windows, macOS, Linux)
+
+### **Core Identity**
+
+```
+Tubular PC = NewPipe (Android) + SponsorBlock + ReturnYouTubeDislike + Desktop
+            + Better UX/Performance + Native platform features
+```
+
+### **Success Criteria**
+
+- ✅ Play any YouTube video without ads
+- ✅ Download videos (audio/video)
+- ✅ Manage subscriptions offline
+- ✅ Auto-skip sponsors (SponsorBlock)
+- ✅ Show community dislikes (ReturnYouTubeDislike)
+- ✅ Cross-platform (Windows/Mac/Linux)
+- ✅ Responsive UI with no lag
+
+---
+
+## ARCHITECTURE & TECH STACK
+
+### **Backend Stack**
+```
+Language:     Rust (performance, safety)
+Framework:    Actix-web (async REST API)
+Database:     SQLite (local storage)
+Video Extract: yt-dlp (extract streams)
+Player:       mpv (native desktop player)
+```
+
+### **Frontend Stack**
+```
+Language:     Dart
+Framework:    Flutter (desktop: linux/windows/macos)
+State Mgmt:   Riverpod
+UI Library:   Material Design 3
+Architecture: Clean Architecture + MVVM
+```
+
+### **External APIs**
+```
+SponsorBlock:       https://sponsor.ajay.app/api/
+ReturnYouTubeDislike: https://returnyoutubedislikeapi.com/api/
+yt-dlp:             CLI tool (subprocess calls)
+```
+
+### **Architecture Diagram**
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                      FLUTTER UI (Dart)                      │
+│  Home | Player | Subscriptions | Downloads | History | etc  │
+└────────────────────────┬────────────────────────────────────┘
+                         │ REST API (JSON)
+                         ↓
+┌─────────────────────────────────────────────────────────────┐
+│              RUST BACKEND (Actix-web)                       │
+│  ┌──────────────┬──────────────┬────────────────────────┐  │
+│  │ API Handler  │ yt-dlp       │ SponsorBlock/RYD API   │  │
+│  │ (routes.rs)  │ (player.rs)  │ (integrations.rs)      │  │
+│  └──────────────┴──────────────┴────────────────────────┘  │
+│  ┌──────────────────────────────────────────────────────┐  │
+│  │       Database Layer (SQLite)                        │  │
+│  │  subscriptions | history | downloads | settings      │  │
+│  └──────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────┘
+          ↓                              ↓
+    ┌──────────────┐           ┌──────────────────┐
+    │  SQLite DB   │           │   yt-dlp (CLI)   │
+    │  (local)     │           │   & mpv player   │
+    └──────────────┘           └──────────────────┘
+```
+
+---
+
+## PROJECT STRUCTURE
+
+### **Complete Directory Layout**
+
+```
+tubular-pc/
+├── backend/                          # Rust backend
+│   ├── Cargo.toml                   # Dependencies
+│   ├── Cargo.lock
+│   ├── src/
+│   │   ├── main.rs                  # Entry point
+│   │   ├── lib.rs                   # Lib exports
+│   │   ├── api/
+│   │   │   ├── mod.rs               # API module
+│   │   │   ├── search.rs            # Search endpoint
+│   │   │   ├── video.rs             # Video info endpoint
+│   │   │   ├── subscriptions.rs     # Sub management
+│   │   │   ├── history.rs           # History endpoint
+│   │   │   ├── downloads.rs         # Download management
+│   │   │   └── settings.rs          # Settings endpoint
+│   │   ├── models/
+│   │   │   ├── mod.rs
+│   │   │   ├── video.rs             # Video data model
+│   │   │   ├── subscription.rs      # Subscription model
+│   │   │   ├── history.rs           # History entry model
+│   │   │   ├── download.rs          # Download model
+│   │   │   └── settings.rs          # Settings model
+│   │   ├── db/
+│   │   │   ├── mod.rs               # DB module
+│   │   │   ├── schema.rs            # SQL schema
+│   │   │   ├── migrations.rs        # Schema migrations
+│   │   │   └── queries.rs           # Query builders
+│   │   ├── player/
+│   │   │   ├── mod.rs
+│   │   │   ├── mpv.rs               # mpv integration
+│   │   │   └── stream.rs            # Stream extraction
+│   │   ├── extractors/
+│   │   │   ├── mod.rs
+│   │   │   ├── yt_dlp.rs            # yt-dlp wrapper
+│   │   │   ├── sponsorblock.rs      # SponsorBlock API
+│   │   │   └── dislike.rs           # Return YT Dislike API
+│   │   ├── utils/
+│   │   │   ├── mod.rs
+│   │   │   ├── errors.rs            # Error types
+│   │   │   ├── cache.rs             # Caching layer
+│   │   │   └── validators.rs        # Input validation
+│   │   └── config.rs                # Configuration
+│   ├── tests/
+│   │   ├── api_tests.rs
+│   │   ├── player_tests.rs
+│   │   └── db_tests.rs
+│   └── .env.example                 # Environment template
+│
+├── frontend/                         # Flutter frontend
+│   ├── lib/
+│   │   ├── main.dart                # App entry
+│   │   ├── config/
+│   │   │   ├── constants.dart       # App constants
+│   │   │   ├── theme.dart           # Theme config
+│   │   │   └── api_config.dart      # API endpoints
+│   │   ├── models/
+│   │   │   ├── video.dart           # Video model
+│   │   │   ├── subscription.dart    # Subscription model
+│   │   │   ├── history.dart         # History model
+│   │   │   ├── download.dart        # Download model
+│   │   │   └── settings.dart        # Settings model
+│   │   ├── providers/               # Riverpod providers
+│   │   │   ├── video_provider.dart
+│   │   │   ├── subscription_provider.dart
+│   │   │   ├── player_provider.dart
+│   │   │   ├── history_provider.dart
+│   │   │   ├── download_provider.dart
+│   │   │   └── settings_provider.dart
+│   │   ├── services/
+│   │   │   ├── api_service.dart     # REST client
+│   │   │   ├── player_service.dart  # Player control
+│   │   │   ├── storage_service.dart # Local storage
+│   │   │   └── cache_service.dart   # Cache management
+│   │   ├── screens/                 # UI screens
+│   │   │   ├── home_screen.dart     # Home/Search
+│   │   │   ├── player_screen.dart   # Video player
+│   │   │   ├── subscriptions_screen.dart
+│   │   │   ├── history_screen.dart
+│   │   │   ├── downloads_screen.dart
+│   │   │   ├── settings_screen.dart
+│   │   │   ├── channel_screen.dart  # Channel page
+│   │   │   └── playlists_screen.dart
+│   │   ├── widgets/                 # Reusable widgets
+│   │   │   ├── video_card.dart
+│   │   │   ├── player_shell.dart
+│   │   │   ├── channel_card.dart
+│   │   │   ├── playlist_card.dart
+│   │   │   ├── settings_tile.dart
+│   │   │   ├── search_bar.dart
+│   │   │   └── loading_spinner.dart
+│   │   └── utils/
+│   │       ├── formatters.dart      # Format duration, views
+│   │       ├── validators.dart      # Input validation
+│   │       ├── error_handler.dart   # Error UI handling
+│   │       └── extensions.dart      # Dart extensions
+│   ├── pubspec.yaml                 # Dependencies
+│   ├── pubspec.lock
+│   ├── test/
+│   │   ├── widget_test.dart
+│   │   ├── api_test.dart
+│   │   └── integration_test.dart
+│   ├── analysis_options.yaml
+│   └── README.md
+│
+├── docs/                            # Documentation
+│   ├── API.md                       # API documentation
+│   ├── ARCHITECTURE.md              # Architecture details
+│   ├── SETUP.md                     # Setup instructions
+│   ├── CONTRIBUTING.md              # Contribution guide
+│   └── TROUBLESHOOTING.md           # Common issues
+│
+├── scripts/                         # Helper scripts
+│   ├── setup.sh                     # Initial setup
+│   ├── start.sh                     # Start dev servers
+│   ├── build.sh                     # Build for release
+│   └── test.sh                      # Run tests
+│
+├── docker/                          # Docker files (optional)
+│   ├── Dockerfile.backend
+│   ├── Dockerfile.frontend
+│   └── docker-compose.yml
+│
+├── .github/
+│   ├── workflows/
+│   │   ├── ci.yml                   # CI/CD pipeline
+│   │   ├── test.yml
+│   │   └── release.yml
+│   └── ISSUE_TEMPLATE/
+│
+├── Cargo.toml                       # Workspace Cargo config
+├── CHANGELOG.md
+├── README.md
+├── LICENSE
+├── .gitignore
+├── .env.example
+└── project.md                       # This file
+
+```
+
+---
+
+## DATABASE SCHEMA
+
+### **SQLite Schema (Full)**
+
+```sql
+-- Users (future: multi-device sync)
+CREATE TABLE users (
+    id TEXT PRIMARY KEY,
+    username TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    last_sync TIMESTAMP
+);
+
+-- Subscriptions
+CREATE TABLE subscriptions (
+    id TEXT PRIMARY KEY,
+    channel_id TEXT NOT NULL UNIQUE,
+    channel_name TEXT NOT NULL,
+    channel_thumbnail TEXT,
+    subscriber_count INTEGER,
+    description TEXT,
+    subscribed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    is_favorite BOOLEAN DEFAULT FALSE,
+    notification_enabled BOOLEAN DEFAULT TRUE
+);
+
+-- Videos (cached from searches/subscriptions)
+CREATE TABLE videos (
+    id TEXT PRIMARY KEY,
+    title TEXT NOT NULL,
+    description TEXT,
+    thumbnail TEXT,
+    duration INTEGER,
+    views INTEGER,
+    upload_date TIMESTAMP,
+    channel_id TEXT NOT NULL,
+    channel_name TEXT NOT NULL,
+    url TEXT NOT NULL UNIQUE,
+    is_live BOOLEAN DEFAULT FALSE,
+    cached_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(channel_id) REFERENCES subscriptions(channel_id)
+);
+
+-- Watch History
+CREATE TABLE history (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    video_id TEXT NOT NULL,
+    watched_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    watch_duration INTEGER,
+    total_duration INTEGER,
+    resume_position INTEGER DEFAULT 0,
+    FOREIGN KEY(video_id) REFERENCES videos(id)
+);
+
+-- Downloads
+CREATE TABLE downloads (
+    id TEXT PRIMARY KEY,
+    video_id TEXT NOT NULL,
+    video_title TEXT NOT NULL,
+    file_path TEXT NOT NULL UNIQUE,
+    file_size INTEGER,
+    format TEXT NOT NULL,  -- 'video' | 'audio' | 'both'
+    quality TEXT,          -- '360p', '720p', '1080p'
+    status TEXT NOT NULL,  -- 'pending' | 'downloading' | 'completed' | 'failed' | 'paused'
+    progress REAL DEFAULT 0.0,  -- 0-100
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    completed_at TIMESTAMP,
+    error_message TEXT,
+    FOREIGN KEY(video_id) REFERENCES videos(id)
+);
+
+-- Playlists
+CREATE TABLE playlists (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    description TEXT,
+    thumbnail TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    is_favorite BOOLEAN DEFAULT FALSE
+);
+
+-- Playlist Videos
+CREATE TABLE playlist_videos (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    playlist_id TEXT NOT NULL,
+    video_id TEXT NOT NULL,
+    position INTEGER,
+    added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(playlist_id) REFERENCES playlists(id),
+    FOREIGN KEY(video_id) REFERENCES videos(id)
+);
+
+-- Settings
+CREATE TABLE settings (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL,
+    type TEXT,  -- 'string' | 'integer' | 'boolean' | 'json'
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- SponsorBlock Cache
+CREATE TABLE sponsorblock_cache (
+    video_id TEXT PRIMARY KEY,
+    segments TEXT NOT NULL,  -- JSON array
+    fetched_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(video_id) REFERENCES videos(id)
+);
+
+-- Return YouTube Dislike Cache
+CREATE TABLE ryd_cache (
+    video_id TEXT PRIMARY KEY,
+    likes INTEGER,
+    dislikes INTEGER,
+    rating REAL,
+    view_count INTEGER,
+    deleted BOOLEAN DEFAULT FALSE,
+    fetched_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(video_id) REFERENCES videos(id)
+);
+
+-- Create indexes for performance
+CREATE INDEX idx_video_channel ON videos(channel_id);
+CREATE INDEX idx_history_watched ON history(watched_at);
+CREATE INDEX idx_history_video ON history(video_id);
+CREATE INDEX idx_downloads_status ON downloads(status);
+CREATE INDEX idx_playlist_video ON playlist_videos(playlist_id, position);
+CREATE INDEX idx_sponsorblock_video ON sponsorblock_cache(video_id);
+CREATE INDEX idx_ryd_video ON ryd_cache(video_id);
+```
+
+---
+
+## API DESIGN
+
+### **REST API Endpoints**
+
+#### **Search & Discovery**
+```
+GET  /api/search?q=query&limit=20&offset=0
+     → {videos: [{id, title, thumbnail, duration, views, channel}...]}
+
+GET  /api/trending?category=all&region=US
+     → {videos: [...]}
+
+GET  /api/video/:video_id
+     → {id, title, description, duration, views, channel, uploadDate, comments_count}
+
+GET  /api/video/:video_id/streams
+     → {streams: [{quality, format, url, bitrate}...]}
+
+GET  /api/channel/:channel_id
+     → {id, name, thumbnail, subscribers, description, videos: [...]}
+
+GET  /api/channel/:channel_id/videos?page=1
+     → {videos: [...], hasMore: boolean}
+```
+
+#### **Subscriptions**
+```
+GET  /api/subscriptions
+     → {subscriptions: [{id, channel_id, name, thumbnail}...]}
+
+POST /api/subscriptions
+     {channel_id: "...", channel_name: "..."}
+     → {id, created_at}
+
+DELETE /api/subscriptions/:channel_id
+     → {success: true}
+
+GET  /api/subscriptions/:channel_id/latest
+     → {videos: [...]}  // Latest uploads from channel
+```
+
+#### **Watch History**
+```
+GET  /api/history?limit=50&offset=0
+     → {history: [{id, video, watched_at, resume_position}...]}
+
+POST /api/history
+     {video_id: "...", duration_watched: 120, total_duration: 600}
+     → {id, created_at}
+
+DELETE /api/history/:history_id
+     → {success: true}
+
+DELETE /api/history
+     → {success: true}  // Clear all
+
+PUT  /api/history/:history_id/resume
+     {position: 45}
+     → {resume_position: 45}
+```
+
+#### **Downloads**
+```
+GET  /api/downloads?status=downloading
+     → {downloads: [{id, video, progress, status, file_path}...]}
+
+POST /api/downloads
+     {video_id: "...", format: "video", quality: "720p"}
+     → {id, status: "pending"}
+
+PATCH /api/downloads/:download_id
+     {action: "pause"|"resume"|"cancel"}
+     → {status: "paused"|"downloading"|"cancelled"}
+
+DELETE /api/downloads/:download_id
+     {delete_file: true}
+     → {success: true}
+```
+
+#### **Playlists**
+```
+GET  /api/playlists
+     → {playlists: [{id, name, thumbnail, video_count}...]}
+
+POST /api/playlists
+     {name: "My Playlist", description: "..."}
+     → {id, created_at}
+
+GET  /api/playlists/:playlist_id
+     → {id, name, videos: [...]}
+
+POST /api/playlists/:playlist_id/videos
+     {video_id: "..."}
+     → {success: true}
+
+DELETE /api/playlists/:playlist_id/videos/:video_id
+     → {success: true}
+
+DELETE /api/playlists/:playlist_id
+     → {success: true}
+```
+
+#### **Settings**
+```
+GET  /api/settings
+     → {settings: {theme: "dark", quality: "720p", ...}}
+
+PUT  /api/settings
+     {key: "theme", value: "light"}
+     → {settings: {...}}
+
+GET  /api/settings/:key
+     → {key: "theme", value: "dark"}
+```
+
+#### **SponsorBlock & RYD**
+```
+GET  /api/video/:video_id/sponsorblock
+     → {segments: [{category, startTime, endTime}...]}
+
+GET  /api/video/:video_id/dislike
+     → {likes: 1500, dislikes: 300, rating: 0.83}
+
+POST /api/sponsorblock/report
+     {video_id: "...", segment: {category, start, end}}
+     → {success: true}
+```
+
+### **WebSocket Events (Future)**
+```
+ws://localhost:3000/ws
+
+Events:
+  - download:progress {download_id, progress, speed}
+  - video:playing {video_id, timestamp}
+  - player:error {error_message}
+  - subscription:new_video {channel_id, video}
+```
+
+---
+
+## IMPLEMENTATION GUIDELINES
+
+### **Rust Backend Best Practices**
+
+#### **1. Error Handling**
+```rust
+// Use custom error type
+#[derive(Debug)]
+pub enum AppError {
+    NotFound(String),
+    InvalidInput(String),
+    ExternalApiError(String),
+    DatabaseError(String),
+    IoError(String),
+}
+
+impl ResponseError for AppError {
+    fn error_response(&self) -> HttpResponse {
+        match self {
+            Self::NotFound(msg) => HttpResponse::NotFound().json(json!({"error": msg})),
+            Self::InvalidInput(msg) => HttpResponse::BadRequest().json(json!({"error": msg})),
+            _ => HttpResponse::InternalServerError().json(json!({"error": "Internal error"})),
+        }
+    }
+}
+
+pub type AppResult<T> = Result<T, AppError>;
+```
+
+#### **2. Database Transactions**
+```rust
+pub async fn add_video_to_playlist(
+    db: &DbPool,
+    playlist_id: &str,
+    video_id: &str,
+) -> AppResult<()> {
+    let mut conn = db.get_conn()?;
+
+    conn.transaction::<_, _, rusqlite::Error>(|| {
+        // Verify playlist exists
+        let count: i32 = conn.query_row(
+            "SELECT COUNT(*) FROM playlists WHERE id = ?1",
+            params![playlist_id],
+            |row| row.get(0),
+        )?;
+
+        if count == 0 {
+            return Err(rusqlite::Error::ExecuteReturnedNoRows);
+        }
+
+        // Insert video
+        conn.execute(
+            "INSERT INTO playlist_videos (playlist_id, video_id, position)
+             VALUES (?1, ?2, (SELECT COALESCE(MAX(position), 0) + 1
+                              FROM playlist_videos WHERE playlist_id = ?1))",
+            params![playlist_id, video_id],
+        )?;
+
+        Ok(())
+    })?;
+
+    Ok(())
+}
+```
+
+#### **3. Async Operations**
+```rust
+// Use tokio for async operations
+pub async fn search_videos(query: &str, limit: u32) -> AppResult<Vec<Video>> {
+    let output = tokio::process::Command::new("yt-dlp")
+        .arg(format!("ytsearch{}:{}", limit, query))
+        .arg("--dump-json")
+        .output()
+        .await
+        .map_err(|e| AppError::IoError(e.to_string()))?;
+
+    let json = String::from_utf8(output.stdout)?;
+    let videos = parse_yt_dlp_output(&json)?;
+
+    Ok(videos)
+}
+
+// Parallel API calls
+let (sponsors, dislikes) = tokio::join!(
+    fetch_sponsorblock(&video_id),
+    fetch_youtube_dislikes(&video_id)
+);
+```
+
+### **Flutter Frontend Best Practices**
+
+#### **1. Riverpod State Management**
+```dart
+// Define provider
+final videoProvider = FutureProvider.family<Video, String>(
+  (ref, videoId) async {
+    final apiService = ref.watch(apiServiceProvider);
+    return apiService.getVideo(videoId);
+  },
+);
+
+// Use in widget
+class VideoDetailsWidget extends ConsumerWidget {
+  final String videoId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final videoAsync = ref.watch(videoProvider(videoId));
+
+    return videoAsync.when(
+      data: (video) => VideoCard(video: video),
+      loading: () => const LoadingSpinner(),
+      error: (error, stack) => ErrorWidget(error: error.toString()),
+    );
+  }
+}
+```
+
+#### **2. Screen Navigation**
+```dart
+// Use GoRouter for declarative routing
+final routerProvider = Provider<GoRouter>((ref) {
+  return GoRouter(
+    routes: [
+      GoRoute(
+        path: '/',
+        builder: (context, state) => const HomeScreen(),
+        routes: [
+          GoRoute(
+            path: 'player/:videoId',
+            builder: (context, state) => PlayerScreen(
+              videoId: state.params['videoId']!,
+            ),
+          ),
+          GoRoute(
+            path: 'subscriptions',
+            builder: (context, state) => const SubscriptionsScreen(),
+          ),
+        ],
+      ),
+    ],
+  );
+});
+```
+
+#### **3. Widget Composition**
+```dart
+// Break down into smaller, testable widgets
+class VideoCard extends StatelessWidget {
+  final Video video;
+  final VoidCallback onTap;
+
+  const VideoCard({required this.video, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Card(
+        child: Column(
+          children: [
+            VideoThumbnail(thumbnail: video.thumbnail),
+            VideoInfo(video: video),
+            VideoActions(video: video),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// Separate smaller widgets
+class VideoThumbnail extends StatelessWidget {
+  final String thumbnail;
+  const VideoThumbnail({required this.thumbnail});
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        Image.network(thumbnail),
+        // Duration badge, play button, etc.
+      ],
+    );
+  }
+}
+```
+
+---
+
+## CODE PATTERNS & EXAMPLES
+
+### **Example 1: Search Implementation**
+
+**Backend (Rust)**:
+```rust
+// src/api/search.rs
+use actix_web::{web, HttpResponse};
+use crate::utils::{AppResult, AppError};
+
+#[derive(Deserialize)]
+pub struct SearchQuery {
+    q: String,
+    #[serde(default = "default_limit")]
+    limit: u32,
+    #[serde(default)]
+    offset: u32,
+}
+
+fn default_limit() -> u32 { 20 }
+
+#[get("/search")]
+pub async fn search(
+    query: web::Query<SearchQuery>,
+) -> AppResult<HttpResponse> {
+    if query.q.is_empty() {
+        return Err(AppError::InvalidInput("Query cannot be empty".into()));
+    }
+
+    if query.limit > 100 {
+        return Err(AppError::InvalidInput("Limit cannot exceed 100".into()));
+    }
+
+    let videos = search_videos(&query.q, query.limit).await?;
+
+    Ok(HttpResponse::Ok().json(json!({
+        "videos": videos,
+        "count": videos.len(),
+    })))
+}
+
+async fn search_videos(query: &str, limit: u32) -> AppResult<Vec<Video>> {
+    let output = tokio::process::Command::new("yt-dlp")
+        .args(&[
+            &format!("ytsearch{}:{}", limit, query),
+            "--dump-json",
+            "--no-warnings",
+        ])
+        .output()
+        .await
+        .map_err(|e| AppError::IoError(format!("yt-dlp failed: {}", e)))?;
+
+    if !output.status.success() {
+        return Err(AppError::ExternalApiError("yt-dlp search failed".into()));
+    }
+
+    let json = String::from_utf8(output.stdout)?;
+    parse_yt_dlp_output(&json)
+}
+
+fn parse_yt_dlp_output(json: &str) -> AppResult<Vec<Video>> {
+    let entries: Vec<serde_json::Value> = serde_json::from_str(json)?;
+
+    Ok(entries.into_iter().map(|entry| {
+        Video {
+            id: entry["id"].as_str().unwrap_or("").to_string(),
+            title: entry["title"].as_str().unwrap_or("").to_string(),
+            thumbnail: entry["thumbnail"].as_str().unwrap_or("").to_string(),
+            duration: entry["duration"].as_i64().unwrap_or(0) as u32,
+            views: entry["view_count"].as_i64().unwrap_or(0) as u32,
+            channel: entry["uploader"].as_str().unwrap_or("Unknown").to_string(),
+            url: format!("https://youtube.com/watch?v={}",
+                        entry["id"].as_str().unwrap_or("")),
+            upload_date: entry["upload_date"].as_str().map(|s| s.to_string()),
+        }
+    }).collect())
+}
+```
+
+**Frontend (Flutter)**:
+```dart
+// lib/providers/search_provider.dart
+final searchQueryProvider = StateProvider<String>((ref) => '');
+
+final searchResultsProvider = FutureProvider.autoDispose<List<Video>>((ref) async {
+    final query = ref.watch(searchQueryProvider);
+
+    if (query.isEmpty) {
+        return [];
+    }
+
+    final apiService = ref.watch(apiServiceProvider);
+    return apiService.search(query, limit: 20);
+});
+
+// lib/screens/home_screen.dart
+class HomeScreen extends ConsumerWidget {
+    @override
+    Widget build(BuildContext context, WidgetRef ref) {
+        final query = ref.watch(searchQueryProvider);
+        final searchAsync = ref.watch(searchResultsProvider);
+
+        return Scaffold(
+            appBar: AppBar(
+                title: SearchBar(
+                    onChanged: (value) {
+                        ref.read(searchQueryProvider.notifier).state = value;
+                    },
+                ),
+            ),
+            body: searchAsync.when(
+                data: (videos) => _buildVideoGrid(videos, ref),
+                loading: () => const Center(child: CircularProgressIndicator()),
+                error: (error, stack) => _buildErrorWidget(error),
+            ),
+        );
+    }
+
+    Widget _buildVideoGrid(List<Video> videos, WidgetRef ref) {
+        return GridView.builder(
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2,
+                childAspectRatio: 0.65,
+            ),
+            itemCount: videos.length,
+            itemBuilder: (context, index) {
+                return VideoCard(
+                    video: videos[index],
+                    onTap: () {
+                        context.push('/player/${videos[index].id}');
+                    },
+                );
+            },
+        );
+    }
+}
+```
+
+### **Example 2: SponsorBlock Integration**
+
+**Backend (Rust)**:
+```rust
+// src/extractors/sponsorblock.rs
+use serde::{Deserialize, Serialize};
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct SponsorSegment {
+    pub category: String,  // "sponsor", "intro", "outro"
+    #[serde(rename = "startTime")]
+    pub start_time: f64,
+    #[serde(rename = "endTime")]
+    pub end_time: f64,
+}
+
+pub struct SponsorBlockClient {
+    client: reqwest::Client,
+    base_url: String,
+}
+
+impl SponsorBlockClient {
+    pub fn new() -> Self {
+        Self {
+            client: reqwest::Client::new(),
+            base_url: "https://sponsor.ajay.app/api".to_string(),
+        }
+    }
+
+    pub async fn get_segments(&self, video_id: &str) -> AppResult<Vec<SponsorSegment>> {
+        let url = format!(
+            "{}/skipSegments?videoID={}&categories=[\"sponsor\",\"intro\",\"outro\"]",
+            self.base_url, video_id
+        );
+
+        let response = self.client
+            .get(&url)
+            .send()
+            .await
+            .map_err(|e| AppError::ExternalApiError(format!("SponsorBlock request failed: {}", e)))?;
+
+        if response.status().is_success() {
+            let segments = response.json::<Vec<SponsorSegment>>().await?;
+            Ok(segments)
+        } else {
+            Ok(vec![])  // No segments found
+        }
+    }
+}
+
+// API endpoint
+#[get("/video/{video_id}/sponsorblock")]
+pub async fn get_sponsorblock(
+    video_id: web::Path<String>,
+    db: web::Data<DbPool>,
+) -> AppResult<HttpResponse> {
+    let video_id = video_id.into_inner();
+
+    // Check cache first
+    if let Ok(cached) = get_cached_segments(&db, &video_id) {
+        return Ok(HttpResponse::Ok().json(json!({"segments": cached})));
+    }
+
+    // Fetch from API
+    let client = SponsorBlockClient::new();
+    let segments = client.get_segments(&video_id).await?;
+
+    // Cache result
+    cache_segments(&db, &video_id, &segments)?;
+
+    Ok(HttpResponse::Ok().json(json!({"segments": segments})))
+}
+```
+
+**Frontend (Flutter)**:
+```dart
+// lib/providers/sponsorblock_provider.dart
+final sponsorBlockProvider = FutureProvider.family<List<Segment>, String>(
+  (ref, videoId) async {
+    final apiService = ref.watch(apiServiceProvider);
+    return apiService.getSponsorBlockSegments(videoId);
+  },
+);
+
+// lib/widgets/player_shell.dart
+class PlayerShell extends ConsumerWidget {
+    final String videoId;
+
+    @override
+    Widget build(BuildContext context, WidgetRef ref) {
+        final sponsorAsync = ref.watch(sponsorBlockProvider(videoId));
+
+        return sponsorAsync.when(
+            data: (segments) => _buildPlayer(segments),
+            loading: () => const SizedBox(),  // No UI, just silent
+            error: (_, __) => const SizedBox(),
+        );
+    }
+
+    Widget _buildPlayer(List<Segment> segments) {
+        return Stack(
+            children: [
+                VideoPlayer(),  // Main player
+                if (segments.isNotEmpty)
+                    Positioned(
+                        bottom: 0,
+                        left: 0,
+                        right: 0,
+                        child: SponsorBlockTimeline(segments: segments),
+                    ),
+            ],
+        );
+    }
+}
+
+// Visual indicator on timeline
+class SponsorBlockTimeline extends StatelessWidget {
+    final List<Segment> segments;
+
+    @override
+    Widget build(BuildContext context) {
+        return Container(
+            height: 4,
+            color: Colors.grey[700],
+            child: Stack(
+                children: segments.map((segment) {
+                    final startPercent = segment.startTime / totalDuration;
+                    final widthPercent = (segment.endTime - segment.startTime) / totalDuration;
+
+                    return Positioned(
+                        left: MediaQuery.of(context).size.width * startPercent,
+                        width: MediaQuery.of(context).size.width * widthPercent,
+                        top: 0,
+                        bottom: 0,
+                        child: Container(
+                            color: _getCategoryColor(segment.category),
+                        ),
+                    );
+                }).toList(),
+            ),
+        );
+    }
+
+    Color _getCategoryColor(String category) {
+        switch (category) {
+            case 'sponsor': return Colors.red;
+            case 'intro': return Colors.blue;
+            case 'outro': return Colors.green;
+            default: return Colors.grey;
+        }
+    }
+}
+```
+
+---
+
+## PHASE-BY-PHASE ROADMAP
+
+### **PHASE 1: MVP (Weeks 1-2)**
+
+**Goal**: Core functionality works
+
+**Deliverables**:
+- ✅ Backend API server running
+- ✅ Search & video playback working
+- ✅ Basic UI (Home, Player)
+- ✅ Subscriptions backend + basic UI
+- ✅ History backend + basic UI
+
+**Tasks**:
+```bash
+Week 1:
+  - [ ] Complete Subscriptions Screen UI
+  - [ ] Complete History Screen UI
+  - [ ] Connect both to backend APIs
+  - [ ] Basic error handling
+
+Week 2:
+  - [ ] Download queue UI (show/pause/cancel)
+  - [ ] Basic Settings screen (theme, quality)
+  - [ ] Test backend stability
+  - [ ] Deploy & run on Linux
+```
+
+### **PHASE 2: Integrations (Weeks 3-4)**
+
+**Goal**: SponsorBlock & Dislike working
+
+**Deliverables**:
+- ✅ SponsorBlock auto-skip in player
+- ✅ Return YouTube Dislike display
+- ✅ Settings for both integrations
+- ✅ Caching system for both
+
+**Tasks**:
+```bash
+Week 3:
+  - [ ] Wire SponsorBlock API to player
+  - [ ] Test sponsor skipping
+  - [ ] Implement skip notifications
+  - [ ] Add settings for categories
+
+Week 4:
+  - [ ] Integrate ReturnYouTubeDislike API
+  - [ ] Display on video cards + player
+  - [ ] Add bar graph visualization
+  - [ ] Cache dislike data
+```
+
+### **PHASE 3: Advanced Features (Weeks 5-6)**
+
+**Goal**: Playlists, Channels, Comments
+
+**Deliverables**:
+- ✅ Playlists system (create, add, play)
+- ✅ Channel pages
+- ✅ Comments display
+- ✅ Background playback
+
+**Tasks**:
+```bash
+Week 5:
+  - [ ] Implement Playlists database schema
+  - [ ] Playlists API endpoints
+  - [ ] Playlists UI screen
+  - [ ] Add to playlist context menu
+
+Week 6:
+  - [ ] Channel page design & implementation
+  - [ ] Comments API & display
+  - [ ] Background audio playback
+  - [ ] Keyboard shortcuts
+```
+
+### **PHASE 4: Polish & Release (Weeks 7-8)**
+
+**Goal**: Production-ready
+
+**Deliverables**:
+- ✅ Windows/macOS packaging
+- ✅ Full testing coverage
+- ✅ Documentation
+- ✅ Performance optimization
+
+**Tasks**:
+```bash
+Week 7:
+  - [ ] Cross-platform testing
+  - [ ] Windows .exe packaging
+  - [ ] macOS .dmg packaging
+  - [ ] Linux AppImage/Flatpak
+
+Week 8:
+  - [ ] Performance profiling & optimization
+  - [ ] Security audit
+  - [ ] Final testing
+  - [ ] Release v1.0
+```
+
+---
+
+## TESTING STRATEGY
+
+### **Unit Testing (Rust)**
+
+```rust
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_yt_dlp_output() {
+        let json = r#"[{"id":"dQw4w9WgXcQ","title":"Video","duration":212}]"#;
+        let videos = parse_yt_dlp_output(json).unwrap();
+
+        assert_eq!(videos.len(), 1);
+        assert_eq!(videos[0].id, "dQw4w9WgXcQ");
+    }
+
+    #[tokio::test]
+    async fn test_search_videos() {
+        let results = search_videos("rust tutorial", 10).await;
+        assert!(results.is_ok());
+        assert!(results.unwrap().len() > 0);
+    }
+}
+```
+
+### **Widget Testing (Flutter)**
+
+```dart
+void main() {
+  testWidgets('VideoCard displays video info', (WidgetTester tester) async {
+    final video = Video(
+      id: 'test123',
+      title: 'Test Video',
+      thumbnail: 'https://example.com/thumb.jpg',
+      duration: 300,
+      views: 1000,
+      channel: 'Test Channel',
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: VideoCard(video: video, onTap: () {}),
+        ),
+      ),
+    );
+
+    expect(find.text('Test Video'), findsOneWidget);
+    expect(find.text('Test Channel'), findsOneWidget);
+  });
+}
+```
+
+### **Integration Testing**
+
+```bash
+# Test full workflow
+1. Start backend server
+2. Search for videos
+3. Play video
+4. Check SponsorBlock segments
+5. Check Return YouTube Dislikes
+6. Add to playlist
+7. Resume from history
+```
+
+---
+
+## DEVELOPMENT WORKFLOW
+
+### **Local Development Setup**
+
+```bash
+# Clone repo
+git clone https://github.com/yourusername/tubular-pc.git
+cd tubular-pc
+
+# Install dependencies
+./scripts/setup.sh
+
+# Start development
+./scripts/start.sh
+
+# Backend runs on: http://localhost:3000
+# Frontend runs on: http://localhost:5000 (hot reload)
+```
+
+### **Git Workflow**
+
+```bash
+# Create feature branch
+git checkout -b feat/subscriptions-screen
+
+# Make changes, test locally
+cargo test   # backend
+flutter test # frontend
+
+# Commit with conventional message
+git commit -m "feat: Add subscriptions screen with filter"
+
+# Push and create PR
+git push origin feat/subscriptions-screen
+```
+
+### **Code Review Checklist**
+
+- [ ] Tests added/updated
+- [ ] Documentation updated
+- [ ] No hardcoded values
+- [ ] Follows project style guide
+- [ ] API errors handled
+- [ ] Performance considered
+- [ ] Security review done
+
+### **Release Process**
+
+```bash
+# Update version
+# Update CHANGELOG.md
+# Create release branch
+git checkout -b release/v1.0.0
+
+# Build for all platforms
+./scripts/build.sh
+
+# Create GitHub release with assets
+# Tag commit: git tag v1.0.0
+# Push: git push --tags
+```
+
+---
+
+## COMMON PATTERNS
+
+### **Error Recovery**
+
+```rust
+// Retry with exponential backoff
+async fn fetch_with_retry<T, F, Fut>(
+    mut f: F,
+    max_retries: u32,
+) -> AppResult<T>
+where
+    F: FnMut() -> Fut,
+    Fut: Future<Output = AppResult<T>>,
+{
+    let mut retries = 0;
+    loop {
+        match f().await {
+            Ok(result) => return Ok(result),
+            Err(e) => {
+                retries += 1;
+                if retries >= max_retries {
+                    return Err(e);
+                }
+                tokio::time::sleep(Duration::from_millis(100 * 2u64.pow(retries))).await;
+            }
+        }
+    }
+}
+```
+
+### **Caching Pattern**
+
+```dart
+// Smart cache invalidation
+final videoCache = StateNotifierProvider<
+    VideoCacheNotifier,
+    Map<String, Video>
+>((ref) {
+  return VideoCacheNotifier();
+});
+
+class VideoCacheNotifier extends StateNotifier<Map<String, Video>> {
+  VideoCacheNotifier() : super({});
+
+  void set(String id, Video video) {
+    state = {...state, id: video};
+  }
+
+  Video? get(String id) => state[id];
+
+  void clear() => state = {};
+}
+```
+
+---
+
+## DEBUGGING TIPS
+
+### **Backend Debug**
+
+```bash
+# Enable debug logging
+RUST_LOG=debug cargo run
+
+# Test API endpoints
+curl http://localhost:3000/api/search?q=rust
+
+# Check yt-dlp
+yt-dlp --version
+yt-dlp "ytsearch:test" --dump-json
+```
+
+### **Frontend Debug**
+
+```bash
+# Enable verbose logs
+flutter run -v
+
+# Use DevTools
+flutter pub global activate devtools
+devtools
+
+# Hot reload
+Press 'r' in terminal
+```
+
+---
+
+## PERFORMANCE TARGETS
+
+- **Search**: < 2s response time
+- **Video load**: < 1s to play
+- **UI animations**: 60 FPS
+- **Memory usage**: < 300MB idle
+- **Startup time**: < 3s
+
+---
+
+## SECURITY CHECKLIST
+
+- [ ] No hardcoded API keys
+- [ ] Input validation on all endpoints
+- [ ] HTTPS for external APIs
+- [ ] SQLite encryption (optional)
+- [ ] Secure credential storage
+- [ ] Regular dependency updates
+- [ ] Security audit before release
+
+---
+
+## RESOURCES
+
+- **yt-dlp**: https://github.com/yt-dlp/yt-dlp
+- **SponsorBlock API**: https://wiki.sponsor.ajay.app/w/API_Docs
+- **Return YouTube Dislike**: https://returnyoutubedislikeapi.com/
+- **Flutter**: https://flutter.dev/docs
+- **Rust**: https://doc.rust-lang.org/book/
+- **Riverpod**: https://riverpod.dev/
+
+---
+
+## NEXT STEPS
+
+1. **Read this document end-to-end** (15 min)
+2. **Review the project structure** (10 min)
+3. **Set up local development** (20 min)
+4. **Implement Phase 1 features** (1-2 weeks)
+5. **Iterate based on feedback**
+
+---
+
+**Created**: 2026 | **For**: Tubular PC Desktop Project | **By**: AI Development Assistant
+
+---
+
+## QUICK REFERENCE
+
+### Commands
+```bash
+# Backend
+cd backend && cargo run --release
+
+# Frontend
+cd frontend && flutter run -d windows
+
+# Tests
+cargo test && flutter test
+
+# Build Release
+./scripts/build.sh
+```
+
+### File Locations
+```
+Backend API:      src/api/*
+Frontend UI:      lib/screens/*
+Database:         ~/.local/share/tubular-pc/data.db
+Config:           ~/.config/tubular-pc/settings.json
+```
+
+### API Base URLs
+```
+Local Dev:        http://localhost:3000/api/
+External APIs:    https://sponsor.ajay.app/api/
+                  https://returnyoutubedislikeapi.com/
+```
+
+---
+
+**Happy coding! 🚀**
 
 ```
 
