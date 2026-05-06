@@ -132,11 +132,12 @@ class _VideoCardState extends State<VideoCard> with SingleTickerProviderStateMix
                   ),
                 ),
                 // Video info
-                Expanded(
+                Flexible(
                   child: Padding(
                     padding: const EdgeInsets.all(12),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
                       children: [
                         Text(
                           widget.video.title,
