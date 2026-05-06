@@ -8,6 +8,9 @@ import '../models/download.dart';
 
 final apiServiceProvider = Provider<ApiService>((ref) => ApiService());
 
+/// Result type for API calls
+typedef ApiResult<T> = ({bool success, T? data, String? error, String? details});
+
 class ApiService {
   /// Match backend bind ([127.0.0.1]:3030) — `localhost` may resolve to ::1 and fail or delay.
   static const String baseUrl = 'http://127.0.0.1:3030';
@@ -28,8 +31,18 @@ class ApiService {
         ),
       );
 
-  Future<List<Video>> searchVideos(String query, {int limit = 10}) async {
+  Future<ApiResult<List<Video>>> searchVideos(String query, {int limit = 10}) async {
     _logger.i('Searching for: $query');
+    
+    if (query.trim().isEmpty) {
+      return (
+        success: false,
+        data: null,
+        error: 'Search query cannot be empty',
+        details: null,
+      );
+    }
+
     try {
       final response = await _dio.get(
         '/search',
@@ -41,21 +54,73 @@ class ApiService {
         _logger.i('Search successful, got ${data.length} results from backend');
         
         if (data.isEmpty) {
-          _logger.w('Backend returned 0 results, using mock data');
-          return _getMockSearchResults(query, limit);
+          _logger.w('Backend returned 0 results');
+          final mockResults = _getMockSearchResults(query, limit);
+          return (
+            success: true,
+            data: mockResults,
+            error: null,
+            details: null,
+          );
         }
         
-        return data.map((json) => Video.fromJson(json)).toList();
+        final videos = data.map((json) => Video.fromJson(json)).toList();
+        return (
+          success: true,
+          data: videos,
+          error: null,
+          details: null,
+        );
       } else {
-        _logger.w('Backend returned error: ${response.data['error']}');
-        throw Exception(response.data['error'] ?? 'Search failed');
+        final errorMsg = (response.data['error'] ?? 'Search failed').toString();
+        _logger.w('Backend returned error: $errorMsg');
+        return (
+          success: false,
+          data: null,
+          error: 'Search failed',
+          details: errorMsg,
+        );
+      }
+    } on DioException catch (e) {
+      _logger.w('Search DIO error: $e');
+      
+      if (e.type == DioExceptionType.connectionTimeout) {
+        return (
+          success: false,
+          data: null,
+          error: 'Connection timeout',
+          details: 'Backend took too long to respond. Is it running on http://127.0.0.1:3030?',
+        );
+      } else if (e.type == DioExceptionType.receiveTimeout) {
+        return (
+          success: false,
+          data: null,
+          error: 'Search timed out',
+          details: 'Backend took too long to respond. Try again.',
+        );
+      } else if (e.type == DioExceptionType.connectionError) {
+        return (
+          success: false,
+          data: null,
+          error: 'Backend server is not running',
+          details: 'Make sure the backend is started: cargo run',
+        );
+      } else {
+        return (
+          success: false,
+          data: null,
+          error: 'Network error',
+          details: (e.message ?? 'Unknown network error').toString(),
+        );
       }
     } catch (e) {
-      _logger.w('Backend unavailable or error, using mock data: $e');
-      // Return mock data for development
-      final results = _getMockSearchResults(query, limit);
-      _logger.i('Returning ${results.length} mock results for "$query"');
-      return results;
+      _logger.w('Unexpected search error: $e');
+      return (
+        success: false,
+        data: null,
+        error: 'Unexpected error',
+        details: e.toString(),
+      );
     }
   }
 

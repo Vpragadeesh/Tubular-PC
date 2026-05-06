@@ -64,6 +64,7 @@ class _VideoCardState extends State<VideoCard> with SingleTickerProviderStateMix
           child: InkWell(
             onTap: widget.onTap,
             child: Column(
+              mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // Thumbnail with overlay

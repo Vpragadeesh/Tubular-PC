@@ -5,15 +5,21 @@ import '../controllers/player_controller.dart';
 import '../models/video.dart';
 import '../services/api_service.dart';
 import '../widgets/video_card.dart';
+import '../widgets/error_widget.dart';
 
 final searchQueryProvider = StateProvider<String>((ref) => '');
 
-final searchResultsProvider = FutureProvider.autoDispose<List<Video>>((
+final searchResultsProvider = FutureProvider.autoDispose<ApiResult<List<Video>>>((
   ref,
 ) async {
   final query = ref.watch(searchQueryProvider);
   if (query.isEmpty) {
-    return [];
+    return (
+      success: true,
+      data: <Video>[],
+      error: null,
+      details: null,
+    );
   }
 
   final apiService = ref.watch(apiServiceProvider);
@@ -141,7 +147,18 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         ),
       ),
       body: searchResults.when(
-        data: (videos) {
+        data: (result) {
+          // Handle error state
+          if (!result.success) {
+            return ErrorDisplay(
+              message: result.error ?? 'Unknown error',
+              details: result.details,
+              onRetry: () => ref.refresh(searchResultsProvider),
+            );
+          }
+
+          final videos = result.data ?? [];
+
           if (videos.isEmpty && ref.read(searchQueryProvider).isEmpty) {
             // Show featured videos on initial load
             return _buildFeaturedVideos();
@@ -189,24 +206,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ],
           ),
         ),
-        error: (error, stack) => Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.error_outline, size: 64, color: Colors.red),
-              const SizedBox(height: 16),
-              Text(
-                'Error: $error',
-                textAlign: TextAlign.center,
-                style: const TextStyle(color: Colors.red),
-              ),
-              const SizedBox(height: 16),
-              ElevatedButton(
-                onPressed: () => ref.refresh(searchResultsProvider),
-                child: const Text('Retry'),
-              ),
-            ],
-          ),
+        error: (error, stack) => ErrorDisplay(
+          message: 'Search error',
+          details: error.toString(),
+          onRetry: () => ref.refresh(searchResultsProvider),
         ),
       ),
     );
