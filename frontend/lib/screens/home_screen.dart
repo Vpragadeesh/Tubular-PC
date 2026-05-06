@@ -9,6 +9,19 @@ import '../widgets/error_widget.dart';
 
 final searchQueryProvider = StateProvider<String>((ref) => '');
 
+/// Track if backend is warmed up (yt-dlp cache initialized)
+final backendWarmupProvider = FutureProvider<bool>((ref) async {
+  final apiService = ref.watch(apiServiceProvider);
+  try {
+    // Call warmup endpoint to initialize yt-dlp cache
+    await apiService.warmupBackend();
+    return true;
+  } catch (e) {
+    // Warmup is optional - app works without it, just slower on first search
+    return false;
+  }
+});
+
 final searchResultsProvider = FutureProvider.autoDispose<ApiResult<List<Video>>>((
   ref,
 ) async {
@@ -36,6 +49,15 @@ class HomeScreen extends ConsumerStatefulWidget {
 class _HomeScreenState extends ConsumerState<HomeScreen> {
   final TextEditingController _searchController = TextEditingController();
   String _lastSearchQuery = '';
+
+  @override
+  void initState() {
+    super.initState();
+    // Warmup backend in the background on app startup
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(backendWarmupProvider);
+    });
+  }
 
   @override
   void dispose() {
@@ -182,34 +204,139 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             },
           );
         },
-        loading: () => Center(
+        loading: () => _buildLoadingState(ref),
+        error: (error, stack) => ErrorDisplay(
+          message: 'Search error',
+          details: error.toString(),
+          onRetry: () => ref.refresh(searchResultsProvider),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLoadingState(WidgetRef ref) {
+    final warmupState = ref.watch(backendWarmupProvider);
+    
+    String subtitle = 'Loading...';
+    String details = '';
+    
+    return warmupState.when(
+      data: (isWarmedUp) {
+        if (isWarmedUp) {
+          subtitle = 'Searching YouTube...';
+          details = 'Backend is ready. First search: 10-30s, cached searches: <1s';
+        } else {
+          subtitle = 'Initializing backend...';
+          details = 'First search may take 10-30 seconds';
+        }
+        
+        return Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               const CircularProgressIndicator(),
               const SizedBox(height: 16),
               Text(
-                'Searching YouTube...',
+                subtitle,
                 style: TextStyle(
                   fontSize: 16,
                   color: Colors.grey[600],
+                  fontWeight: FontWeight.w500,
                 ),
               ),
               const SizedBox(height: 8),
-              Text(
-                'This may take 10-30 seconds on first search',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Colors.grey[500],
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 32),
+                child: Text(
+                  details,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey[500],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.grey[850],
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Column(
+                  children: [
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          isWarmedUp ? Icons.check_circle : Icons.hourglass_empty,
+                          size: 16,
+                          color: isWarmedUp ? Colors.green[400] : Colors.orange[400],
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          isWarmedUp ? '✓ Backend ready' : '⏳ Warming up...',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: isWarmedUp ? Colors.green[300] : Colors.orange[300],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
               ),
             ],
           ),
+        );
+      },
+      loading: () => Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const CircularProgressIndicator(),
+            const SizedBox(height: 16),
+            Text(
+              'Initializing backend...',
+              style: TextStyle(
+                fontSize: 16,
+                color: Colors.grey[600],
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Please wait...',
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.grey[500],
+              ),
+            ),
+          ],
         ),
-        error: (error, stack) => ErrorDisplay(
-          message: 'Search error',
-          details: error.toString(),
-          onRetry: () => ref.refresh(searchResultsProvider),
+      ),
+      error: (_, __) => Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const CircularProgressIndicator(),
+            const SizedBox(height: 16),
+            Text(
+              'Searching YouTube...',
+              style: TextStyle(
+                fontSize: 16,
+                color: Colors.grey[600],
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'First search: 10-30s, cached searches: <1s',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.grey[500],
+              ),
+            ),
+          ],
         ),
       ),
     );

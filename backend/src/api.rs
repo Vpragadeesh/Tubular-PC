@@ -53,6 +53,21 @@ pub async fn search(Query(params): Query<SearchQuery>) -> impl IntoResponse {
     }
 }
 
+pub async fn warmup() -> impl IntoResponse {
+    match yt_dlp::warmup().await {
+        Ok(_) => (StatusCode::OK, Json(ApiResponse::success("yt-dlp warmup complete".to_string()))),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiResponse::<String>::error(format!("Warmup failed: {}", e))),
+        ),
+    }
+}
+
+pub async fn clear_search_cache() -> impl IntoResponse {
+    yt_dlp::clear_search_cache().await;
+    (StatusCode::OK, Json(ApiResponse::success("Search cache cleared")))
+}
+
 pub async fn get_video_info(Path(id): Path<String>) -> impl IntoResponse {
     match yt_dlp::get_video_info(&id).await {
         Ok(info) => (StatusCode::OK, Json(ApiResponse::success(info))),

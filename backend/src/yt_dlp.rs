@@ -2,6 +2,29 @@ use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use std::process::Command;
 use tokio::time::{timeout, Duration};
+use std::sync::Arc;
+use tokio::sync::RwLock;
+use std::collections::HashMap;
+use std::time::Instant;
+
+/// Search cache entry with TTL (1 hour)
+const SEARCH_CACHE_TTL: Duration = Duration::from_secs(3600);
+
+struct CacheEntry {
+    results: Vec<SearchResult>,
+    created_at: Instant,
+}
+
+impl CacheEntry {
+    fn is_expired(&self) -> bool {
+        self.created_at.elapsed() > SEARCH_CACHE_TTL
+    }
+}
+
+/// Global search results cache
+lazy_static::lazy_static! {
+    static ref SEARCH_CACHE: Arc<RwLock<HashMap<String, CacheEntry>>> = Arc::new(RwLock::new(HashMap::new()));
+}
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct VideoInfo {
@@ -17,7 +40,7 @@ pub struct VideoInfo {
     pub upload_date: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct SearchResult {
     pub id: String,
     pub title: String,
@@ -35,19 +58,42 @@ pub struct StreamUrl {
 }
 
 /// Search for videos using yt-dlp (supports both video search and channel search)
+/// Results are cached for 1 hour
 pub async fn search_videos(query: &str, limit: u32) -> Result<Vec<SearchResult>> {
-    // Strategy 1: Try direct channel URL if it looks like a URL
-    if query.starts_with("http") || query.starts_with("www.") || query.contains("youtube.com") || query.contains("youtu.be") {
-        if let Ok(channel_results) = search_from_url(query, limit).await {
-            if !channel_results.is_empty() {
-                return Ok(channel_results);
+    let cache_key = format!("{}:{}", query, limit);
+    
+    // Check cache first
+    {
+        let cache = SEARCH_CACHE.read().await;
+        if let Some(entry) = cache.get(&cache_key) {
+            if !entry.is_expired() {
+                tracing::info!("📦 Cache hit for query: {}", query);
+                return Ok(entry.results.clone());
             }
         }
     }
     
+    // Cache miss or expired - fetch fresh results
+    tracing::info!("🔍 Cache miss for query: {}, fetching fresh results", query);
+    
+    // Strategy 1: Try direct channel URL if it looks like a URL
+    if query.starts_with("http") || query.starts_with("www.") || query.contains("youtube.com") || query.contains("youtu.be") {
+        if let Ok(channel_results) = search_from_url(query, limit).await {
+            if !channel_results.is_empty() {
+                // Cache the results
+                let mut cache = SEARCH_CACHE.write().await;
+                cache.insert(cache_key, CacheEntry {
+                    results: channel_results.clone(),
+                    created_at: Instant::now(),
+                });
+                return Ok(channel_results);
+            }
+        }
+    }
+
     // Strategy 2: Try regular video search
     let mut results = search_videos_internal(query, limit).await?;
-    
+
     // Strategy 3: If we got very few results, also try channel search
     if results.len() < 5 {
         if let Ok(channel_results) = search_channel_videos(query, limit).await {
@@ -58,18 +104,57 @@ pub async fn search_videos(query: &str, limit: u32) -> Result<Vec<SearchResult>>
             }
         }
     }
-    
+
     // Strategy 4: If still no results, try broader search
     if results.is_empty() {
         if let Ok(broad_results) = search_videos_broad(query, limit).await {
             results = broad_results;
         }
     }
-    
+
+    // Cache the results before returning
+    {
+        let mut cache = SEARCH_CACHE.write().await;
+        cache.insert(cache_key, CacheEntry {
+            results: results.clone(),
+            created_at: Instant::now(),
+        });
+    }
+
     Ok(results)
 }
 
-/// Search from a direct URL (channel, playlist, or video)
+/// Warmup yt-dlp by running a simple search to cache the YouTube extractor
+/// This eliminates the ~10-30 second cold start delay on first search
+pub async fn warmup() -> Result<()> {
+    tracing::info!("🚀 Warming up yt-dlp...");
+    
+    match timeout(Duration::from_secs(60), search_videos_internal("rust", 1)).await {
+        Ok(Ok(_)) => {
+            tracing::info!("✅ yt-dlp warmup complete");
+            Ok(())
+        }
+        Ok(Err(e)) => {
+            tracing::warn!("⚠️  yt-dlp warmup search failed: {}", e);
+            // Don't fail the app startup, just log the warning
+            Ok(())
+        }
+        Err(_) => {
+            tracing::warn!("⚠️  yt-dlp warmup timed out after 60 seconds");
+            // Don't fail the app startup, just log the warning
+            Ok(())
+        }
+    }
+}
+
+/// Clear search cache (useful for testing)
+pub async fn clear_search_cache() {
+    let mut cache = SEARCH_CACHE.write().await;
+    cache.clear();
+    tracing::info!("🗑️  Search cache cleared");
+}
+
+
 async fn search_from_url(url: &str, limit: u32) -> Result<Vec<SearchResult>> {
     let search_future = async {
         Command::new("yt-dlp")
@@ -85,14 +170,14 @@ async fn search_from_url(url: &str, limit: u32) -> Result<Vec<SearchResult>> {
             .output()
     };
 
-    let output = match timeout(Duration::from_secs(30), search_future).await {
+    let output = match timeout(Duration::from_secs(20), search_future).await {
         Ok(Ok(output)) => output,
         Ok(Err(e)) => {
             eprintln!("⚠️  URL search failed: {}", e);
             return Ok(Vec::new());
         }
         Err(_) => {
-            eprintln!("⚠️  URL search timed out after 30 seconds");
+            eprintln!("⚠️  URL search timed out after 20 seconds");
             return Ok(Vec::new());
         }
     };
@@ -107,7 +192,7 @@ async fn search_from_url(url: &str, limit: u32) -> Result<Vec<SearchResult>> {
 /// Broader search with more results
 async fn search_videos_broad(query: &str, limit: u32) -> Result<Vec<SearchResult>> {
     let search_query = format!("ytsearch{}:{}", limit * 3, query);
-    
+
     let search_future = async {
         Command::new("yt-dlp")
             .arg(&search_query)
@@ -121,14 +206,14 @@ async fn search_videos_broad(query: &str, limit: u32) -> Result<Vec<SearchResult
             .output()
     };
 
-    let output = match timeout(Duration::from_secs(30), search_future).await {
+    let output = match timeout(Duration::from_secs(20), search_future).await {
         Ok(Ok(output)) => output,
         Ok(Err(e)) => {
             eprintln!("⚠️  Broad search failed: {}", e);
             return Ok(Vec::new());
         }
         Err(_) => {
-            eprintln!("⚠️  Broad search timed out after 30 seconds");
+            eprintln!("⚠️  Broad search timed out after 20 seconds");
             return Ok(Vec::new());
         }
     };
@@ -145,7 +230,7 @@ async fn search_videos_broad(query: &str, limit: u32) -> Result<Vec<SearchResult
 /// Internal video search
 async fn search_videos_internal(query: &str, limit: u32) -> Result<Vec<SearchResult>> {
     let search_query = format!("ytsearch{}:{}", limit, query);
-    
+
     let search_future = async {
         Command::new("yt-dlp")
             .arg(&search_query)
@@ -162,13 +247,13 @@ async fn search_videos_internal(query: &str, limit: u32) -> Result<Vec<SearchRes
             .output()
     };
 
-    let output = match timeout(Duration::from_secs(30), search_future).await {
+    let output = match timeout(Duration::from_secs(20), search_future).await {
         Ok(Ok(output)) => output,
         Ok(Err(e)) => {
             anyhow::bail!("Failed to execute yt-dlp: {}", e);
         }
         Err(_) => {
-            anyhow::bail!("yt-dlp search timed out after 30 seconds - network may be slow or yt-dlp not responding");
+            anyhow::bail!("yt-dlp search timed out after 20 seconds - network may be slow or yt-dlp not responding");
         }
     };
 
@@ -183,10 +268,10 @@ async fn search_videos_internal(query: &str, limit: u32) -> Result<Vec<SearchRes
 /// Search for videos from a specific channel
 async fn search_channel_videos(channel_name: &str, limit: u32) -> Result<Vec<SearchResult>> {
     // Try multiple search strategies for channels
-    
+
     // Strategy 1: Search for channel directly
     let channel_search = format!("ytsearch{}:{} channel videos", limit, channel_name);
-    
+
     let search_future = async {
         Command::new("yt-dlp")
             .arg(&channel_search)
@@ -200,14 +285,14 @@ async fn search_channel_videos(channel_name: &str, limit: u32) -> Result<Vec<Sea
             .output()
     };
 
-    let output = match timeout(Duration::from_secs(30), search_future).await {
+    let output = match timeout(Duration::from_secs(20), search_future).await {
         Ok(Ok(output)) => output,
         Ok(Err(e)) => {
             eprintln!("⚠️  Channel search failed: {}", e);
             return Ok(Vec::new());
         }
         Err(_) => {
-            eprintln!("⚠️  Channel search timed out after 30 seconds");
+            eprintln!("⚠️  Channel search timed out after 20 seconds");
             return Ok(Vec::new());
         }
     };
@@ -217,7 +302,7 @@ async fn search_channel_videos(channel_name: &str, limit: u32) -> Result<Vec<Sea
     }
 
     let mut results = parse_search_results(&output.stdout)?;
-    
+
     // Filter to only include videos from channels matching the query
     let query_lower = channel_name.to_lowercase();
     results.retain(|r| {
@@ -225,10 +310,10 @@ async fn search_channel_videos(channel_name: &str, limit: u32) -> Result<Vec<Sea
         // Match if channel name contains query or query contains channel name
         channel_lower.contains(&query_lower) || query_lower.contains(&channel_lower)
     });
-    
+
     // Limit results
     results.truncate(limit as usize);
-    
+
     Ok(results)
 }
 
@@ -241,7 +326,7 @@ fn parse_search_results(stdout: &[u8]) -> Result<Vec<SearchResult>> {
         if line.trim().is_empty() {
             continue;
         }
-        
+
         if let Ok(json) = serde_json::from_str::<serde_json::Value>(line) {
             results.push(SearchResult {
                 id: json["id"].as_str().unwrap_or("").to_string(),
@@ -271,7 +356,7 @@ fn parse_search_results(stdout: &[u8]) -> Result<Vec<SearchResult>> {
 /// Get detailed video information
 pub async fn get_video_info(video_id: &str) -> Result<VideoInfo> {
     let url = format!("https://www.youtube.com/watch?v={}", video_id);
-    
+
     let info_future = async {
         Command::new("yt-dlp")
             .arg(&url)
@@ -320,7 +405,7 @@ pub async fn get_video_info(video_id: &str) -> Result<VideoInfo> {
 /// Get stream URL for video playback
 pub async fn get_stream_url(video_id: &str, quality: &str) -> Result<StreamUrl> {
     let url = format!("https://www.youtube.com/watch?v={}", video_id);
-    
+
     let format = match quality {
         "1080p" => "bestvideo[height<=1080]+bestaudio/best[height<=1080]",
         "720p" => "bestvideo[height<=720]+bestaudio/best[height<=720]",
@@ -374,7 +459,7 @@ pub async fn download_video(
     audio_only: bool,
 ) -> Result<String> {
     let url = format!("https://www.youtube.com/watch?v={}", video_id);
-    
+
     let format = if audio_only {
         "bestaudio"
     } else {

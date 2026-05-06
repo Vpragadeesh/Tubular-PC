@@ -22,9 +22,18 @@ async fn main() -> anyhow::Result<()> {
     db::init_db().await?;
     let player = player::PlayerHandle::new();
 
+    // Warmup yt-dlp in background to eliminate cold start
+    tokio::spawn(async {
+        if let Err(e) = yt_dlp::warmup().await {
+            tracing::warn!("Background warmup failed: {}", e);
+        }
+    });
+
     // Build router
     let app = Router::new()
         .route("/", get(|| async { "Tubular Backend API" }))
+        .route("/warmup", post(api::warmup))
+        .route("/search-cache/clear", post(api::clear_search_cache))
         .route("/search", get(api::search))
         .route("/video/:id", get(api::get_video_info))
         .route("/stream/:id", get(api::get_stream_url))

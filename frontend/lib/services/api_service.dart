@@ -31,6 +31,22 @@ class ApiService {
         ),
       );
 
+  /// Warmup backend to initialize yt-dlp cache (eliminates ~10-30s cold start)
+  Future<void> warmupBackend() async {
+    try {
+      _logger.i('🚀 Warming up backend...');
+      final response = await _dio.post('/warmup')
+          .timeout(const Duration(seconds: 60));
+      
+      if (response.statusCode == 200) {
+        _logger.i('✅ Backend warmup complete');
+      }
+    } catch (e) {
+      _logger.w('⚠️  Backend warmup failed (non-critical): $e');
+      // Warmup is optional - app works without it, just slower
+    }
+  }
+
   Future<ApiResult<List<Video>>> searchVideos(String query, {int limit = 10}) async {
     _logger.i('Searching for: $query');
     
