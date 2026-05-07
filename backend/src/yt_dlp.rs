@@ -1,4 +1,4 @@
-use anyhow::{Context, Result};
+use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::process::Command;
 use tokio::time::{timeout, Duration};
@@ -21,7 +21,7 @@ impl CacheEntry {
     }
 }
 
-/// Global search results cache
+// Global search results cache
 lazy_static::lazy_static! {
     static ref SEARCH_CACHE: Arc<RwLock<HashMap<String, CacheEntry>>> = Arc::new(RwLock::new(HashMap::new()));
 }
@@ -55,6 +55,45 @@ pub struct StreamUrl {
     pub url: String,
     pub format: String,
     pub quality: String,
+}
+
+/// Helper function to run yt-dlp with proper process killing on timeout
+/// This ensures the process is terminated when timeout fires, not just the future
+async fn run_yt_dlp_command(
+    args: Vec<String>,
+    timeout_secs: u64,
+) -> Result<String> {
+    // Spawn the blocking operation in a separate thread pool
+    let spawn_result = tokio::task::spawn_blocking(move || {
+        let args_str: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
+        
+        let mut child = Command::new("yt-dlp")
+            .args(&args_str)
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped())
+            .spawn()?;
+        
+        child.wait_with_output()
+    });
+    
+    match timeout(Duration::from_secs(timeout_secs), spawn_result).await {
+        Ok(Ok(Ok(output))) => {
+            if output.status.success() {
+                Ok(String::from_utf8_lossy(&output.stdout).to_string())
+            } else {
+                let error = String::from_utf8_lossy(&output.stderr);
+                Err(anyhow::anyhow!("yt-dlp failed: {}", error))
+            }
+        }
+        Ok(Ok(Err(e))) => Err(anyhow::anyhow!("Failed to execute yt-dlp: {}", e)),
+        Ok(Err(_)) => Err(anyhow::anyhow!("Thread panicked")),
+        Err(_) => {
+            anyhow::bail!(
+                "yt-dlp command timed out after {} seconds. Process may be waiting for network response.",
+                timeout_secs
+            );
+        }
+    }
 }
 
 /// Search for videos using yt-dlp (supports both video search and channel search)
@@ -156,113 +195,76 @@ pub async fn clear_search_cache() {
 
 
 async fn search_from_url(url: &str, limit: u32) -> Result<Vec<SearchResult>> {
-    let search_future = async {
-        Command::new("yt-dlp")
-            .arg(url)
-            .arg("--flat-playlist")
-            .arg("--dump-json")
-            .arg("--playlist-end")
-            .arg(limit.to_string())
-            .arg("--no-warnings")
-            .arg("--quiet")
-            .arg("--socket-timeout")
-            .arg("20")
-            .output()
-    };
+    let limit_str = limit.to_string();
+    let args = vec![
+        url.to_string(),
+        "--flat-playlist".to_string(),
+        "--dump-json".to_string(),
+        "--playlist-end".to_string(),
+        limit_str,
+        "--no-warnings".to_string(),
+        "--quiet".to_string(),
+        "--socket-timeout".to_string(),
+        "20".to_string(),
+    ];
 
-    let output = match timeout(Duration::from_secs(20), search_future).await {
-        Ok(Ok(output)) => output,
-        Ok(Err(e)) => {
-            eprintln!("⚠️  URL search failed: {}", e);
-            return Ok(Vec::new());
+    match run_yt_dlp_command(args, 20).await {
+        Ok(output) => parse_search_results(output.as_bytes()),
+        Err(e) => {
+            tracing::warn!("⚠️  URL search failed: {}", e);
+            Ok(Vec::new())
         }
-        Err(_) => {
-            eprintln!("⚠️  URL search timed out after 20 seconds");
-            return Ok(Vec::new());
-        }
-    };
-
-    if !output.status.success() {
-        return Ok(Vec::new());
     }
-
-    parse_search_results(&output.stdout)
 }
 
 /// Broader search with more results
 async fn search_videos_broad(query: &str, limit: u32) -> Result<Vec<SearchResult>> {
     let search_query = format!("ytsearch{}:{}", limit * 3, query);
 
-    let search_future = async {
-        Command::new("yt-dlp")
-            .arg(&search_query)
-            .arg("--dump-json")
-            .arg("--no-playlist")
-            .arg("--skip-download")
-            .arg("--no-warnings")
-            .arg("--quiet")
-            .arg("--socket-timeout")
-            .arg("20")
-            .output()
-    };
+    let args = vec![
+        search_query,
+        "--dump-json".to_string(),
+        "--no-playlist".to_string(),
+        "--skip-download".to_string(),
+        "--no-warnings".to_string(),
+        "--quiet".to_string(),
+        "--socket-timeout".to_string(),
+        "20".to_string(),
+    ];
 
-    let output = match timeout(Duration::from_secs(20), search_future).await {
-        Ok(Ok(output)) => output,
-        Ok(Err(e)) => {
-            eprintln!("⚠️  Broad search failed: {}", e);
-            return Ok(Vec::new());
+    match run_yt_dlp_command(args, 20).await {
+        Ok(output) => {
+            let mut results = parse_search_results(output.as_bytes())?;
+            results.truncate(limit as usize);
+            Ok(results)
         }
-        Err(_) => {
-            eprintln!("⚠️  Broad search timed out after 20 seconds");
-            return Ok(Vec::new());
+        Err(e) => {
+            tracing::warn!("⚠️  Broad search failed: {}", e);
+            Ok(Vec::new())
         }
-    };
-
-    if !output.status.success() {
-        return Ok(Vec::new());
     }
-
-    let mut results = parse_search_results(&output.stdout)?;
-    results.truncate(limit as usize);
-    Ok(results)
 }
 
 /// Internal video search
 async fn search_videos_internal(query: &str, limit: u32) -> Result<Vec<SearchResult>> {
     let search_query = format!("ytsearch{}:{}", limit, query);
 
-    let search_future = async {
-        Command::new("yt-dlp")
-            .arg(&search_query)
-            .arg("--dump-json")
-            .arg("--no-playlist")
-            .arg("--skip-download")
-            .arg("--no-warnings")
-            .arg("--quiet")
-            .arg("--no-call-home")
-            .arg("--socket-timeout")
-            .arg("20")
-            .arg("--extractor-retries")
-            .arg("3")
-            .output()
-    };
+    let args = vec![
+        search_query,
+        "--dump-json".to_string(),
+        "--no-playlist".to_string(),
+        "--skip-download".to_string(),
+        "--no-warnings".to_string(),
+        "--quiet".to_string(),
+        "--no-call-home".to_string(),
+        "--socket-timeout".to_string(),
+        "20".to_string(),
+        "--extractor-retries".to_string(),
+        "3".to_string(),
+    ];
 
-    let output = match timeout(Duration::from_secs(20), search_future).await {
-        Ok(Ok(output)) => output,
-        Ok(Err(e)) => {
-            anyhow::bail!("Failed to execute yt-dlp: {}", e);
-        }
-        Err(_) => {
-            anyhow::bail!("yt-dlp search timed out after 20 seconds - network may be slow or yt-dlp not responding");
-        }
-    };
-
-    if !output.status.success() {
-        let error = String::from_utf8_lossy(&output.stderr);
-        anyhow::bail!("yt-dlp search failed: {}", error);
-    }
-
-    parse_search_results(&output.stdout)
+    let output = run_yt_dlp_command(args, 30).await?;
+    parse_search_results(output.as_bytes())
 }
 
 /// Search for videos from a specific channel
@@ -272,49 +274,39 @@ async fn search_channel_videos(channel_name: &str, limit: u32) -> Result<Vec<Sea
     // Strategy 1: Search for channel directly
     let channel_search = format!("ytsearch{}:{} channel videos", limit, channel_name);
 
-    let search_future = async {
-        Command::new("yt-dlp")
-            .arg(&channel_search)
-            .arg("--dump-json")
-            .arg("--no-playlist")
-            .arg("--skip-download")
-            .arg("--no-warnings")
-            .arg("--quiet")
-            .arg("--socket-timeout")
-            .arg("20")
-            .output()
-    };
+    let args = vec![
+        channel_search,
+        "--dump-json".to_string(),
+        "--no-playlist".to_string(),
+        "--skip-download".to_string(),
+        "--no-warnings".to_string(),
+        "--quiet".to_string(),
+        "--socket-timeout".to_string(),
+        "20".to_string(),
+    ];
 
-    let output = match timeout(Duration::from_secs(20), search_future).await {
-        Ok(Ok(output)) => output,
-        Ok(Err(e)) => {
-            eprintln!("⚠️  Channel search failed: {}", e);
-            return Ok(Vec::new());
-        }
-        Err(_) => {
-            eprintln!("⚠️  Channel search timed out after 20 seconds");
-            return Ok(Vec::new());
-        }
-    };
+    match run_yt_dlp_command(args, 20).await {
+        Ok(output) => {
+            let mut results = parse_search_results(output.as_bytes())?;
 
-    if !output.status.success() {
-        return Ok(Vec::new());
+            // Filter to only include videos from channels matching the query
+            let query_lower = channel_name.to_lowercase();
+            results.retain(|r| {
+                let channel_lower = r.channel.to_lowercase();
+                // Match if channel name contains query or query contains channel name
+                channel_lower.contains(&query_lower) || query_lower.contains(&channel_lower)
+            });
+
+            // Limit results
+            results.truncate(limit as usize);
+
+            Ok(results)
+        }
+        Err(e) => {
+            tracing::warn!("⚠️  Channel search failed: {}", e);
+            Ok(Vec::new())
+        }
     }
-
-    let mut results = parse_search_results(&output.stdout)?;
-
-    // Filter to only include videos from channels matching the query
-    let query_lower = channel_name.to_lowercase();
-    results.retain(|r| {
-        let channel_lower = r.channel.to_lowercase();
-        // Match if channel name contains query or query contains channel name
-        channel_lower.contains(&query_lower) || query_lower.contains(&channel_lower)
-    });
-
-    // Limit results
-    results.truncate(limit as usize);
-
-    Ok(results)
 }
 
 /// Parse yt-dlp JSON output into SearchResult vector
@@ -357,36 +349,19 @@ fn parse_search_results(stdout: &[u8]) -> Result<Vec<SearchResult>> {
 pub async fn get_video_info(video_id: &str) -> Result<VideoInfo> {
     let url = format!("https://www.youtube.com/watch?v={}", video_id);
 
-    let info_future = async {
-        Command::new("yt-dlp")
-            .arg(&url)
-            .arg("--dump-json")
-            .arg("--no-playlist")
-            .arg("--skip-download")
-            .arg("--no-warnings")
-            .arg("--quiet")
-            .arg("--socket-timeout")
-            .arg("10")
-            .output()
-    };
+    let args = vec![
+        url,
+        "--dump-json".to_string(),
+        "--no-playlist".to_string(),
+        "--skip-download".to_string(),
+        "--no-warnings".to_string(),
+        "--quiet".to_string(),
+        "--socket-timeout".to_string(),
+        "10".to_string(),
+    ];
 
-    let output = match timeout(Duration::from_secs(20), info_future).await {
-        Ok(Ok(output)) => output,
-        Ok(Err(e)) => {
-            anyhow::bail!("Failed to execute yt-dlp: {}", e);
-        }
-        Err(_) => {
-            anyhow::bail!("yt-dlp timed out after 20 seconds - unable to fetch video info");
-        }
-    };
-
-    if !output.status.success() {
-        let error = String::from_utf8_lossy(&output.stderr);
-        anyhow::bail!("yt-dlp failed: {}", error);
-    }
-
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let json: serde_json::Value = serde_json::from_str(&stdout)?;
+    let output = run_yt_dlp_command(args, 20).await?;
+    let json: serde_json::Value = serde_json::from_str(&output)?;
 
     Ok(VideoInfo {
         id: json["id"].as_str().unwrap_or("").to_string(),
@@ -414,35 +389,23 @@ pub async fn get_stream_url(video_id: &str, quality: &str) -> Result<StreamUrl> 
         _ => "best",
     };
 
-    let stream_future = async {
-        Command::new("yt-dlp")
-            .arg(&url)
-            .arg("-f")
-            .arg(format)
-            .arg("-g")
-            .arg("--no-warnings")
-            .arg("--quiet")
-            .arg("--socket-timeout")
-            .arg("10")
-            .output()
-    };
+    let args = vec![
+        url,
+        "-f".to_string(),
+        format.to_string(),
+        "-g".to_string(),
+        "--no-warnings".to_string(),
+        "--quiet".to_string(),
+        "--socket-timeout".to_string(),
+        "10".to_string(),
+    ];
 
-    let output = match timeout(Duration::from_secs(20), stream_future).await {
-        Ok(Ok(output)) => output,
-        Ok(Err(e)) => {
-            anyhow::bail!("Failed to execute yt-dlp: {}", e);
-        }
-        Err(_) => {
-            anyhow::bail!("yt-dlp timed out after 20 seconds - unable to fetch stream URL");
-        }
-    };
+    let output = run_yt_dlp_command(args, 25).await?;
+    let stream_url = output.trim().to_string();
 
-    if !output.status.success() {
-        let error = String::from_utf8_lossy(&output.stderr);
-        anyhow::bail!("yt-dlp failed: {}", error);
+    if stream_url.is_empty() {
+        anyhow::bail!("yt-dlp returned empty stream URL");
     }
-
-    let stream_url = String::from_utf8_lossy(&output.stdout).trim().to_string();
 
     Ok(StreamUrl {
         url: stream_url,
@@ -461,40 +424,24 @@ pub async fn download_video(
     let url = format!("https://www.youtube.com/watch?v={}", video_id);
 
     let format = if audio_only {
-        "bestaudio"
+        "bestaudio".to_string()
     } else {
         match quality {
-            "1080p" => "bestvideo[height<=1080]+bestaudio/best[height<=1080]",
-            "720p" => "bestvideo[height<=720]+bestaudio/best[height<=720]",
-            "480p" => "bestvideo[height<=480]+bestaudio/best[height<=480]",
-            _ => "best",
+            "1080p" => "bestvideo[height<=1080]+bestaudio/best[height<=1080]".to_string(),
+            "720p" => "bestvideo[height<=720]+bestaudio/best[height<=720]".to_string(),
+            "480p" => "bestvideo[height<=480]+bestaudio/best[height<=480]".to_string(),
+            _ => "best".to_string(),
         }
     };
 
-    let download_future = async {
-        Command::new("yt-dlp")
-            .arg(&url)
-            .arg("-f")
-            .arg(format)
-            .arg("-o")
-            .arg(output_path)
-            .output()
-    };
+    let args = vec![
+        url,
+        "-f".to_string(),
+        format,
+        "-o".to_string(),
+        output_path.to_string(),
+    ];
 
-    let output = match timeout(Duration::from_secs(120), download_future).await {
-        Ok(Ok(output)) => output,
-        Ok(Err(e)) => {
-            anyhow::bail!("Failed to execute yt-dlp: {}", e);
-        }
-        Err(_) => {
-            anyhow::bail!("yt-dlp timed out after 120 seconds - download taking too long");
-        }
-    };
-
-    if !output.status.success() {
-        let error = String::from_utf8_lossy(&output.stderr);
-        anyhow::bail!("Download failed: {}", error);
-    }
-
+    let _ = run_yt_dlp_command(args, 300).await?;
     Ok(output_path.to_string())
 }
