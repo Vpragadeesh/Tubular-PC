@@ -31,3 +31,6 @@ final enableSponsorBlockProvider = StateProvider<bool>((ref) => true);
 final enableDislikeCountsProvider = StateProvider<bool>((ref) => true);
 final enableSubtitlesProvider = StateProvider<bool>((ref) => true);
 final enableNotificationsProvider = StateProvider<bool>((ref) => false);
+
+// Playback speed provider (1.0 = normal)
+final playbackSpeedProvider = StateProvider<double>((ref) => 1.0);

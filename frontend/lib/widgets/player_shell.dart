@@ -7,6 +7,7 @@ import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 
 import '../controllers/player_controller.dart';
+import '../providers.dart';
 
 class PlayerShell extends ConsumerWidget {
   const PlayerShell({super.key, required this.child});
@@ -132,6 +133,7 @@ class _PlayerStageState extends ConsumerState<_PlayerStage> {
   Player? _player;
   VideoController? _videoController;
   String? _currentStreamUrl;
+  double _appliedSpeed = 1.0;
 
   @override
   void initState() {
@@ -208,6 +210,16 @@ class _PlayerStageState extends ConsumerState<_PlayerStage> {
       print('🎥 Opening stream in initState: $streamUrl');
       _player?.open(Media(streamUrl), play: true);
     }
+
+    // Apply current playback speed and listen for changes
+    final speed = ref.read(playbackSpeedProvider);
+    _appliedSpeed = speed;
+    try {
+      _player?.setRate(speed);
+      print('DEBUG: Applied playback speed $speed at init');
+    } catch (e) {
+      print('DEBUG: Failed to set initial playback speed: $e');
+    }
   }
 
   @override
@@ -263,6 +275,7 @@ class _PlayerStageState extends ConsumerState<_PlayerStage> {
   Widget build(BuildContext context) {
     final video = widget.playerState.video;
     final controller = ref.read(playerControllerProvider.notifier);
+    final playbackSpeed = ref.watch(playbackSpeedProvider);
     final hasStreamUrl = widget.playerState.streamUrl != null;
     final hasVideo = _player?.state.width != null && 
                      _player!.state.width! > 0 && 
@@ -278,6 +291,17 @@ class _PlayerStageState extends ConsumerState<_PlayerStage> {
     print('   _player width: ${_player?.state.width}');
     print('   _player height: ${_player?.state.height}');
     print('   hasVideo: $hasVideo');
+
+    // Apply playback speed updates if it changed
+    if (_player != null && playbackSpeed != _appliedSpeed) {
+      try {
+        _player?.setRate(playbackSpeed);
+        _appliedSpeed = playbackSpeed;
+        print('DEBUG: Applied playback speed $playbackSpeed in build');
+      } catch (e) {
+        print('DEBUG: Failed to apply playback speed $playbackSpeed in build: $e');
+      }
+    }
 
     return ColoredBox(
       color: Colors.black,
@@ -491,6 +515,8 @@ class _FullscreenControls extends ConsumerWidget {
                   selectedQuality: playerState.quality,
                   onSelected: controller.setQuality,
                 ),
+                const SizedBox(width: 8),
+                _SpeedMenu(),
               ],
             ),
           ],
@@ -551,6 +577,54 @@ class _QualityLabel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Text(text, style: const TextStyle(color: Colors.white));
+  }
+}
+
+class _SpeedMenu extends ConsumerWidget {
+  const _SpeedMenu({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final speed = ref.watch(playbackSpeedProvider);
+    final controller = ref.read(playerControllerProvider.notifier);
+
+    return PopupMenuButton<String>(
+      tooltip: 'Speed',
+      color: const Color(0xFF1C1C1C),
+      initialValue: speed.toString(),
+      onSelected: (value) {
+        final v = double.tryParse(value) ?? 1.0;
+        ref.read(playbackSpeedProvider.notifier).state = v;
+        // controller doesn't need to apply speed; player_shell listens to provider
+      },
+      itemBuilder: (context) {
+        return const [
+          PopupMenuItem(value: '0.5', child: Text('0.5x')),
+          PopupMenuItem(value: '0.75', child: Text('0.75x')),
+          PopupMenuItem(value: '1.0', child: Text('1.0x')),
+          PopupMenuItem(value: '1.25', child: Text('1.25x')),
+          PopupMenuItem(value: '1.5', child: Text('1.5x')),
+          PopupMenuItem(value: '2.0', child: Text('2.0x')),
+        ];
+      },
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        child: Row(
+          children: [
+            const Icon(Icons.speed, color: Colors.white, size: 22),
+            const SizedBox(width: 6),
+            Text(
+              '${speed}x',
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 

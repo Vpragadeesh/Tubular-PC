@@ -35,6 +35,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final autoPlay = ref.watch(autoPlayProvider);
     final downloadFolder = ref.watch(downloadFolderProvider);
     final subtitleSize = ref.watch(subtitleFontSizeProvider);
+    final playbackSpeed = ref.watch(playbackSpeedProvider);
     final sponsorBlock = ref.watch(enableSponsorBlockProvider);
     final dislikeCounts = ref.watch(enableDislikeCountsProvider);
     final subtitles = ref.watch(enableSubtitlesProvider);
@@ -109,6 +110,26 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 },
               ),
               const Divider(height: 1),
+              _buildDropdownTile(
+                context,
+                'Playback Speed',
+                playbackSpeed.toString(),
+                items: const [
+                  DropdownMenuItem(value: '0.5', child: Text('0.5x')),
+                  DropdownMenuItem(value: '0.75', child: Text('0.75x')),
+                  DropdownMenuItem(value: '1.0', child: Text('1.0x')),
+                  DropdownMenuItem(value: '1.25', child: Text('1.25x')),
+                  DropdownMenuItem(value: '1.5', child: Text('1.5x')),
+                  DropdownMenuItem(value: '2.0', child: Text('2.0x')),
+                ],
+                onChanged: (value) {
+                  if (value != null) {
+                    final v = double.tryParse(value) ?? 1.0;
+                    ref.read(playbackSpeedProvider.notifier).state = v;
+                    _saveSetting('playback_speed', v.toString());
+                  }
+                },
+              ),
               _buildDropdownTile(
                 context,
                 'Preferred Format',

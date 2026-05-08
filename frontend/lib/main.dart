@@ -88,6 +88,11 @@ class _TubularAppState extends ConsumerState<TubularApp> {
       if (settings.containsKey('enable_notifications')) {
         ref.read(enableNotificationsProvider.notifier).state = settings['enable_notifications'] == 'true';
       }
+      if (settings.containsKey('playback_speed')) {
+        final v = double.tryParse(settings['playback_speed'] ?? '1.0') ?? 1.0;
+        ref.read(playbackSpeedProvider.notifier).state = v;
+        print('DEBUG: Set playback_speed to $v');
+      }
     } catch (e) {
       print('DEBUG: Failed to load settings: $e');
     }
