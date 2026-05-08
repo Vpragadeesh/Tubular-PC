@@ -38,15 +38,18 @@ class _TubularAppState extends ConsumerState<TubularApp> {
     final api = ref.read(apiServiceProvider);
     try {
       final settings = await api.getAllSettings();
+      print('DEBUG: Loaded ${settings.length} settings: $settings');
 
       if (settings.containsKey('theme')) {
         final t = settings['theme'];
         ref.read(themeModeProvider.notifier).state =
             t == 'light' ? ThemeMode.light : (t == 'system' ? ThemeMode.system : ThemeMode.dark);
+        print('DEBUG: Set theme to $t');
       }
 
       if (settings.containsKey('preferred_quality')) {
         ref.read(preferredQualityProvider.notifier).state = settings['preferred_quality']!;
+        print('DEBUG: Set preferred_quality to ${settings['preferred_quality']}');
       }
 
       if (settings.containsKey('preferred_format')) {
@@ -86,7 +89,7 @@ class _TubularAppState extends ConsumerState<TubularApp> {
         ref.read(enableNotificationsProvider.notifier).state = settings['enable_notifications'] == 'true';
       }
     } catch (e) {
-      // Non-fatal: continue with defaults
+      print('DEBUG: Failed to load settings: $e');
     }
   }
 

@@ -12,9 +12,11 @@ class SettingsScreen extends ConsumerStatefulWidget {
 class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   void _saveSetting(String key, String value) {
     final apiService = ref.read(apiServiceProvider);
+    print('DEBUG: Saving setting $key = $value');
     apiService.setSetting(key, value).then((_) {
-      // Silent success
+      print('DEBUG: Successfully saved setting $key');
     }).catchError((e) {
+      print('DEBUG: Failed to save setting $key: $e');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Failed to save setting: $e'),
