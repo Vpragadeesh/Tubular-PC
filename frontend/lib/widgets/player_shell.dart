@@ -8,6 +8,7 @@ import 'package:media_kit_video/media_kit_video.dart';
 
 import '../controllers/player_controller.dart';
 import '../providers.dart';
+import '../services/media_player_holder.dart';
 
 class PlayerShell extends ConsumerWidget {
   const PlayerShell({super.key, required this.child});
@@ -130,95 +131,87 @@ class _PlayerStage extends ConsumerStatefulWidget {
 }
 
 class _PlayerStageState extends ConsumerState<_PlayerStage> {
-  Player? _player;
-  VideoController? _videoController;
   String? _currentStreamUrl;
   double _appliedSpeed = 1.0;
+  bool _listenersAttached = false;
 
   @override
   void initState() {
     super.initState();
-    _initializePlayer();
+    _initializePlayerFromHolder();
   }
 
-  void _initializePlayer() {
-    print('🎬 Initializing media_kit player...');
-    _player = Player();
-    _videoController = VideoController(
-      _player!,
-      configuration: const VideoControllerConfiguration(
-        // Software decoding avoids blue/blank frames on some Linux GPU drivers.
-        enableHardwareAcceleration: false,
-      ),
-    );
-    
-    // Listen to player position updates
-    _player!.stream.position.listen((position) {
-      ref.read(playerControllerProvider.notifier).updatePosition(position);
-    });
-    
-    // Listen to player duration updates
-    _player!.stream.duration.listen((duration) {
-      ref.read(playerControllerProvider.notifier).updateDuration(duration);
-    });
-    
-    // Listen to player state changes
-    _player!.stream.playing.listen((isPlaying) {
-      print('🎵 Player playing state changed: $isPlaying');
-      ref.read(playerControllerProvider.notifier).updatePlayingState(isPlaying);
-    });
-    
-    // Listen to buffering state
-    _player!.stream.buffering.listen((buffering) {
-      print('📊 Player buffering: $buffering');
-    });
-    
-    // Listen to width/height changes
-    _player!.stream.width.listen((width) {
-      print('📐 Video width: $width');
-      if (width != null && width > 0) {
-        // Force rebuild when video dimensions are available
-        setState(() {});
-      }
-    });
-    
-    _player!.stream.height.listen((height) {
-      print('📐 Video height: $height');
-    });
-    
-    // Listen to errors
-    _player!.stream.error.listen((error) {
-      if (error != null) {
-        print('❌ Player error: $error');
-        ref.read(playerControllerProvider.notifier).setError(error);
-      }
-    });
-    
-    // Listen to completed
-    _player!.stream.completed.listen((completed) {
-      if (completed) {
-        print('✅ Playback completed');
-      }
-    });
-    
-    print('✅ Player initialized');
-    
-    // If stream URL is already available, open it immediately
+  void _initializePlayerFromHolder() {
+    print('🎬 Initializing media_kit player from holder...');
+    // Use the shared MediaPlayerHolder so the player survives when the UI minimizes
+    final holder = MediaPlayerHolder.instance;
+    final _player = holder.player;
+    final _videoController = holder.videoController;
+
+    // Attach listeners once per widget instance (safe because holder's player persists)
+    if (!_listenersAttached) {
+      _listenersAttached = true;
+
+      _player.stream.position.listen((position) {
+        ref.read(playerControllerProvider.notifier).updatePosition(position);
+      });
+
+      _player.stream.duration.listen((duration) {
+        ref.read(playerControllerProvider.notifier).updateDuration(duration);
+      });
+
+      _player.stream.playing.listen((isPlaying) {
+        print('🎵 Player playing state changed: $isPlaying');
+        ref.read(playerControllerProvider.notifier).updatePlayingState(isPlaying);
+      });
+
+      _player.stream.buffering.listen((buffering) {
+        print('📊 Player buffering: $buffering');
+      });
+
+      _player.stream.width.listen((width) {
+        print('📐 Video width: $width');
+        if (width != null && width > 0) {
+          setState(() {});
+        }
+      });
+
+      _player.stream.height.listen((height) {
+        print('📐 Video height: $height');
+      });
+
+      _player.stream.error.listen((error) {
+        if (error != null) {
+          print('❌ Player error: $error');
+          ref.read(playerControllerProvider.notifier).setError(error);
+        }
+      });
+
+      _player.stream.completed.listen((completed) {
+        if (completed) {
+          print('✅ Playback completed');
+        }
+      });
+    }
+
+    print('✅ Player (holder) initialized');
+
+    // If stream URL is already available, open it
     final streamUrl = widget.playerState.streamUrl;
     if (streamUrl != null && streamUrl.isNotEmpty) {
       _currentStreamUrl = streamUrl;
-      print('🎥 Opening stream in initState: $streamUrl');
-      _player?.open(Media(streamUrl), play: true);
+      print('🎥 Opening stream in initState (holder): $streamUrl');
+      _player.open(Media(streamUrl), play: true);
     }
 
-    // Apply current playback speed and listen for changes
+    // Apply current playback speed
     final speed = ref.read(playbackSpeedProvider);
     _appliedSpeed = speed;
     try {
-      _player?.setRate(speed);
-      print('DEBUG: Applied playback speed $speed at init');
+      _player.setRate(speed);
+      print('DEBUG: Applied playback speed $speed at init (holder)');
     } catch (e) {
-      print('DEBUG: Failed to set initial playback speed: $e');
+      print('DEBUG: Failed to set initial playback speed (holder): $e');
     }
   }
 
@@ -267,7 +260,7 @@ class _PlayerStageState extends ConsumerState<_PlayerStage> {
 
   @override
   void dispose() {
-    _player?.dispose();
+    // Do not dispose the shared player here. MediaPlayerHolder owns the player lifetime
     super.dispose();
   }
 
@@ -277,10 +270,15 @@ class _PlayerStageState extends ConsumerState<_PlayerStage> {
     final controller = ref.read(playerControllerProvider.notifier);
     final playbackSpeed = ref.watch(playbackSpeedProvider);
     final hasStreamUrl = widget.playerState.streamUrl != null;
-    final hasVideo = _player?.state.width != null && 
-                     _player!.state.width! > 0 && 
-                     _player!.state.height != null && 
-                     _player!.state.height! > 0;
+
+    final holder = MediaPlayerHolder.instance;
+    final _player = holder.isInitialized ? holder.player : null;
+    final _videoController = holder.isInitialized ? holder.videoController : null;
+
+    final hasVideo = _player != null && _player.state.width != null && 
+                     _player.state.width! > 0 && 
+                     _player.state.height != null && 
+                     _player.state.height! > 0;
 
     print('🎨 Building _PlayerStage:');
     print('   hasStreamUrl: $hasStreamUrl');
@@ -295,7 +293,7 @@ class _PlayerStageState extends ConsumerState<_PlayerStage> {
     // Apply playback speed updates if it changed
     if (_player != null && playbackSpeed != _appliedSpeed) {
       try {
-        _player?.setRate(playbackSpeed);
+        _player.setRate(playbackSpeed);
         _appliedSpeed = playbackSpeed;
         print('DEBUG: Applied playback speed $playbackSpeed in build');
       } catch (e) {
