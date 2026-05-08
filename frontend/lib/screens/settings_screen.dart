@@ -121,8 +121,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   DropdownMenuItem(value: '1.25', child: Text('1.25x')),
                   DropdownMenuItem(value: '1.5', child: Text('1.5x')),
                   DropdownMenuItem(value: '2.0', child: Text('2.0x')),
+                  DropdownMenuItem(value: '2.25', child: Text('2.25x')),
                   DropdownMenuItem(value: '2.5', child: Text('2.5x')),
+                  DropdownMenuItem(value: '2.75', child: Text('2.75x')),
                   DropdownMenuItem(value: '3.0', child: Text('3.0x')),
+                  DropdownMenuItem(value: '3.25', child: Text('3.25x')),
+                  DropdownMenuItem(value: '3.5', child: Text('3.5x')),
+                  DropdownMenuItem(value: '3.75', child: Text('3.75x')),
                   DropdownMenuItem(value: '4.0', child: Text('4.0x')),
                 ],
                 onChanged: (value) {
