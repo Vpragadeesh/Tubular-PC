@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/download.dart';
-import '../services/api_service.dart';
-
-final apiServiceProvider = Provider((ref) => ApiService());
+import '../providers.dart';
 
 // Sort options
 final downloadsSortProvider = StateProvider<String>((ref) => 'date_desc');

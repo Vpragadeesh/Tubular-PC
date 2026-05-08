@@ -3,9 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/video.dart';
 import '../models/sponsorblock.dart';
 import '../models/dislike.dart';
-import '../services/api_service.dart';
-
-final apiServiceProvider = Provider((ref) => ApiService());
+import '../providers.dart';
 
 final sponsorBlockProvider = FutureProvider.family<List<SponsorBlockSegment>, String>((ref, videoId) async {
   final apiService = ref.watch(apiServiceProvider);

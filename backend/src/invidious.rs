@@ -245,47 +245,78 @@ fn find_best_format<'a>(formats: &'a [InvidiousFormat], quality: &str) -> Option
                 .or_else(|| formats.first())
         }
         "1080p" => {
+            // Strict: only 1080p and higher
             video_formats.iter()
-                .find(|f| {
+                .filter(|f| {
                     f.resolution.as_deref() == Some("1920x1080") ||
                     f.quality.as_deref() == Some("1080p") || 
-                    f.quality.as_deref() == Some("hd1080")
+                    f.quality.as_deref() == Some("hd1080") ||
+                    // Also accept 2K+ resolutions since they're >= 1080p
+                    (f.resolution.is_some() && {
+                        f.resolution.as_ref()
+                            .and_then(|r| r.split('x').nth(1))
+                            .and_then(|h| h.parse::<u32>().ok())
+                            .map(|h| h >= 1080)
+                            .unwrap_or(false)
+                    })
+                })
+                .max_by_key(|f| {
+                    // Prefer highest resolution available
+                    f.resolution.as_ref()
+                        .and_then(|r| r.split('x').nth(1))
+                        .and_then(|h| h.parse::<u32>().ok())
+                        .unwrap_or(0)
                 })
                 .copied()
-                .or_else(|| {
-                    // Fallback to highest available below 1080p
-                    video_formats.iter()
-                        .filter(|f| f.resolution.is_some())
-                        .max_by_key(|f| {
-                            f.resolution.as_ref()
-                                .and_then(|r| r.split('x').nth(1))
-                                .and_then(|h| h.parse::<u32>().ok())
-                                .unwrap_or(0)
-                        })
-                        .copied()
-                })
-                .or_else(|| video_formats.first().copied())
         }
         "720p" => {
+            // Strict: only 720p (not lower, not higher)
             video_formats.iter()
-                .find(|f| {
+                .filter(|f| {
                     f.resolution.as_deref() == Some("1280x720") ||
                     f.quality.as_deref() == Some("720p") || 
-                    f.quality.as_deref() == Some("hd720")
+                    f.quality.as_deref() == Some("hd720") ||
+                    // Accept 720p range (600-800 height)
+                    (f.resolution.is_some() && {
+                        let height = f.resolution.as_ref()
+                            .and_then(|r| r.split('x').nth(1))
+                            .and_then(|h| h.parse::<u32>().ok())
+                            .unwrap_or(0);
+                        height >= 600 && height <= 800
+                    })
+                })
+                .max_by_key(|f| {
+                    f.resolution.as_ref()
+                        .and_then(|r| r.split('x').nth(1))
+                        .and_then(|h| h.parse::<u32>().ok())
+                        .unwrap_or(0)
                 })
                 .copied()
-                .or_else(|| video_formats.first().copied())
         }
         "480p" => {
+            // Strict: only 480p and below
             video_formats.iter()
-                .find(|f| {
+                .filter(|f| {
                     f.resolution.as_deref() == Some("854x480") ||
                     f.resolution.as_deref() == Some("640x480") ||
                     f.quality.as_deref() == Some("480p") || 
-                    f.quality.as_deref() == Some("large")
+                    f.quality.as_deref() == Some("large") ||
+                    // Accept 480p range (360-540 height)
+                    (f.resolution.is_some() && {
+                        let height = f.resolution.as_ref()
+                            .and_then(|r| r.split('x').nth(1))
+                            .and_then(|h| h.parse::<u32>().ok())
+                            .unwrap_or(0);
+                        height >= 360 && height <= 540
+                    })
+                })
+                .max_by_key(|f| {
+                    f.resolution.as_ref()
+                        .and_then(|r| r.split('x').nth(1))
+                        .and_then(|h| h.parse::<u32>().ok())
+                        .unwrap_or(0)
                 })
                 .copied()
-                .or_else(|| video_formats.first().copied())
         }
         "audio" => formats.iter().find(|f| f.format_type.contains("audio")),
         _ => video_formats.first().copied().or_else(|| formats.first()),

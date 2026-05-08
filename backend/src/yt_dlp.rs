@@ -183,37 +183,55 @@ pub async fn get_video_info(video_id: &str) -> Result<VideoInfo> {
 pub async fn get_stream_url(video_id: &str, quality: &str) -> Result<StreamUrl> {
     tracing::info!("🎬 Getting stream URL for: {} (quality: {})", video_id, quality);
 
+    // Try the requested quality first with all available sources
     match try_stream_url_sources(video_id, quality).await {
-        Ok(stream) => Ok(stream),
-        Err(primary_error) => {
-            if quality != "best" {
+        Ok(stream) => {
+            tracing::info!("✅ Successfully got stream at requested quality: {}", quality);
+            return Ok(stream);
+        }
+        Err(requested_quality_error) => {
+            tracing::warn!(
+                "⚠️  Requested quality '{}' failed for {}: {}",
+                quality,
+                video_id,
+                requested_quality_error
+            );
+        }
+    }
+
+    // Only fall back to "best" if the requested quality was not "best"
+    if quality != "best" {
+        tracing::warn!(
+            "⚠️  No source available for quality '{}'. Falling back to 'best' quality.",
+            quality
+        );
+
+        match try_stream_url_sources(video_id, "best").await {
+            Ok(stream) => {
                 tracing::warn!(
-                    "⚠️  Requested quality '{}' failed for {}. Retrying with 'best'.",
+                    "⚠️  Note: Using 'best' quality instead of requested '{}' for {}",
                     quality,
                     video_id
                 );
-
-                match try_stream_url_sources(video_id, "best").await {
-                    Ok(stream) => {
-                        tracing::info!(
-                            "✅ Fallback to 'best' quality succeeded for {} (requested '{}')",
-                            video_id,
-                            quality
-                        );
-                        Ok(stream)
-                    }
-                    Err(fallback_error) => Err(anyhow::anyhow!(
-                        "Failed to get stream URL (requested '{}': {}; fallback 'best': {})",
-                        quality,
-                        primary_error,
-                        fallback_error
-                    )),
-                }
-            } else {
-                Err(primary_error)
+                return Ok(stream);
+            }
+            Err(fallback_error) => {
+                return Err(anyhow::anyhow!(
+                    "Failed to get stream URL for {} (requested '{}', fallback 'best' also failed: {})",
+                    video_id,
+                    quality,
+                    fallback_error
+                ));
             }
         }
     }
+
+    // If we get here, the requested quality was "best" and it failed
+    Err(anyhow::anyhow!(
+        "Failed to get stream URL for {} with quality '{}'",
+        video_id,
+        quality
+    ))
 }
 
 async fn try_stream_url_sources(video_id: &str, quality: &str) -> Result<StreamUrl> {
@@ -277,10 +295,11 @@ async fn get_stream_url_invidious(video_id: &str, quality: &str) -> Result<Strin
 fn ytdlp_format_selector(quality: &str) -> &'static str {
     match quality {
         "audio" => "bestaudio[ext=m4a]/bestaudio",
-        "1080p" => "best[height<=1080][vcodec!=none][acodec!=none]/best[height<=1080]/best",
-        "720p" => "best[height<=720][vcodec!=none][acodec!=none]/best[height<=720]/best",
-        "480p" => "best[height<=480][vcodec!=none][acodec!=none]/best[height<=480]/best",
-        _ => "best[vcodec!=none][acodec!=none]/best",
+        // Use strict height constraints - don't fall back to "best" without constraints
+        "1080p" => "best[height<=1080][vcodec!=none][acodec!=none]/best[height<=1080][vcodec!=none]/best[height<=1080]",
+        "720p" => "best[height<=720][vcodec!=none][acodec!=none]/best[height<=720][vcodec!=none]/best[height<=720]",
+        "480p" => "best[height<=480][vcodec!=none][acodec!=none]/best[height<=480][vcodec!=none]/best[height<=480]",
+        _ => "best[vcodec!=none][acodec!=none]/best[vcodec!=none]/best",
     }
 }
 

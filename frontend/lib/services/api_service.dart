@@ -1,12 +1,9 @@
 import 'package:dio/dio.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:logger/logger.dart';
 import '../models/video.dart';
 import '../models/subscription.dart';
 import '../models/history_entry.dart';
 import '../models/download.dart';
-
-final apiServiceProvider = Provider<ApiService>((ref) => ApiService());
 
 /// Result type for API calls
 typedef ApiResult<T> = ({bool success, T? data, String? error, String? details});

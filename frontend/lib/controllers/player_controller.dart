@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/video.dart';
+import '../providers.dart';
 import '../services/api_service.dart';
 import '../services/player_service.dart';
 

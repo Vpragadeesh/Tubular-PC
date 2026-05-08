@@ -4,6 +4,7 @@ import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 import '../controllers/player_controller.dart';
 import '../models/video.dart';
 import '../services/api_service.dart';
+import '../providers.dart';
 import '../widgets/video_card.dart';
 import '../widgets/error_widget.dart';
 
@@ -80,7 +81,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   void _openVideo(Video video) {
-    ref.read(playerControllerProvider.notifier).playVideo(video);
+    final preferredQuality = ref.read(preferredQualityProvider);
+    ref.read(playerControllerProvider.notifier).playVideo(video, quality: preferredQuality);
   }
 
   void _subscribeToChannel(BuildContext context, Video video) async {

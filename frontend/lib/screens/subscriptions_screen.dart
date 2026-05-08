@@ -2,11 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/subscription.dart';
 import '../models/video.dart';
-import '../services/api_service.dart';
+import '../providers.dart';
 import '../widgets/video_card.dart';
 import 'player_screen.dart';
-
-final apiServiceProvider = Provider((ref) => ApiService());
 
 final subscriptionSearchProvider = StateProvider<String>((ref) => '');
 final subscriptionsSortProvider = StateProvider<String>((ref) => 'name_asc');

@@ -1,10 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/history_entry.dart';
-import '../services/api_service.dart';
+import '../providers.dart';
 import 'player_screen.dart';
-
-final apiServiceProvider = Provider((ref) => ApiService());
 
 final historySearchProvider = StateProvider<String>((ref) => '');
 final historyFilterProvider = StateProvider<String>((ref) => 'all'); // all, today, week, month
