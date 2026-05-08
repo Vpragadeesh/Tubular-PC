@@ -3,6 +3,8 @@ import 'dart:math' as math;
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:media_kit/media_kit.dart';
+import 'package:media_kit_video/media_kit_video.dart';
 
 import '../controllers/player_controller.dart';
 
@@ -117,22 +119,199 @@ class _PlayerTopBar extends StatelessWidget {
   }
 }
 
-class _PlayerStage extends ConsumerWidget {
+class _PlayerStage extends ConsumerStatefulWidget {
   const _PlayerStage({required this.playerState});
 
-  final PlayerState playerState;
+  final TubularPlayerState playerState;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final video = playerState.video;
+  ConsumerState<_PlayerStage> createState() => _PlayerStageState();
+}
+
+class _PlayerStageState extends ConsumerState<_PlayerStage> {
+  Player? _player;
+  VideoController? _videoController;
+  String? _currentStreamUrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _initializePlayer();
+  }
+
+  void _initializePlayer() {
+    print('🎬 Initializing media_kit player...');
+    _player = Player();
+    _videoController = VideoController(
+      _player!,
+      configuration: const VideoControllerConfiguration(
+        // Software decoding avoids blue/blank frames on some Linux GPU drivers.
+        enableHardwareAcceleration: false,
+      ),
+    );
+    
+    // Listen to player position updates
+    _player!.stream.position.listen((position) {
+      ref.read(playerControllerProvider.notifier).updatePosition(position);
+    });
+    
+    // Listen to player duration updates
+    _player!.stream.duration.listen((duration) {
+      ref.read(playerControllerProvider.notifier).updateDuration(duration);
+    });
+    
+    // Listen to player state changes
+    _player!.stream.playing.listen((isPlaying) {
+      print('🎵 Player playing state changed: $isPlaying');
+      ref.read(playerControllerProvider.notifier).updatePlayingState(isPlaying);
+    });
+    
+    // Listen to buffering state
+    _player!.stream.buffering.listen((buffering) {
+      print('📊 Player buffering: $buffering');
+    });
+    
+    // Listen to width/height changes
+    _player!.stream.width.listen((width) {
+      print('📐 Video width: $width');
+      if (width != null && width > 0) {
+        // Force rebuild when video dimensions are available
+        setState(() {});
+      }
+    });
+    
+    _player!.stream.height.listen((height) {
+      print('📐 Video height: $height');
+    });
+    
+    // Listen to errors
+    _player!.stream.error.listen((error) {
+      if (error != null) {
+        print('❌ Player error: $error');
+        ref.read(playerControllerProvider.notifier).setError(error);
+      }
+    });
+    
+    // Listen to completed
+    _player!.stream.completed.listen((completed) {
+      if (completed) {
+        print('✅ Playback completed');
+      }
+    });
+    
+    print('✅ Player initialized');
+    
+    // If stream URL is already available, open it immediately
+    final streamUrl = widget.playerState.streamUrl;
+    if (streamUrl != null && streamUrl.isNotEmpty) {
+      _currentStreamUrl = streamUrl;
+      print('🎥 Opening stream in initState: $streamUrl');
+      _player?.open(Media(streamUrl), play: true);
+    }
+  }
+
+  @override
+  void didUpdateWidget(_PlayerStage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    
+    final streamUrl = widget.playerState.streamUrl;
+    final isPlaying = widget.playerState.isPlaying;
+    
+    print('🎬 Player didUpdateWidget:');
+    print('   streamUrl: $streamUrl');
+    print('   _currentStreamUrl: $_currentStreamUrl');
+    print('   isPlaying: $isPlaying');
+    print('   status: ${widget.playerState.status}');
+    
+    // Load new stream URL if changed
+    if (streamUrl != null && streamUrl != _currentStreamUrl && streamUrl.isNotEmpty) {
+      _currentStreamUrl = streamUrl;
+      print('🎥 Opening NEW stream: $streamUrl');
+      print('   Will play: true');
+      _player?.open(Media(streamUrl), play: true);
+      return; // Let the player handle state changes
+    }
+    
+    // Handle play/pause state changes only if URL hasn't changed
+    if (oldWidget.playerState.isPlaying != isPlaying && streamUrl == _currentStreamUrl) {
+      if (isPlaying) {
+        print('▶️  Playing');
+        _player?.play();
+      } else {
+        print('⏸️  Pausing');
+        _player?.pause();
+      }
+    }
+    
+    // Handle seek
+    if (oldWidget.playerState.position != widget.playerState.position) {
+      final shouldSeek = (widget.playerState.position - (_player?.state.position ?? Duration.zero)).abs() > const Duration(seconds: 1);
+      if (shouldSeek) {
+        print('⏩ Seeking to: ${widget.playerState.position}');
+        _player?.seek(widget.playerState.position);
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _player?.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final video = widget.playerState.video;
     final controller = ref.read(playerControllerProvider.notifier);
+    final hasStreamUrl = widget.playerState.streamUrl != null;
+    final hasVideo = _player?.state.width != null && 
+                     _player!.state.width! > 0 && 
+                     _player!.state.height != null && 
+                     _player!.state.height! > 0;
+
+    print('🎨 Building _PlayerStage:');
+    print('   hasStreamUrl: $hasStreamUrl');
+    print('   streamUrl: ${widget.playerState.streamUrl}');
+    print('   status: ${widget.playerState.status}');
+    print('   _videoController: $_videoController');
+    print('   _player state: ${_player?.state.playing}');
+    print('   _player width: ${_player?.state.width}');
+    print('   _player height: ${_player?.state.height}');
+    print('   hasVideo: $hasVideo');
 
     return ColoredBox(
       color: Colors.black,
       child: Stack(
         fit: StackFit.expand,
         children: [
-          if (video != null && video.thumbnail.isNotEmpty)
+          // Video player - only show if we have valid video dimensions
+          if (_videoController != null && hasStreamUrl && hasVideo)
+            SizedBox.expand(
+              child: Video(
+                controller: _videoController!,
+                controls: NoVideoControls,
+                fit: BoxFit.contain,
+                fill: Colors.black,
+                filterQuality: FilterQuality.medium,
+                wakelock: true,
+              ),
+            )
+          else if (_videoController != null && hasStreamUrl && !hasVideo)
+            // Show loading indicator while waiting for video dimensions
+            const Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  CircularProgressIndicator(color: Colors.white),
+                  SizedBox(height: 16),
+                  Text(
+                    'Loading video...',
+                    style: TextStyle(color: Colors.white70),
+                  ),
+                ],
+              ),
+            )
+          else if (video != null && video.thumbnail.isNotEmpty)
             Opacity(
               opacity: 0.26,
               child: CachedNetworkImage(
@@ -141,22 +320,16 @@ class _PlayerStage extends ConsumerWidget {
                 errorWidget: (_, __, ___) => const SizedBox.shrink(),
               ),
             ),
-          const DecoratedBox(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [Color(0x66000000), Color(0xFF000000)],
+          
+          // Center control (loading/error/play button) - only show if not loading video
+          if (!hasStreamUrl || hasVideo)
+            Center(
+              child: _PlayerCenterControl(
+                playerState: widget.playerState,
+                onRetry: controller.retry,
+                onTogglePlayPause: controller.togglePlayPause,
               ),
             ),
-          ),
-          Center(
-            child: _PlayerCenterControl(
-              playerState: playerState,
-              onRetry: controller.retry,
-              onTogglePlayPause: controller.togglePlayPause,
-            ),
-          ),
         ],
       ),
     );
@@ -170,7 +343,7 @@ class _PlayerCenterControl extends StatelessWidget {
     required this.onTogglePlayPause,
   });
 
-  final PlayerState playerState;
+  final TubularPlayerState playerState;
   final VoidCallback onRetry;
   final VoidCallback onTogglePlayPause;
 
@@ -230,7 +403,7 @@ class _PlayerCenterControl extends StatelessWidget {
 class _FullscreenControls extends ConsumerWidget {
   const _FullscreenControls({required this.playerState});
 
-  final PlayerState playerState;
+  final TubularPlayerState playerState;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {

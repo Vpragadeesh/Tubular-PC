@@ -41,3 +41,10 @@ Videos/
 
 # Cookies
 cookies.txt
+
+# No Docs
+*.md
+*.txt
+
+# No Scripts
+*.sh

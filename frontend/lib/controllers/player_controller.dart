@@ -10,8 +10,8 @@ enum PlaybackStatus { idle, loading, playing, paused, stopped, error }
 
 enum PlayerSurface { hidden, fullscreen, mini }
 
-class PlayerState {
-  const PlayerState({
+class TubularPlayerState {
+  const TubularPlayerState({
     this.video,
     this.streamUrl,
     this.quality = 'best',
@@ -38,7 +38,7 @@ class PlayerState {
   bool get isLoading => status == PlaybackStatus.loading;
   bool get isVisible => hasVideo && surface != PlayerSurface.hidden;
 
-  PlayerState copyWith({
+  TubularPlayerState copyWith({
     Video? video,
     String? streamUrl,
     String? quality,
@@ -51,7 +51,7 @@ class PlayerState {
     bool clearStreamUrl = false,
     bool clearError = false,
   }) {
-    return PlayerState(
+    return TubularPlayerState(
       video: video ?? this.video,
       streamUrl: clearStreamUrl ? null : streamUrl ?? this.streamUrl,
       quality: quality ?? this.quality,
@@ -64,19 +64,19 @@ class PlayerState {
     );
   }
 
-  static const initial = PlayerState();
+  static const initial = TubularPlayerState();
 }
 
 final playerControllerProvider =
-    StateNotifierProvider<PlayerController, PlayerState>((ref) {
+    StateNotifierProvider<PlayerController, TubularPlayerState>((ref) {
       final apiService = ref.watch(apiServiceProvider);
       final playerService = ref.watch(playerServiceProvider);
       return PlayerController(apiService, playerService);
     });
 
-class PlayerController extends StateNotifier<PlayerState> {
+class PlayerController extends StateNotifier<TubularPlayerState> {
   PlayerController(this._apiService, this._playerService)
-    : super(PlayerState.initial);
+    : super(TubularPlayerState.initial);
 
   final ApiService _apiService;
   final PlayerService _playerService;
@@ -89,6 +89,9 @@ class PlayerController extends StateNotifier<PlayerState> {
   }) async {
     final requestSerial = ++_playRequestSerial;
 
+    print('🎬 playVideo called: ${video.title}');
+    print('   quality: $quality');
+    
     state = state.copyWith(
       video: video,
       quality: quality,
@@ -103,33 +106,29 @@ class PlayerController extends StateNotifier<PlayerState> {
     unawaited(_recordHistory(video));
 
     try {
+      print('📡 Fetching stream URL...');
       final streamUrl = await _apiService.getStreamUrl(
         video.id,
         quality: quality,
       );
+      print('✅ Got stream URL: $streamUrl');
+      
       if (requestSerial != _playRequestSerial || state.video?.id != video.id) {
+        print('⚠️  Request cancelled or video changed');
         return;
       }
 
-      final backendState = await _playerService.play(
-        videoId: video.id,
-        streamUrl: streamUrl,
-        duration: video.duration,
-        backgroundAudio: state.backgroundAudio,
-      );
-      if (requestSerial != _playRequestSerial || state.video?.id != video.id) {
-        return;
-      }
-
+      // Set stream URL and status to playing
+      // The media_kit player in the widget will handle the actual playback
+      print('🎥 Setting stream URL and status to playing');
       state = state.copyWith(
-        streamUrl: backendState.streamUrl ?? streamUrl,
-        status: _statusFromBackend(backendState.status),
-        position: backendState.position,
-        duration: backendState.duration ?? video.duration,
-        backgroundAudio: backendState.backgroundAudio,
+        streamUrl: streamUrl,
+        status: PlaybackStatus.playing,
         clearError: true,
       );
+      print('✅ State updated, player should start');
     } catch (error) {
+      print('❌ Error getting stream URL: $error');
       if (requestSerial != _playRequestSerial || state.video?.id != video.id) {
         return;
       }
@@ -169,26 +168,14 @@ class PlayerController extends StateNotifier<PlayerState> {
     if (state.status != PlaybackStatus.playing) {
       return;
     }
-
-    final previousState = state;
     state = state.copyWith(status: PlaybackStatus.paused);
-    await _syncCommand(
-      previousState: previousState,
-      command: _playerService.pause,
-    );
   }
 
   Future<void> resume() async {
     if (state.status != PlaybackStatus.paused) {
       return;
     }
-
-    final previousState = state;
     state = state.copyWith(status: PlaybackStatus.playing);
-    await _syncCommand(
-      previousState: previousState,
-      command: _playerService.resume,
-    );
   }
 
   Future<void> togglePlayPause() async {
@@ -212,13 +199,8 @@ class PlayerController extends StateNotifier<PlayerState> {
   }
 
   Future<void> seek(Duration position) async {
-    final previousState = state;
     previewSeek(position);
-
-    await _syncCommand(
-      previousState: previousState,
-      command: () => _playerService.seek(state.position),
-    );
+    // The media_kit player widget will handle the actual seek
   }
 
   void showFullscreen() {
@@ -238,29 +220,13 @@ class PlayerController extends StateNotifier<PlayerState> {
   }
 
   Future<void> toggleBackgroundAudio() async {
-    final previousState = state;
     final enabled = !state.backgroundAudio;
     state = state.copyWith(backgroundAudio: enabled);
-
-    await _syncCommand(
-      previousState: previousState,
-      command: () => _playerService.setBackgroundAudio(enabled),
-    );
   }
 
   Future<void> stop() async {
     _playRequestSerial++;
-    final previousState = state;
-    state = PlayerState.initial.copyWith(status: PlaybackStatus.stopped);
-
-    try {
-      await _playerService.stop();
-    } catch (error) {
-      state = previousState.copyWith(
-        status: PlaybackStatus.error,
-        errorMessage: error.toString(),
-      );
-    }
+    state = TubularPlayerState.initial.copyWith(status: PlaybackStatus.stopped);
   }
 
   Future<void> _recordHistory(Video video) async {
@@ -280,74 +246,43 @@ class PlayerController extends StateNotifier<PlayerState> {
     if (max == Duration.zero) {
       return Duration.zero;
     }
-
     if (value < min) {
       return min;
     }
-
     if (value > max) {
       return max;
     }
-
     return value;
   }
 
-  Future<void> _syncCommand({
-    required PlayerState previousState,
-    required Future<BackendPlayerSnapshot> Function() command,
-  }) async {
-    final currentVideoId = state.video?.id;
+  // Methods for media_kit player to update state
+  void updatePosition(Duration position) {
+    if (state.video != null) {
+      state = state.copyWith(position: position);
+    }
+  }
 
-    try {
-      final backendState = await command();
-      if (currentVideoId != state.video?.id) {
-        return;
+  void updateDuration(Duration duration) {
+    if (state.video != null && duration != Duration.zero) {
+      state = state.copyWith(duration: duration);
+    }
+  }
+
+  void updatePlayingState(bool isPlaying) {
+    if (state.video != null) {
+      final newStatus = isPlaying ? PlaybackStatus.playing : PlaybackStatus.paused;
+      if (state.status != newStatus && state.status != PlaybackStatus.loading) {
+        state = state.copyWith(status: newStatus);
       }
+    }
+  }
 
-      _applyBackendState(backendState);
-    } catch (error) {
-      if (currentVideoId != state.video?.id) {
-        return;
-      }
-
-      state = previousState.copyWith(
+  void setError(String error) {
+    if (state.video != null) {
+      state = state.copyWith(
         status: PlaybackStatus.error,
-        errorMessage: error.toString(),
+        errorMessage: error,
       );
-    }
-  }
-
-  void _applyBackendState(BackendPlayerSnapshot backendState) {
-    final backendVideoId = backendState.videoId;
-    if (backendVideoId != null && backendVideoId != state.video?.id) {
-      return;
-    }
-
-    state = state.copyWith(
-      streamUrl: backendState.streamUrl,
-      status: _statusFromBackend(backendState.status),
-      position: backendState.position,
-      duration: backendState.duration,
-      backgroundAudio: backendState.backgroundAudio,
-      errorMessage: backendState.error,
-      clearError: backendState.error == null,
-    );
-  }
-
-  PlaybackStatus _statusFromBackend(String status) {
-    switch (status) {
-      case 'playing':
-        return PlaybackStatus.playing;
-      case 'paused':
-        return PlaybackStatus.paused;
-      case 'stopped':
-        return PlaybackStatus.stopped;
-      case 'error':
-        return PlaybackStatus.error;
-      case 'idle':
-        return PlaybackStatus.idle;
-      default:
-        return state.status;
     }
   }
 }

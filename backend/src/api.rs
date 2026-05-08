@@ -1,11 +1,13 @@
 use axum::{
     extract::{Path, Query, State},
-    http::StatusCode,
-    response::{IntoResponse, Json},
+    http::{StatusCode, HeaderMap, HeaderValue},
+    response::{IntoResponse, Json, Response},
+    body::Body,
 };
 use serde::{Deserialize, Serialize};
+use futures::StreamExt;
 
-use crate::{db, player, yt_dlp, sponsorblock, returnyoutubedislike};
+use crate::{db, player, yt_dlp, sponsorblock, returnyoutubedislike, invidious};
 
 #[derive(Debug, Deserialize)]
 pub struct SearchQuery {
@@ -101,6 +103,110 @@ pub async fn get_stream_url(
     }
 }
 
+/// Proxy stream endpoint - streams video through backend to avoid CORS issues
+pub async fn proxy_stream(
+    Path(id): Path<String>,
+    request_headers: HeaderMap,
+    Query(params): Query<StreamQuery>,
+) -> Result<Response, StatusCode> {
+    // Get stream URL from rusty_ytdl
+    let stream_info = match yt_dlp::get_stream_url(&id, &params.quality).await {
+        Ok(info) => info,
+        Err(e) => {
+            tracing::error!("Failed to get stream URL: {}", e);
+            return Err(StatusCode::INTERNAL_SERVER_ERROR);
+        }
+    };
+
+    tracing::info!("🎥 Proxying stream for video: {} (quality: {})", id, params.quality);
+
+    let user_agent = std::env::var("TUBULAR_STREAM_USER_AGENT")
+        .or_else(|_| std::env::var("TUBULAR_YTDLP_USER_AGENT"))
+        .ok()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+        .unwrap_or_else(|| {
+            "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36".to_string()
+        });
+
+    let referer = std::env::var("TUBULAR_STREAM_REFERER")
+        .ok()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+        .unwrap_or_else(|| "https://www.youtube.com/".to_string());
+
+    // Create HTTP client and fetch the stream
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(300))
+        .user_agent(user_agent)
+        .build()
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    let mut upstream_request = client
+        .get(&stream_info.url)
+        .header("Referer", referer);
+
+    if let Some(range) = request_headers.get("range").and_then(|value| value.to_str().ok()) {
+        upstream_request = upstream_request.header("Range", range);
+    }
+
+    let response = upstream_request
+        .send()
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to fetch stream: {}", e);
+            StatusCode::BAD_GATEWAY
+        })?;
+
+    if !(response.status().is_success() || response.status() == reqwest::StatusCode::PARTIAL_CONTENT) {
+        tracing::error!("Upstream stream returned non-success status: {}", response.status());
+        return Err(StatusCode::BAD_GATEWAY);
+    }
+
+    let upstream_status = response.status();
+
+    // Get content type and length
+    let content_type = response
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("video/mp4")
+        .to_string();
+
+    let content_length = response.content_length();
+    let content_range = response
+        .headers()
+        .get("content-range")
+        .and_then(|v| v.to_str().ok())
+        .map(|v| v.to_string());
+
+    // Convert response to stream
+    let stream = response.bytes_stream();
+    let stream = stream.map(|result| {
+        result.map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))
+    });
+
+    let body = Body::from_stream(stream);
+
+    // Build response with proper headers
+    let mut headers = HeaderMap::new();
+    headers.insert("content-type", HeaderValue::from_str(&content_type).unwrap());
+    headers.insert("accept-ranges", HeaderValue::from_static("bytes"));
+
+    if let Some(length) = content_length {
+        headers.insert("content-length", HeaderValue::from_str(&length.to_string()).unwrap());
+    }
+
+    if let Some(content_range) = content_range {
+        if let Ok(value) = HeaderValue::from_str(&content_range) {
+            headers.insert("content-range", value);
+        }
+    }
+
+    let status = StatusCode::from_u16(upstream_status.as_u16()).unwrap_or(StatusCode::OK);
+    Ok((status, headers, body).into_response())
+}
+
 pub async fn get_player_state(State(player): State<player::PlayerHandle>) -> impl IntoResponse {
     let state = player.snapshot().await;
     (StatusCode::OK, Json(ApiResponse::success(state)))
@@ -176,6 +282,7 @@ pub struct CreateDownloadRequest {
     title: String,
     output_path: String,
     quality: String,
+    #[allow(dead_code)]
     audio_only: bool,
 }
 
@@ -445,6 +552,193 @@ pub async fn get_all_settings() -> impl IntoResponse {
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(ApiResponse::<Vec<db::Setting>>::error(e.to_string())),
+        ),
+    }
+}
+
+/// Invidious: Search videos
+pub async fn invidious_search(Query(params): Query<SearchQuery>) -> impl IntoResponse {
+    match invidious::search_videos(&params.q, params.limit).await {
+        Ok(videos) => {
+            // Convert to our Video format
+            let results: Vec<_> = videos.iter().map(|v| {
+                serde_json::json!({
+                    "id": v.video_id,
+                    "title": v.title,
+                    "channel": v.author,
+                    "duration": v.length_seconds,
+                    "view_count": v.view_count,
+                    "thumbnail": v.thumbnails.first().map(|t| &t.url).unwrap_or(&String::new()),
+                })
+            }).collect();
+            (StatusCode::OK, Json(ApiResponse::success(results)))
+        }
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiResponse::<Vec<serde_json::Value>>::error(e.to_string())),
+        ),
+    }
+}
+
+/// Invidious: Get video info
+pub async fn invidious_video_info(Path(id): Path<String>) -> impl IntoResponse {
+    match invidious::get_video_info(&id).await {
+        Ok(info) => (StatusCode::OK, Json(ApiResponse::success(serde_json::json!({
+            "id": info.video_id,
+            "title": info.title,
+            "description": info.description,
+            "channel": info.author,
+            "channel_id": info.author_id,
+            "duration": info.length_seconds,
+            "view_count": info.view_count,
+            "like_count": info.like_count,
+        })))),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiResponse::<serde_json::Value>::error(e.to_string())),
+        ),
+    }
+}
+
+/// Invidious: Get stream URL
+pub async fn invidious_stream_url(
+    Path(id): Path<String>,
+    Query(params): Query<StreamQuery>,
+) -> impl IntoResponse {
+    match invidious::get_stream_url(&id, &params.quality).await {
+        Ok(url) => (StatusCode::OK, Json(ApiResponse::success(serde_json::json!({
+            "url": url,
+            "quality": params.quality,
+        })))),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiResponse::<serde_json::Value>::error(e.to_string())),
+        ),
+    }
+}
+
+/// Set Invidious instance
+#[derive(Debug, Deserialize)]
+pub struct SetInstanceRequest {
+    url: String,
+}
+
+pub async fn set_invidious_instance(Json(req): Json<SetInstanceRequest>) -> impl IntoResponse {
+    invidious::set_instance(req.url.clone()).await;
+    (StatusCode::OK, Json(ApiResponse::success(format!("Instance set to: {}", req.url))))
+}
+
+/// Get current Invidious instance
+pub async fn get_invidious_instance() -> impl IntoResponse {
+    let instance = invidious::get_current_instance().await;
+    (StatusCode::OK, Json(ApiResponse::success(serde_json::json!({
+        "instance": instance,
+    }))))
+}
+
+/// Get list of default Invidious instances
+pub async fn get_invidious_instances() -> impl IntoResponse {
+    let instances = invidious::get_default_instances();
+    (StatusCode::OK, Json(ApiResponse::success(instances)))
+}
+
+
+// Playlist endpoints
+#[derive(Debug, Deserialize)]
+pub struct CreatePlaylistRequest {
+    name: String,
+    description: Option<String>,
+}
+
+pub async fn create_playlist(Json(req): Json<CreatePlaylistRequest>) -> impl IntoResponse {
+    match db::create_playlist(&req.name, req.description.as_deref()).await {
+        Ok(id) => (StatusCode::OK, Json(ApiResponse::success(serde_json::json!({"id": id})))),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiResponse::<serde_json::Value>::error(e.to_string())),
+        ),
+    }
+}
+
+pub async fn get_playlists() -> impl IntoResponse {
+    match db::get_playlists().await {
+        Ok(playlists) => (StatusCode::OK, Json(ApiResponse::success(playlists))),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiResponse::<Vec<db::Playlist>>::error(e.to_string())),
+        ),
+    }
+}
+
+pub async fn get_playlist(Path(id): Path<i64>) -> impl IntoResponse {
+    match db::get_playlist(id).await {
+        Ok(Some(playlist)) => (StatusCode::OK, Json(ApiResponse::success(playlist))),
+        Ok(None) => (
+            StatusCode::NOT_FOUND,
+            Json(ApiResponse::<db::Playlist>::error("Playlist not found".to_string())),
+        ),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiResponse::<db::Playlist>::error(e.to_string())),
+        ),
+    }
+}
+
+pub async fn delete_playlist(Path(id): Path<i64>) -> impl IntoResponse {
+    match db::delete_playlist(id).await {
+        Ok(_) => (StatusCode::OK, Json(ApiResponse::success("Playlist deleted".to_string()))),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiResponse::<String>::error(e.to_string())),
+        ),
+    }
+}
+
+#[derive(Debug, Deserialize)]
+pub struct AddVideoToPlaylistRequest {
+    video_id: String,
+    title: String,
+    channel: String,
+    thumbnail: String,
+}
+
+pub async fn add_video_to_playlist(
+    Path(id): Path<i64>,
+    Json(req): Json<AddVideoToPlaylistRequest>,
+) -> impl IntoResponse {
+    match db::add_video_to_playlist(id, &req.video_id, &req.title, &req.channel, &req.thumbnail).await {
+        Ok(_) => (StatusCode::OK, Json(ApiResponse::success("Video added to playlist".to_string()))),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiResponse::<String>::error(e.to_string())),
+        ),
+    }
+}
+
+pub async fn get_playlist_videos(Path(id): Path<i64>) -> impl IntoResponse {
+    match db::get_playlist_videos(id).await {
+        Ok(videos) => (StatusCode::OK, Json(ApiResponse::success(videos))),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiResponse::<Vec<db::PlaylistVideo>>::error(e.to_string())),
+        ),
+    }
+}
+
+#[derive(Debug, Deserialize)]
+pub struct RemoveVideoRequest {
+    video_id: String,
+}
+
+pub async fn remove_video_from_playlist(
+    Path(id): Path<i64>,
+    Json(req): Json<RemoveVideoRequest>,
+) -> impl IntoResponse {
+    match db::remove_video_from_playlist(id, &req.video_id).await {
+        Ok(_) => (StatusCode::OK, Json(ApiResponse::success("Video removed from playlist".to_string()))),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiResponse::<String>::error(e.to_string())),
         ),
     }
 }

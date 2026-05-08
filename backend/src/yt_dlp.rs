@@ -1,11 +1,12 @@
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
-use std::process::Command;
-use tokio::time::{timeout, Duration};
-use std::sync::Arc;
-use tokio::sync::RwLock;
 use std::collections::HashMap;
+use std::env;
+use std::path::Path;
+use std::sync::Arc;
 use std::time::Instant;
+use tokio::sync::RwLock;
+use tokio::time::Duration;
 
 /// Search cache entry with TTL (1 hour)
 const SEARCH_CACHE_TTL: Duration = Duration::from_secs(3600);
@@ -57,47 +58,7 @@ pub struct StreamUrl {
     pub quality: String,
 }
 
-/// Helper function to run yt-dlp with proper process killing on timeout
-/// This ensures the process is terminated when timeout fires, not just the future
-async fn run_yt_dlp_command(
-    args: Vec<String>,
-    timeout_secs: u64,
-) -> Result<String> {
-    // Spawn the blocking operation in a separate thread pool
-    let spawn_result = tokio::task::spawn_blocking(move || {
-        let args_str: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
-        
-        let mut child = Command::new("yt-dlp")
-            .args(&args_str)
-            .stdout(std::process::Stdio::piped())
-            .stderr(std::process::Stdio::piped())
-            .spawn()?;
-        
-        child.wait_with_output()
-    });
-    
-    match timeout(Duration::from_secs(timeout_secs), spawn_result).await {
-        Ok(Ok(Ok(output))) => {
-            if output.status.success() {
-                Ok(String::from_utf8_lossy(&output.stdout).to_string())
-            } else {
-                let error = String::from_utf8_lossy(&output.stderr);
-                Err(anyhow::anyhow!("yt-dlp failed: {}", error))
-            }
-        }
-        Ok(Ok(Err(e))) => Err(anyhow::anyhow!("Failed to execute yt-dlp: {}", e)),
-        Ok(Err(_)) => Err(anyhow::anyhow!("Thread panicked")),
-        Err(_) => {
-            anyhow::bail!(
-                "yt-dlp command timed out after {} seconds. Process may be waiting for network response.",
-                timeout_secs
-            );
-        }
-    }
-}
-
-/// Search for videos using yt-dlp (supports both video search and channel search)
-/// Results are cached for 1 hour
+/// Search for videos using rusty_ytdl
 pub async fn search_videos(query: &str, limit: u32) -> Result<Vec<SearchResult>> {
     let cache_key = format!("{}:{}", query, limit);
     
@@ -115,41 +76,7 @@ pub async fn search_videos(query: &str, limit: u32) -> Result<Vec<SearchResult>>
     // Cache miss or expired - fetch fresh results
     tracing::info!("🔍 Cache miss for query: {}, fetching fresh results", query);
     
-    // Strategy 1: Try direct channel URL if it looks like a URL
-    if query.starts_with("http") || query.starts_with("www.") || query.contains("youtube.com") || query.contains("youtu.be") {
-        if let Ok(channel_results) = search_from_url(query, limit).await {
-            if !channel_results.is_empty() {
-                // Cache the results
-                let mut cache = SEARCH_CACHE.write().await;
-                cache.insert(cache_key, CacheEntry {
-                    results: channel_results.clone(),
-                    created_at: Instant::now(),
-                });
-                return Ok(channel_results);
-            }
-        }
-    }
-
-    // Strategy 2: Try regular video search
-    let mut results = search_videos_internal(query, limit).await?;
-
-    // Strategy 3: If we got very few results, also try channel search
-    if results.len() < 5 {
-        if let Ok(channel_results) = search_channel_videos(query, limit).await {
-            for channel_result in channel_results {
-                if !results.iter().any(|r| r.id == channel_result.id) {
-                    results.push(channel_result);
-                }
-            }
-        }
-    }
-
-    // Strategy 4: If still no results, try broader search
-    if results.is_empty() {
-        if let Ok(broad_results) = search_videos_broad(query, limit).await {
-            results = broad_results;
-        }
-    }
+    let results = search_videos_internal(query, limit).await?;
 
     // Cache the results before returning
     {
@@ -163,253 +90,442 @@ pub async fn search_videos(query: &str, limit: u32) -> Result<Vec<SearchResult>>
     Ok(results)
 }
 
-/// Warmup yt-dlp by running a simple search to cache the YouTube extractor
-/// This eliminates the ~10-30 second cold start delay on first search
+/// Warmup function
 pub async fn warmup() -> Result<()> {
-    tracing::info!("🚀 Warming up yt-dlp...");
-    
-    match timeout(Duration::from_secs(60), search_videos_internal("rust", 1)).await {
-        Ok(Ok(_)) => {
-            tracing::info!("✅ yt-dlp warmup complete");
-            Ok(())
-        }
-        Ok(Err(e)) => {
-            tracing::warn!("⚠️  yt-dlp warmup search failed: {}", e);
-            // Don't fail the app startup, just log the warning
-            Ok(())
-        }
-        Err(_) => {
-            tracing::warn!("⚠️  yt-dlp warmup timed out after 60 seconds");
-            // Don't fail the app startup, just log the warning
-            Ok(())
-        }
-    }
+    tracing::info!("✅ rusty_ytdl ready");
+    Ok(())
 }
 
-/// Clear search cache (useful for testing)
+/// Clear search cache
 pub async fn clear_search_cache() {
     let mut cache = SEARCH_CACHE.write().await;
     cache.clear();
     tracing::info!("🗑️  Search cache cleared");
 }
 
-
-async fn search_from_url(url: &str, limit: u32) -> Result<Vec<SearchResult>> {
-    let limit_str = limit.to_string();
-    let args = vec![
-        url.to_string(),
-        "--flat-playlist".to_string(),
-        "--dump-json".to_string(),
-        "--playlist-end".to_string(),
-        limit_str,
-        "--no-warnings".to_string(),
-        "--quiet".to_string(),
-        "--socket-timeout".to_string(),
-        "20".to_string(),
-    ];
-
-    match run_yt_dlp_command(args, 20).await {
-        Ok(output) => parse_search_results(output.as_bytes()),
-        Err(e) => {
-            tracing::warn!("⚠️  URL search failed: {}", e);
-            Ok(Vec::new())
-        }
-    }
-}
-
-/// Broader search with more results
-async fn search_videos_broad(query: &str, limit: u32) -> Result<Vec<SearchResult>> {
-    let search_query = format!("ytsearch{}:{}", limit * 3, query);
-
-    let args = vec![
-        search_query,
-        "--dump-json".to_string(),
-        "--no-playlist".to_string(),
-        "--skip-download".to_string(),
-        "--no-warnings".to_string(),
-        "--quiet".to_string(),
-        "--socket-timeout".to_string(),
-        "20".to_string(),
-    ];
-
-    match run_yt_dlp_command(args, 20).await {
-        Ok(output) => {
-            let mut results = parse_search_results(output.as_bytes())?;
-            results.truncate(limit as usize);
-            Ok(results)
-        }
-        Err(e) => {
-            tracing::warn!("⚠️  Broad search failed: {}", e);
-            Ok(Vec::new())
-        }
-    }
-}
-
-/// Internal video search
+/// Internal video search using rusty_ytdl
 async fn search_videos_internal(query: &str, limit: u32) -> Result<Vec<SearchResult>> {
-    let search_query = format!("ytsearch{}:{}", limit, query);
+    use rusty_ytdl::search::{YouTube, SearchOptions, SearchType};
+    
+    tracing::info!("🔎 Searching YouTube for: {} (limit: {})", query, limit);
+    
+    let youtube = YouTube::new().map_err(|e| anyhow::anyhow!("Failed to create YouTube client: {:?}", e))?;
+    
+    let search_options = SearchOptions {
+        limit: limit as u64,
+        search_type: SearchType::Video,
+        safe_search: false,
+    };
 
-    let args = vec![
-        search_query,
-        "--dump-json".to_string(),
-        "--no-playlist".to_string(),
-        "--skip-download".to_string(),
-        "--no-warnings".to_string(),
-        "--quiet".to_string(),
-        "--no-call-home".to_string(),
-        "--socket-timeout".to_string(),
-        "20".to_string(),
-        "--extractor-retries".to_string(),
-        "3".to_string(),
-    ];
+    let results = youtube
+        .search(query, Some(&search_options))
+        .await
+        .map_err(|e| anyhow::anyhow!("Search failed: {:?}", e))?;
 
-    let output = run_yt_dlp_command(args, 30).await?;
-    parse_search_results(output.as_bytes())
-}
-
-/// Search for videos from a specific channel
-async fn search_channel_videos(channel_name: &str, limit: u32) -> Result<Vec<SearchResult>> {
-    // Try multiple search strategies for channels
-
-    // Strategy 1: Search for channel directly
-    let channel_search = format!("ytsearch{}:{} channel videos", limit, channel_name);
-
-    let args = vec![
-        channel_search,
-        "--dump-json".to_string(),
-        "--no-playlist".to_string(),
-        "--skip-download".to_string(),
-        "--no-warnings".to_string(),
-        "--quiet".to_string(),
-        "--socket-timeout".to_string(),
-        "20".to_string(),
-    ];
-
-    match run_yt_dlp_command(args, 20).await {
-        Ok(output) => {
-            let mut results = parse_search_results(output.as_bytes())?;
-
-            // Filter to only include videos from channels matching the query
-            let query_lower = channel_name.to_lowercase();
-            results.retain(|r| {
-                let channel_lower = r.channel.to_lowercase();
-                // Match if channel name contains query or query contains channel name
-                channel_lower.contains(&query_lower) || query_lower.contains(&channel_lower)
-            });
-
-            // Limit results
-            results.truncate(limit as usize);
-
-            Ok(results)
-        }
-        Err(e) => {
-            tracing::warn!("⚠️  Channel search failed: {}", e);
-            Ok(Vec::new())
-        }
-    }
-}
-
-/// Parse yt-dlp JSON output into SearchResult vector
-fn parse_search_results(stdout: &[u8]) -> Result<Vec<SearchResult>> {
-    let stdout = String::from_utf8_lossy(stdout);
-    let mut results = Vec::new();
-
-    for line in stdout.lines() {
-        if line.trim().is_empty() {
-            continue;
-        }
-
-        if let Ok(json) = serde_json::from_str::<serde_json::Value>(line) {
-            results.push(SearchResult {
-                id: json["id"].as_str().unwrap_or("").to_string(),
-                title: json["title"].as_str().unwrap_or("Unknown").to_string(),
-                channel: json["uploader"]
-                    .as_str()
-                    .or(json["channel"].as_str())
-                    .or(json["uploader_id"].as_str())
-                    .unwrap_or("Unknown")
-                    .to_string(),
-                duration: json["duration"].as_u64(),
-                view_count: json["view_count"].as_u64(),
-                thumbnail: json["thumbnail"]
-                    .as_str()
-                    .or(json["thumbnails"].as_array().and_then(|arr| {
-                        arr.last().and_then(|t| t["url"].as_str())
-                    }))
-                    .unwrap_or("")
-                    .to_string(),
-            });
+    let mut search_results = Vec::new();
+    
+    for item in results.iter().take(limit as usize) {
+        // rusty_ytdl SearchResult has different fields
+        match item {
+            rusty_ytdl::search::SearchResult::Video(video) => {
+                search_results.push(SearchResult {
+                    id: video.id.clone(),
+                    title: video.title.clone(),
+                    channel: video.channel.name.clone(),
+                    duration: Some(video.duration),
+                    view_count: Some(video.views),
+                    thumbnail: video.thumbnails.first()
+                        .map(|t| t.url.clone())
+                        .unwrap_or_default(),
+                });
+            }
+            _ => continue, // Skip non-video results
         }
     }
 
-    Ok(results)
+    tracing::info!("✅ Found {} results", search_results.len());
+    Ok(search_results)
 }
 
 /// Get detailed video information
 pub async fn get_video_info(video_id: &str) -> Result<VideoInfo> {
+    use rusty_ytdl::{Video, VideoOptions};
+    
+    tracing::info!("📹 Fetching video info for: {}", video_id);
+    
     let url = format!("https://www.youtube.com/watch?v={}", video_id);
+    
+    let video = Video::new_with_options(&url, VideoOptions::default())
+        .map_err(|e| anyhow::anyhow!("Failed to create video: {:?}", e))?;
 
-    let args = vec![
-        url,
-        "--dump-json".to_string(),
-        "--no-playlist".to_string(),
-        "--skip-download".to_string(),
-        "--no-warnings".to_string(),
-        "--quiet".to_string(),
-        "--socket-timeout".to_string(),
-        "10".to_string(),
-    ];
+    let info = video.get_info().await
+        .map_err(|e| anyhow::anyhow!("Failed to get video info: {:?}", e))?;
 
-    let output = run_yt_dlp_command(args, 20).await?;
-    let json: serde_json::Value = serde_json::from_str(&output)?;
-
+    let details = &info.video_details;
+    
     Ok(VideoInfo {
-        id: json["id"].as_str().unwrap_or("").to_string(),
-        title: json["title"].as_str().unwrap_or("Unknown").to_string(),
-        description: json["description"].as_str().map(|s| s.to_string()),
-        duration: json["duration"].as_u64(),
-        view_count: json["view_count"].as_u64(),
-        like_count: json["like_count"].as_u64(),
-        channel: json["uploader"].as_str().or(json["channel"].as_str()).unwrap_or("Unknown").to_string(),
-        channel_id: json["uploader_id"].as_str().or(json["channel_id"].as_str()).unwrap_or("").to_string(),
-        thumbnail: json["thumbnail"].as_str().unwrap_or("").to_string(),
-        upload_date: json["upload_date"].as_str().map(|s| s.to_string()),
+        id: details.video_id.clone(),
+        title: details.title.clone(),
+        description: Some(details.description.clone()),
+        duration: details.length_seconds.parse::<u64>().ok(),
+        view_count: details.view_count.parse::<u64>().ok(),
+        like_count: None,
+        channel: details.author.as_ref().map(|a| a.name.clone()).unwrap_or_else(|| "Unknown".to_string()),
+        channel_id: details.channel_id.clone(),
+        thumbnail: details.thumbnails.first()
+            .map(|t| t.url.clone())
+            .unwrap_or_default(),
+        upload_date: Some(details.publish_date.clone()),
     })
 }
 
-/// Get stream URL for video playback
+/// Get stream URL with automatic fallback (yt-dlp -> Invidious -> rusty_ytdl)
 pub async fn get_stream_url(video_id: &str, quality: &str) -> Result<StreamUrl> {
-    let url = format!("https://www.youtube.com/watch?v={}", video_id);
+    tracing::info!("🎬 Getting stream URL for: {} (quality: {})", video_id, quality);
 
-    let format = match quality {
-        "1080p" => "bestvideo[height<=1080]+bestaudio/best[height<=1080]",
-        "720p" => "bestvideo[height<=720]+bestaudio/best[height<=720]",
-        "480p" => "bestvideo[height<=480]+bestaudio/best[height<=480]",
-        "audio" => "bestaudio",
-        _ => "best",
+    match try_stream_url_sources(video_id, quality).await {
+        Ok(stream) => Ok(stream),
+        Err(primary_error) => {
+            if quality != "best" {
+                tracing::warn!(
+                    "⚠️  Requested quality '{}' failed for {}. Retrying with 'best'.",
+                    quality,
+                    video_id
+                );
+
+                match try_stream_url_sources(video_id, "best").await {
+                    Ok(stream) => {
+                        tracing::info!(
+                            "✅ Fallback to 'best' quality succeeded for {} (requested '{}')",
+                            video_id,
+                            quality
+                        );
+                        Ok(stream)
+                    }
+                    Err(fallback_error) => Err(anyhow::anyhow!(
+                        "Failed to get stream URL (requested '{}': {}; fallback 'best': {})",
+                        quality,
+                        primary_error,
+                        fallback_error
+                    )),
+                }
+            } else {
+                Err(primary_error)
+            }
+        }
+    }
+}
+
+async fn try_stream_url_sources(video_id: &str, quality: &str) -> Result<StreamUrl> {
+    // Try yt-dlp command first (best at bypassing YouTube restrictions)
+    let yt_dlp_error = match get_stream_url_ytdlp_command(video_id, quality).await {
+        Ok(stream) => {
+            tracing::info!("✅ Got stream URL from yt-dlp command");
+            return Ok(stream);
+        }
+        Err(e) => {
+            tracing::warn!("⚠️  yt-dlp command failed: {}", e);
+            e
+        }
     };
 
-    let args = vec![
-        url,
-        "-f".to_string(),
-        format.to_string(),
-        "-g".to_string(),
-        "--no-warnings".to_string(),
-        "--quiet".to_string(),
-        "--socket-timeout".to_string(),
-        "10".to_string(),
-    ];
+    // Try Invidious second
+    let invidious_error = match get_stream_url_invidious(video_id, quality).await {
+        Ok(url) => {
+            tracing::info!("✅ Got stream URL from Invidious");
+            return Ok(StreamUrl {
+                url,
+                format: "video/mp4".to_string(),
+                quality: quality.to_string(),
+            });
+        }
+        Err(e) => {
+            tracing::warn!("⚠️  Invidious failed: {}", e);
+            e
+        }
+    };
 
-    let output = run_yt_dlp_command(args, 25).await?;
-    let stream_url = output.trim().to_string();
+    // Last resort: try rusty_ytdl
+    match get_stream_url_rusty_ytdl(video_id, quality).await {
+        Ok(stream) => {
+            tracing::info!("✅ Got stream URL from rusty_ytdl fallback");
+            Ok(stream)
+        }
+        Err(rusty_ytdl_error) => {
+            tracing::error!(
+                "❌ All methods failed (yt-dlp, Invidious, rusty_ytdl): yt-dlp={}, invidious={}, rusty_ytdl={}",
+                yt_dlp_error,
+                invidious_error,
+                rusty_ytdl_error
+            );
+            Err(anyhow::anyhow!(
+                "Failed to get stream URL from all sources (yt-dlp: {}; invidious: {}; rusty_ytdl: {})",
+                yt_dlp_error,
+                invidious_error,
+                rusty_ytdl_error
+            ))
+        }
+    }
+}
 
-    if stream_url.is_empty() {
-        anyhow::bail!("yt-dlp returned empty stream URL");
+/// Get stream URL using Invidious (secondary method)
+async fn get_stream_url_invidious(video_id: &str, quality: &str) -> Result<String> {
+    use crate::invidious;
+    invidious::get_stream_url(video_id, quality).await
+}
+
+fn ytdlp_format_selector(quality: &str) -> &'static str {
+    match quality {
+        "audio" => "bestaudio[ext=m4a]/bestaudio",
+        "1080p" => "best[height<=1080][vcodec!=none][acodec!=none]/best[height<=1080]/best",
+        "720p" => "best[height<=720][vcodec!=none][acodec!=none]/best[height<=720]/best",
+        "480p" => "best[height<=480][vcodec!=none][acodec!=none]/best[height<=480]/best",
+        _ => "best[vcodec!=none][acodec!=none]/best",
+    }
+}
+
+fn ytdlp_user_agent() -> Option<String> {
+    env::var("TUBULAR_YTDLP_USER_AGENT")
+        .ok()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+}
+
+fn ytdlp_cookies_path() -> Option<String> {
+    let path = env::var("TUBULAR_YTDLP_COOKIES")
+        .ok()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())?;
+
+    if Path::new(&path).exists() {
+        Some(path)
+    } else {
+        tracing::warn!("⚠️  TUBULAR_YTDLP_COOKIES path does not exist: {}", path);
+        None
+    }
+}
+
+fn ytdlp_auth_hint(stderr: &str, cookies_path: Option<&str>) -> Option<&'static str> {
+    let lowered = stderr.to_lowercase();
+    if lowered.contains("sign in")
+        || lowered.contains("confirm you're not a bot")
+        || lowered.contains("cookies")
+        || lowered.contains("account required")
+    {
+        return if cookies_path.is_some() {
+            Some("cookies were supplied but yt-dlp still failed; re-export cookies or update yt-dlp")
+        } else {
+            Some("set TUBULAR_YTDLP_COOKIES to a browser cookies.txt export for restricted videos")
+        };
     }
 
+    if lowered.contains("http error 429") || lowered.contains("too many requests") {
+        return Some("rate limited by YouTube; try again later or use cookies")
+    }
+
+    None
+}
+
+fn parse_stream_url_from_ytdlp_stdout(stdout: &str) -> Option<String> {
+    stdout
+        .lines()
+        .map(str::trim)
+        .find(|line| line.starts_with("http://") || line.starts_with("https://"))
+        .map(ToString::to_string)
+}
+
+/// Get stream URL using yt-dlp command (primary method)
+async fn get_stream_url_ytdlp_command(video_id: &str, quality: &str) -> Result<StreamUrl> {
+    use tokio::process::Command;
+    
+    let url = format!("https://www.youtube.com/watch?v={}", video_id);
+    let format_selector = ytdlp_format_selector(quality);
+    let cookies_path = ytdlp_cookies_path();
+    let user_agent = ytdlp_user_agent();
+    
+    tracing::info!("🎬 Running yt-dlp command for: {}", video_id);
+
+    let mut attempts: Vec<(&str, Vec<&str>)> = vec![
+        ("default", Vec::new()),
+        (
+            "android client",
+            vec!["--extractor-args", "youtube:player_client=android"],
+        ),
+    ];
+
+    if cookies_path.is_none() {
+        attempts.push(("firefox cookies", vec!["--cookies-from-browser", "firefox"]));
+        attempts.push(("chrome cookies", vec!["--cookies-from-browser", "chrome"]));
+    }
+
+    let mut last_error = None;
+
+    for (attempt_name, extra_args) in attempts {
+        let mut cmd = Command::new("yt-dlp");
+        cmd.arg("--no-warnings")
+            .arg("--no-playlist")
+            .arg("--get-url")
+            .arg("-f")
+            .arg(format_selector);
+
+        if let Some(ref ua) = user_agent {
+            cmd.arg("--user-agent").arg(ua);
+        }
+
+        if let Some(ref cookies) = cookies_path {
+            cmd.arg("--cookies").arg(cookies);
+        }
+
+        for arg in extra_args {
+            cmd.arg(arg);
+        }
+
+        cmd.arg(&url);
+
+        let output = match cmd.output().await {
+            Ok(output) => output,
+            Err(e) => {
+                let err = anyhow::anyhow!("{} attempt failed to execute yt-dlp: {}", attempt_name, e);
+                tracing::warn!("⚠️  {}", err);
+                last_error = Some(err);
+                continue;
+            }
+        };
+
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+            let mut details = if stderr.is_empty() {
+                "no stderr output".to_string()
+            } else {
+                stderr
+            };
+
+            if let Some(hint) = ytdlp_auth_hint(&details, cookies_path.as_deref()) {
+                details = format!("{} | hint: {}", details, hint);
+            }
+
+            let err = anyhow::anyhow!(
+                "{} attempt failed (status {}): {}",
+                attempt_name,
+                output.status,
+                details
+            );
+            tracing::warn!("⚠️  {}", err);
+            last_error = Some(err);
+            continue;
+        }
+
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let stream_url = match parse_stream_url_from_ytdlp_stdout(&stdout) {
+            Some(url) => url,
+            None => {
+                let err = anyhow::anyhow!("{} attempt returned no stream URL", attempt_name);
+                tracing::warn!("⚠️  {}", err);
+                last_error = Some(err);
+                continue;
+            }
+        };
+
+        tracing::info!(
+            "✅ Got stream URL from yt-dlp ({}, url length: {})",
+            attempt_name,
+            stream_url.len()
+        );
+
+        return Ok(StreamUrl {
+            url: stream_url,
+            format: if quality == "audio" {
+                "audio/mp4".to_string()
+            } else {
+                "video/mp4".to_string()
+            },
+            quality: quality.to_string(),
+        });
+    }
+
+    Err(last_error.unwrap_or_else(|| anyhow::anyhow!("all yt-dlp attempts failed")))
+}
+
+/// Get stream URL using rusty_ytdl (fallback)
+async fn get_stream_url_rusty_ytdl(video_id: &str, quality: &str) -> Result<StreamUrl> {
+    use rusty_ytdl::{Video, VideoOptions};
+    
+    tracing::info!("🎬 Getting stream URL for: {} (quality: {})", video_id, quality);
+    
+    let url = format!("https://www.youtube.com/watch?v={}", video_id);
+    
+    let video = Video::new_with_options(&url, VideoOptions::default())
+        .map_err(|e| anyhow::anyhow!("Failed to create video: {:?}", e))?;
+
+    let info = video.get_info().await
+        .map_err(|e| anyhow::anyhow!("Failed to get video info: {:?}", e))?;
+
+    // Find best format based on quality
+    // For streaming, prioritize formats with both video and audio
+    let format = match quality {
+        "audio" => {
+            // Get best audio-only format
+            info.formats.iter()
+                .filter(|f| f.has_audio && !f.has_video)
+                .max_by_key(|f| f.audio_bitrate.unwrap_or(0))
+        }
+        "1080p" => {
+            // Try combined format first (video+audio), then video-only
+            info.formats.iter()
+                .filter(|f| f.has_video && f.has_audio && f.height.unwrap_or(0) <= 1080 && f.height.unwrap_or(0) >= 720)
+                .max_by_key(|f| f.height.unwrap_or(0))
+                .or_else(|| {
+                    info.formats.iter()
+                        .filter(|f| f.has_video && f.height.unwrap_or(0) <= 1080)
+                        .max_by_key(|f| f.height.unwrap_or(0))
+                })
+        }
+        "720p" => {
+            info.formats.iter()
+                .filter(|f| f.has_video && f.has_audio && f.height.unwrap_or(0) <= 720 && f.height.unwrap_or(0) >= 480)
+                .max_by_key(|f| f.height.unwrap_or(0))
+                .or_else(|| {
+                    info.formats.iter()
+                        .filter(|f| f.has_video && f.height.unwrap_or(0) <= 720)
+                        .max_by_key(|f| f.height.unwrap_or(0))
+                })
+        }
+        "480p" => {
+            info.formats.iter()
+                .filter(|f| f.has_video && f.has_audio && f.height.unwrap_or(0) <= 480 && f.height.unwrap_or(0) >= 360)
+                .max_by_key(|f| f.height.unwrap_or(0))
+                .or_else(|| {
+                    info.formats.iter()
+                        .filter(|f| f.has_video && f.height.unwrap_or(0) <= 480)
+                        .max_by_key(|f| f.height.unwrap_or(0))
+                })
+        }
+        _ => {
+            // Get best combined format (video + audio)
+            info.formats.iter()
+                .filter(|f| f.has_video && f.has_audio)
+                .max_by_key(|f| (f.height.unwrap_or(0), f.bitrate))
+                .or_else(|| {
+                    // Fallback to any video format
+                    info.formats.iter()
+                        .filter(|f| f.has_video)
+                        .max_by_key(|f| f.height.unwrap_or(0))
+                })
+        }
+    };
+
+    let format = format.ok_or_else(|| anyhow::anyhow!("No suitable format found"))?;
+
+    if format.url.is_empty() {
+        return Err(anyhow::anyhow!("Format URL is empty"));
+    }
+
+    tracing::info!("✅ Found format: height={:?}, has_audio={}, has_video={}, url_len={}", 
+        format.height, format.has_audio, format.has_video, format.url.len());
+
     Ok(StreamUrl {
-        url: stream_url,
-        format: format.to_string(),
+        url: format.url.clone(),
+        format: format!("{:?}", format.mime_type),
         quality: quality.to_string(),
     })
 }
@@ -421,27 +537,53 @@ pub async fn download_video(
     quality: &str,
     audio_only: bool,
 ) -> Result<String> {
+    use rusty_ytdl::{Video, VideoOptions};
+    
+    tracing::info!("⬇️  Downloading video: {} to {}", video_id, output_path);
+    
     let url = format!("https://www.youtube.com/watch?v={}", video_id);
+    
+    let video = Video::new_with_options(&url, VideoOptions::default())
+        .map_err(|e| anyhow::anyhow!("Failed to create video: {:?}", e))?;
 
+    let info = video.get_info().await
+        .map_err(|e| anyhow::anyhow!("Failed to get video info: {:?}", e))?;
+
+    // Find best format
     let format = if audio_only {
-        "bestaudio".to_string()
+        info.formats.iter()
+            .filter(|f| f.has_audio && !f.has_video)
+            .max_by_key(|f| f.audio_bitrate.unwrap_or(0))
     } else {
         match quality {
-            "1080p" => "bestvideo[height<=1080]+bestaudio/best[height<=1080]".to_string(),
-            "720p" => "bestvideo[height<=720]+bestaudio/best[height<=720]".to_string(),
-            "480p" => "bestvideo[height<=480]+bestaudio/best[height<=480]".to_string(),
-            _ => "best".to_string(),
+            "1080p" => info.formats.iter()
+                .filter(|f| f.has_video && f.height.unwrap_or(0) <= 1080)
+                .max_by_key(|f| f.height.unwrap_or(0)),
+            "720p" => info.formats.iter()
+                .filter(|f| f.has_video && f.height.unwrap_or(0) <= 720)
+                .max_by_key(|f| f.height.unwrap_or(0)),
+            "480p" => info.formats.iter()
+                .filter(|f| f.has_video && f.height.unwrap_or(0) <= 480)
+                .max_by_key(|f| f.height.unwrap_or(0)),
+            _ => info.formats.iter()
+                .filter(|f| f.has_video)
+                .max_by_key(|f| f.height.unwrap_or(0)),
         }
     };
 
-    let args = vec![
-        url,
-        "-f".to_string(),
-        format,
-        "-o".to_string(),
-        output_path.to_string(),
-    ];
+    let format = format.ok_or_else(|| anyhow::anyhow!("No suitable format found"))?;
 
-    let _ = run_yt_dlp_command(args, 300).await?;
+    // Download the video
+    let client = reqwest::Client::new();
+    let response = client.get(&format.url).send().await
+        .map_err(|e| anyhow::anyhow!("Failed to download: {}", e))?;
+
+    let bytes = response.bytes().await
+        .map_err(|e| anyhow::anyhow!("Failed to read response: {}", e))?;
+
+    tokio::fs::write(output_path, bytes).await
+        .map_err(|e| anyhow::anyhow!("Failed to write file: {}", e))?;
+
+    tracing::info!("✅ Download complete: {}", output_path);
     Ok(output_path.to_string())
 }

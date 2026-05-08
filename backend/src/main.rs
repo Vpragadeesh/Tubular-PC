@@ -12,6 +12,7 @@ mod player;
 mod yt_dlp;
 mod sponsorblock;
 mod returnyoutubedislike;
+mod invidious;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -37,6 +38,7 @@ async fn main() -> anyhow::Result<()> {
         .route("/search", get(api::search))
         .route("/video/:id", get(api::get_video_info))
         .route("/stream/:id", get(api::get_stream_url))
+        .route("/stream-proxy/:id", get(api::proxy_stream))
         .route("/player", get(api::get_player_state))
         .route("/player/play", post(api::player_play))
         .route("/player/pause", post(api::player_pause))
@@ -68,6 +70,19 @@ async fn main() -> anyhow::Result<()> {
         .route("/settings", get(api::get_all_settings))
         .route("/settings", post(api::set_setting))
         .route("/settings/:key", get(api::get_setting))
+        .route("/invidious/search", get(api::invidious_search))
+        .route("/invidious/video/:id", get(api::invidious_video_info))
+        .route("/invidious/stream/:id", get(api::invidious_stream_url))
+        .route("/invidious/instance", get(api::get_invidious_instance))
+        .route("/invidious/instance", post(api::set_invidious_instance))
+        .route("/invidious/instances", get(api::get_invidious_instances))
+        .route("/playlists", get(api::get_playlists))
+        .route("/playlists", post(api::create_playlist))
+        .route("/playlists/:id", get(api::get_playlist))
+        .route("/playlists/:id", delete(api::delete_playlist))
+        .route("/playlists/:id/videos", get(api::get_playlist_videos))
+        .route("/playlists/:id/videos", post(api::add_video_to_playlist))
+        .route("/playlists/:id/videos/remove", post(api::remove_video_from_playlist))
         .layer(CorsLayer::permissive())
         .with_state(player);
 

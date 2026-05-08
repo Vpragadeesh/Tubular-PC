@@ -126,6 +126,39 @@ pub async fn init_db() -> Result<()> {
     .execute(&pool)
     .await?;
 
+    // Create playlists table
+    sqlx::query(
+        r#"
+        CREATE TABLE IF NOT EXISTS playlists (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            description TEXT,
+            created_at TEXT NOT NULL
+        )
+        "#,
+    )
+    .execute(&pool)
+    .await?;
+
+    // Create playlist_videos table
+    sqlx::query(
+        r#"
+        CREATE TABLE IF NOT EXISTS playlist_videos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            playlist_id INTEGER NOT NULL,
+            video_id TEXT NOT NULL,
+            title TEXT NOT NULL,
+            channel TEXT NOT NULL,
+            thumbnail TEXT NOT NULL,
+            position INTEGER NOT NULL,
+            added_at TEXT NOT NULL,
+            FOREIGN KEY (playlist_id) REFERENCES playlists(id) ON DELETE CASCADE
+        )
+        "#,
+    )
+    .execute(&pool)
+    .await?;
+
     DB_POOL.set(pool).map_err(|_| anyhow::anyhow!("Failed to set DB pool"))?;
     Ok(())
 }
@@ -293,6 +326,7 @@ pub async fn fail_download(id: i64, error_message: &str) -> Result<()> {
     Ok(())
 }
 
+#[allow(dead_code)]
 pub async fn add_download(video_id: &str, title: &str, file_path: &str, quality: &str) -> Result<()> {
     let pool = get_pool();
     let now = chrono::Utc::now().to_rfc3339();
@@ -373,4 +407,140 @@ pub async fn get_all_settings() -> Result<Vec<Setting>> {
         .fetch_all(pool)
         .await?;
     Ok(settings.into_iter().map(|(k, v)| Setting { key: k, value: v }).collect())
+}
+
+// Playlist operations
+#[derive(Debug, Serialize, Deserialize, sqlx::FromRow)]
+pub struct Playlist {
+    pub id: i64,
+    pub name: String,
+    pub description: Option<String>,
+    pub created_at: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, sqlx::FromRow)]
+pub struct PlaylistVideo {
+    pub id: i64,
+    pub playlist_id: i64,
+    pub video_id: String,
+    pub title: String,
+    pub channel: String,
+    pub thumbnail: String,
+    pub position: i64,
+    pub added_at: String,
+}
+
+pub async fn create_playlist(name: &str, description: Option<&str>) -> Result<i64> {
+    let pool = get_pool();
+    let now = chrono::Utc::now().to_rfc3339();
+
+    let result = sqlx::query(
+        "INSERT INTO playlists (name, description, created_at) VALUES (?, ?, ?)"
+    )
+    .bind(name)
+    .bind(description)
+    .bind(now)
+    .execute(pool)
+    .await?;
+
+    Ok(result.last_insert_rowid())
+}
+
+pub async fn get_playlists() -> Result<Vec<Playlist>> {
+    let pool = get_pool();
+    let playlists = sqlx::query_as::<_, Playlist>(
+        "SELECT * FROM playlists ORDER BY created_at DESC"
+    )
+    .fetch_all(pool)
+    .await?;
+    Ok(playlists)
+}
+
+pub async fn get_playlist(id: i64) -> Result<Option<Playlist>> {
+    let pool = get_pool();
+    let playlist = sqlx::query_as::<_, Playlist>(
+        "SELECT * FROM playlists WHERE id = ?"
+    )
+    .bind(id)
+    .fetch_optional(pool)
+    .await?;
+    Ok(playlist)
+}
+
+pub async fn delete_playlist(id: i64) -> Result<()> {
+    let pool = get_pool();
+    sqlx::query("DELETE FROM playlists WHERE id = ?")
+        .bind(id)
+        .execute(pool)
+        .await?;
+    Ok(())
+}
+
+pub async fn add_video_to_playlist(
+    playlist_id: i64,
+    video_id: &str,
+    title: &str,
+    channel: &str,
+    thumbnail: &str,
+) -> Result<()> {
+    let pool = get_pool();
+    let now = chrono::Utc::now().to_rfc3339();
+
+    // Get next position
+    let position: i64 = sqlx::query_scalar(
+        "SELECT COALESCE(MAX(position), -1) + 1 FROM playlist_videos WHERE playlist_id = ?"
+    )
+    .bind(playlist_id)
+    .fetch_one(pool)
+    .await?;
+
+    sqlx::query(
+        "INSERT INTO playlist_videos (playlist_id, video_id, title, channel, thumbnail, position, added_at) 
+         VALUES (?, ?, ?, ?, ?, ?, ?)"
+    )
+    .bind(playlist_id)
+    .bind(video_id)
+    .bind(title)
+    .bind(channel)
+    .bind(thumbnail)
+    .bind(position)
+    .bind(now)
+    .execute(pool)
+    .await?;
+
+    Ok(())
+}
+
+pub async fn get_playlist_videos(playlist_id: i64) -> Result<Vec<PlaylistVideo>> {
+    let pool = get_pool();
+    let videos = sqlx::query_as::<_, PlaylistVideo>(
+        "SELECT * FROM playlist_videos WHERE playlist_id = ? ORDER BY position ASC"
+    )
+    .bind(playlist_id)
+    .fetch_all(pool)
+    .await?;
+    Ok(videos)
+}
+
+pub async fn remove_video_from_playlist(playlist_id: i64, video_id: &str) -> Result<()> {
+    let pool = get_pool();
+    sqlx::query("DELETE FROM playlist_videos WHERE playlist_id = ? AND video_id = ?")
+        .bind(playlist_id)
+        .bind(video_id)
+        .execute(pool)
+        .await?;
+    Ok(())
+}
+
+pub async fn reorder_playlist_video(playlist_id: i64, video_id: &str, new_position: i64) -> Result<()> {
+    let pool = get_pool();
+    sqlx::query(
+        "UPDATE playlist_videos SET position = ? WHERE playlist_id = ? AND video_id = ?"
+    )
+    .bind(new_position)
+    .bind(playlist_id)
+    .bind(video_id)
+    .execute(pool)
+    .await?;
+    Ok(())
 }

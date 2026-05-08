@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:media_kit/media_kit.dart';
 import 'screens/home_screen.dart';
 import 'screens/subscriptions_screen.dart';
 import 'screens/history_screen.dart';
@@ -10,6 +11,8 @@ import 'widgets/player_shell.dart';
 final navigationIndexProvider = StateProvider<int>((ref) => 0);
 
 void main() {
+  WidgetsFlutterBinding.ensureInitialized();
+  MediaKit.ensureInitialized();
   runApp(const ProviderScope(child: TubularApp()));
 }
 

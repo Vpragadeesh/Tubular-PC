@@ -276,24 +276,9 @@ class ApiService {
   }
 
   Future<String> getStreamUrl(String videoId, {String quality = 'best'}) async {
-    try {
-      final response = await _dio.get(
-        '/stream/$videoId',
-        queryParameters: {'quality': quality},
-      );
-
-      if (response.data['success'] == true) {
-        return response.data['data']['url'];
-      } else {
-        throw Exception(response.data['error'] ?? 'Failed to get stream URL');
-      }
-    } catch (e) {
-      _logger.w('Get stream URL error: $e');
-      // Return a placeholder for development
-      throw Exception(
-        'Backend not available. Please ensure the Rust backend is running on http://localhost:3030',
-      );
-    }
+    // Return the proxy stream URL instead of fetching the direct URL
+    // This avoids CORS issues and network restrictions with media_kit
+    return '$baseUrl/stream-proxy/$videoId?quality=$quality';
   }
 
   Future<String> downloadVideo({
