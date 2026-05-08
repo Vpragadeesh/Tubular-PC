@@ -605,6 +605,9 @@ class _SpeedMenu extends ConsumerWidget {
           PopupMenuItem(value: '1.25', child: Text('1.25x')),
           PopupMenuItem(value: '1.5', child: Text('1.5x')),
           PopupMenuItem(value: '2.0', child: Text('2.0x')),
+          PopupMenuItem(value: '2.5', child: Text('2.5x')),
+          PopupMenuItem(value: '3.0', child: Text('3.0x')),
+          PopupMenuItem(value: '4.0', child: Text('4.0x')),
         ];
       },
       child: Padding(
