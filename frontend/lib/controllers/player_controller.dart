@@ -225,6 +225,20 @@ class PlayerController extends StateNotifier<TubularPlayerState> {
     state = state.copyWith(backgroundAudio: enabled);
   }
 
+  Future<void> toggleAudioOnlyStream({String fallbackQuality = 'best'}) async {
+    if (!state.hasVideo) {
+      return;
+    }
+
+    if (state.quality == 'audio') {
+      final nextQuality = fallbackQuality == 'audio' ? 'best' : fallbackQuality;
+      await setQuality(nextQuality);
+      return;
+    }
+
+    await setQuality('audio');
+  }
+
   Future<void> stop() async {
     _playRequestSerial++;
     state = TubularPlayerState.initial.copyWith(status: PlaybackStatus.stopped);

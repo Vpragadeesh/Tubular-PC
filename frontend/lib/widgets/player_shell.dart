@@ -434,6 +434,8 @@ class _FullscreenControls extends ConsumerWidget {
     final controller = ref.read(playerControllerProvider.notifier);
     final duration = playerState.duration;
     final position = _safePosition(playerState.position, duration);
+    final preferredQuality = ref.watch(preferredQualityProvider);
+    final isAudioOnly = playerState.quality == 'audio';
 
     return SafeArea(
       top: false,
@@ -504,11 +506,16 @@ class _FullscreenControls extends ConsumerWidget {
                 ),
                 const Spacer(),
                 IconButton(
-                  tooltip: 'Background audio',
-                  onPressed: controller.toggleBackgroundAudio,
-                  color: playerState.backgroundAudio
-                      ? const Color(0xFFE53935)
-                      : Colors.white,
+                  tooltip: isAudioOnly ? 'Disable audio-only stream' : 'Enable audio-only stream',
+                  onPressed: () {
+                    final restoreQuality = preferredQuality == 'audio'
+                        ? 'best'
+                        : preferredQuality;
+                    controller.toggleAudioOnlyStream(
+                      fallbackQuality: restoreQuality,
+                    );
+                  },
+                  color: isAudioOnly ? const Color(0xFFE53935) : Colors.white,
                   icon: const Icon(Icons.headphones),
                 ),
                 _QualityMenu(
