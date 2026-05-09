@@ -37,6 +37,7 @@ async fn main() -> anyhow::Result<()> {
         .route("/search-cache/clear", post(api::clear_search_cache))
         .route("/search", get(api::search))
         .route("/video/:id", get(api::get_video_info))
+        .route("/video/details/:id", get(api::get_video_details))
         .route("/stream/:id", get(api::get_stream_url))
         .route("/stream-proxy/:id", get(api::proxy_stream))
         .route("/player", get(api::get_player_state))

@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:logger/logger.dart';
 import '../models/video.dart';
+import '../models/video_details.dart';
 import '../models/subscription.dart';
 import '../models/history_entry.dart';
 import '../models/download.dart';
@@ -253,6 +254,36 @@ class ApiService {
       _logger.w('Get video info error: $e');
       // Return mock video for development
       return _getMockVideoInfo(videoId);
+    }
+  }
+
+  Future<VideoDetails> getVideoDetails(String videoId) async {
+    try {
+      final response = await _dio.get('/video/details/$videoId');
+
+      if (response.data['success'] == true) {
+        return VideoDetails.fromJson(response.data['data']);
+      } else {
+        throw Exception(response.data['error'] ?? 'Failed to get video details');
+      }
+    } catch (e) {
+      _logger.w('Get video details error: $e');
+      // Fallback to real video info endpoint (no mocked metadata)
+      final info = await getVideoInfo(videoId);
+      return VideoDetails(
+        id: info.id,
+        title: info.title,
+        channelName: info.channelName,
+        channelId: info.channelId,
+        subscriberCount: 0,
+        viewCount: info.views,
+        uploadDate: info.uploadDate.toIso8601String(),
+        duration: info.duration,
+        thumbnailUrl: info.thumbnail,
+        likeCount: info.likes,
+        dislikeCount: info.dislikes,
+        comments: const [],
+      );
     }
   }
 

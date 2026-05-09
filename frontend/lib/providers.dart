@@ -34,3 +34,10 @@ final enableNotificationsProvider = StateProvider<bool>((ref) => false);
 
 // Playback speed provider (1.0 = normal)
 final playbackSpeedProvider = StateProvider<double>((ref) => 1.0);
+
+// Video details provider (fetches details for a given video id)
+final videoDetailsProvider = FutureProvider.family((ref, String videoId) async {
+	final api = ref.watch(apiServiceProvider);
+	final details = await api.getVideoDetails(videoId);
+	return details;
+});

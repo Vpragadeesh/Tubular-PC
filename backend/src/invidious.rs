@@ -1,5 +1,6 @@
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
@@ -88,6 +89,16 @@ pub struct InvidiousFormat {
     pub quality: Option<String>,
     pub resolution: Option<String>,
     pub bitrate: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct InvidiousCommentItem {
+    pub author: String,
+    pub author_id: String,
+    pub author_avatar: String,
+    pub content: String,
+    pub published_text: String,
+    pub like_count: i64,
 }
 
 /// Search videos using Invidious API
@@ -338,4 +349,94 @@ pub async fn get_current_instance() -> String {
 /// Get list of default instances
 pub fn get_default_instances() -> Vec<String> {
     DEFAULT_INSTANCES.iter().map(|s| s.to_string()).collect()
+}
+
+/// Get comments for a video using Invidious API.
+///
+/// This parser is intentionally tolerant because public Invidious instances may
+/// differ slightly in response shape.
+pub async fn get_comments(video_id: &str) -> Result<Vec<InvidiousCommentItem>> {
+    let instance = CURRENT_INSTANCE.read().await.clone();
+    let url = format!("{}/api/v1/comments/{}", instance, video_id);
+
+    let client = reqwest::Client::new();
+    let response = client
+        .get(&url)
+        .timeout(std::time::Duration::from_secs(30))
+        .send()
+        .await?;
+
+    if !response.status().is_success() {
+        return Err(anyhow::anyhow!(
+            "Invidious comments API error: {}",
+            response.status()
+        ));
+    }
+
+    let value: Value = response.json().await?;
+
+    let raw_comments = value
+        .get("comments")
+        .and_then(|v| v.as_array())
+        .cloned()
+        .or_else(|| value.as_array().cloned())
+        .unwrap_or_default();
+
+    let comments = raw_comments
+        .into_iter()
+        .map(|comment| {
+            let author = comment
+                .get("author")
+                .and_then(|v| v.as_str())
+                .unwrap_or("Unknown")
+                .to_string();
+
+            let author_id = comment
+                .get("authorId")
+                .or_else(|| comment.get("author_id"))
+                .and_then(|v| v.as_str())
+                .unwrap_or_default()
+                .to_string();
+
+            let author_avatar = comment
+                .get("authorThumbnails")
+                .and_then(|v| v.as_array())
+                .and_then(|arr| arr.first())
+                .and_then(|thumb| thumb.get("url"))
+                .and_then(|v| v.as_str())
+                .unwrap_or_default()
+                .to_string();
+
+            let content = comment
+                .get("content")
+                .or_else(|| comment.get("contentHtml"))
+                .and_then(|v| v.as_str())
+                .unwrap_or_default()
+                .to_string();
+
+            let published_text = comment
+                .get("publishedText")
+                .or_else(|| comment.get("published"))
+                .and_then(|v| v.as_str())
+                .unwrap_or_default()
+                .to_string();
+
+            let like_count = comment
+                .get("likeCount")
+                .or_else(|| comment.get("likes"))
+                .and_then(|v| v.as_i64())
+                .unwrap_or(0);
+
+            InvidiousCommentItem {
+                author,
+                author_id,
+                author_avatar,
+                content,
+                published_text,
+                like_count,
+            }
+        })
+        .collect();
+
+    Ok(comments)
 }

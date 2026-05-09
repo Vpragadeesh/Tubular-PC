@@ -6,6 +6,7 @@ import '../models/video.dart';
 import '../services/api_service.dart';
 import '../providers.dart';
 import '../widgets/video_card.dart';
+import 'video_details_screen.dart';
 import '../widgets/error_widget.dart';
 
 final searchQueryProvider = StateProvider<String>((ref) => '');
@@ -81,8 +82,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   void _openVideo(Video video) {
-    final preferredQuality = ref.read(preferredQualityProvider);
-    ref.read(playerControllerProvider.notifier).playVideo(video, quality: preferredQuality);
+    // Navigate to the details screen first (intermediate screen)
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => VideoDetailsScreen(video: video)),
+    );
   }
 
   void _subscribeToChannel(BuildContext context, Video video) async {

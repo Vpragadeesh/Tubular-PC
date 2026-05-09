@@ -80,6 +80,85 @@ pub async fn get_video_info(Path(id): Path<String>) -> impl IntoResponse {
     }
 }
 
+#[derive(Debug, Serialize)]
+pub struct VideoDetailsCommentResponse {
+    user_id: String,
+    username: String,
+    avatar_url: String,
+    text: String,
+    timestamp: String,
+    like_count: i64,
+}
+
+#[derive(Debug, Serialize)]
+pub struct VideoDetailsResponse {
+    id: String,
+    title: String,
+    channel_name: String,
+    channel_id: String,
+    subscriber_count: u64,
+    view_count: u64,
+    upload_date: String,
+    duration_seconds: u64,
+    thumbnail_url: String,
+    like_count: u64,
+    dislike_count: u64,
+    comments: Vec<VideoDetailsCommentResponse>,
+}
+
+pub async fn get_video_details(Path(id): Path<String>) -> impl IntoResponse {
+    let info = match yt_dlp::get_video_info(&id).await {
+        Ok(info) => info,
+        Err(e) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiResponse::<VideoDetailsResponse>::error(e.to_string())),
+            );
+        }
+    };
+
+    let dislike_data = returnyoutubedislike::get_dislikes(&id).await.ok();
+    let comments = invidious::get_comments(&id).await.unwrap_or_default();
+
+    let like_count = dislike_data
+        .as_ref()
+        .map(|d| d.likes.max(0) as u64)
+        .or(info.like_count)
+        .unwrap_or(0);
+
+    let dislike_count = dislike_data
+        .as_ref()
+        .map(|d| d.dislikes.max(0) as u64)
+        .unwrap_or(0);
+
+    let details = VideoDetailsResponse {
+        id: info.id,
+        title: info.title,
+        channel_name: info.channel,
+        channel_id: info.channel_id,
+        subscriber_count: 0,
+        view_count: info.view_count.unwrap_or(0),
+        upload_date: info.upload_date.unwrap_or_default(),
+        duration_seconds: info.duration.unwrap_or(0),
+        thumbnail_url: info.thumbnail,
+        like_count,
+        dislike_count,
+        comments: comments
+            .into_iter()
+            .map(|c| VideoDetailsCommentResponse {
+                user_id: c.author_id,
+                username: c.author,
+                avatar_url: c.author_avatar,
+                text: c.content,
+                timestamp: c.published_text,
+                like_count: c.like_count,
+            })
+            .collect(),
+    };
+
+    (StatusCode::OK, Json(ApiResponse::success(details)))
+}
+
 #[derive(Debug, Deserialize)]
 pub struct StreamQuery {
     #[serde(default = "default_quality")]
