@@ -34,7 +34,7 @@ class MediaPlayerHolder {
   }
 
   void dispose() {
-    _videoController?.dispose();
+    // VideoController doesn't have a dispose method; only dispose the Player
     _player?.dispose();
     _videoController = null;
     _player = null;

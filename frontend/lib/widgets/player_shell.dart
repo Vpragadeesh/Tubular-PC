@@ -221,6 +221,8 @@ class _PlayerStageState extends ConsumerState<_PlayerStage> {
     
     final streamUrl = widget.playerState.streamUrl;
     final isPlaying = widget.playerState.isPlaying;
+    final holder = MediaPlayerHolder.instance;
+    final _player = holder.isInitialized ? holder.player : null;
     
     print('🎬 Player didUpdateWidget:');
     print('   streamUrl: $streamUrl');

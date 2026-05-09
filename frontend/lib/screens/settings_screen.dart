@@ -95,6 +95,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 'Preferred Quality',
                 preferredQuality,
                 items: const [
+                  DropdownMenuItem(value: 'audio', child: Text('Audio Only')),
                   DropdownMenuItem(value: '360p', child: Text('360p')),
                   DropdownMenuItem(value: '480p', child: Text('480p')),
                   DropdownMenuItem(value: '720p', child: Text('720p')),
