@@ -180,9 +180,11 @@ class MainNavigation extends ConsumerWidget {
                 child: NavigationRail(
                   selectedIndex: 0,
                   onDestinationSelected: (_) {
-                    // Navigate to settings
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Settings coming soon')),
+                    // Navigate to settings screen
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const SettingsScreen(),
+                      ),
                     );
                   },
                   labelType: NavigationRailLabelType.all,
