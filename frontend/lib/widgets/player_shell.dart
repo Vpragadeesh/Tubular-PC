@@ -308,8 +308,8 @@ class _PlayerStageState extends ConsumerState<_PlayerStage> {
       child: Stack(
         fit: StackFit.expand,
         children: [
-          // Video player - only show if we have valid video dimensions
-          if (_videoController != null && hasStreamUrl && hasVideo)
+          // Video player - only show if we have valid video dimensions AND not audio-only mode
+          if (_videoController != null && hasStreamUrl && hasVideo && widget.playerState.quality != 'audio')
             SizedBox.expand(
               child: Video(
                 controller: _videoController!,
@@ -320,7 +320,7 @@ class _PlayerStageState extends ConsumerState<_PlayerStage> {
                 wakelock: true,
               ),
             )
-          else if (_videoController != null && hasStreamUrl && !hasVideo)
+          else if (_videoController != null && hasStreamUrl && !hasVideo && widget.playerState.quality != 'audio')
             // Show loading indicator while waiting for video dimensions
             const Center(
               child: Column(
