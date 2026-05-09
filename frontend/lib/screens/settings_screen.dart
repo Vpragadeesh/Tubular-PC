@@ -57,7 +57,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               _buildDropdownTile(
                 context,
                 'Theme',
-                themeMode == ThemeMode.dark ? 'Dark' : 'Light',
+                themeMode,
+                themeMode == ThemeMode.dark
+                    ? 'Dark'
+                    : (themeMode == ThemeMode.light ? 'Light' : 'System'),
                 items: const [
                   DropdownMenuItem(value: ThemeMode.light, child: Text('Light')),
                   DropdownMenuItem(value: ThemeMode.dark, child: Text('Dark')),
@@ -94,6 +97,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 context,
                 'Preferred Quality',
                 preferredQuality,
+                preferredQuality,
                 items: const [
                   DropdownMenuItem(value: 'audio', child: Text('Audio Only')),
                   DropdownMenuItem(value: '360p', child: Text('360p')),
@@ -114,6 +118,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               _buildDropdownTile(
                 context,
                 'Playback Speed',
+                playbackSpeed.toString(),
                 playbackSpeed.toString(),
                 items: const [
                   DropdownMenuItem(value: '0.5', child: Text('0.5x')),
@@ -142,6 +147,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               _buildDropdownTile(
                 context,
                 'Preferred Format',
+                preferredFormat,
                 preferredFormat,
                 items: const [
                   DropdownMenuItem(value: 'video', child: Text('Video')),
@@ -351,15 +357,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   Widget _buildDropdownTile(
     BuildContext context,
     String title,
-    String currentValue, {
+    dynamic selectedValue,
+    String subtitleText, {
     required List<DropdownMenuItem<dynamic>> items,
     required ValueChanged<dynamic> onChanged,
   }) {
     return ListTile(
       title: Text(title),
-      subtitle: Text(currentValue),
+      subtitle: Text(subtitleText),
       trailing: DropdownButton(
-        value: currentValue,
+        value: selectedValue,
         items: items,
         onChanged: onChanged,
         underline: const SizedBox(),
