@@ -114,6 +114,7 @@ pub async fn init_db() -> Result<()> {
     )
     .execute(&pool)
     .await?;
+    migrate_downloads_schema(&pool).await?;
 
     sqlx::query(
         r#"
@@ -160,6 +161,104 @@ pub async fn init_db() -> Result<()> {
     .await?;
 
     DB_POOL.set(pool).map_err(|_| anyhow::anyhow!("Failed to set DB pool"))?;
+    Ok(())
+}
+
+async fn migrate_downloads_schema(pool: &Pool<Sqlite>) -> Result<()> {
+    let rows = sqlx::query("PRAGMA table_info(downloads)")
+        .fetch_all(pool)
+        .await?;
+
+    let mut columns = std::collections::HashSet::new();
+    for row in rows {
+        let name: String = row.get("name");
+        columns.insert(name);
+    }
+
+    if !columns.contains("file_path") {
+        sqlx::query("ALTER TABLE downloads ADD COLUMN file_path TEXT")
+            .execute(pool)
+            .await?;
+    }
+    if !columns.contains("quality") {
+        sqlx::query("ALTER TABLE downloads ADD COLUMN quality TEXT")
+            .execute(pool)
+            .await?;
+    }
+    if !columns.contains("status") {
+        sqlx::query("ALTER TABLE downloads ADD COLUMN status TEXT NOT NULL DEFAULT 'pending'")
+            .execute(pool)
+            .await?;
+    }
+    if !columns.contains("progress") {
+        sqlx::query("ALTER TABLE downloads ADD COLUMN progress REAL DEFAULT 0.0")
+            .execute(pool)
+            .await?;
+    }
+    if !columns.contains("file_size") {
+        sqlx::query("ALTER TABLE downloads ADD COLUMN file_size INTEGER DEFAULT 0")
+            .execute(pool)
+            .await?;
+    }
+    if !columns.contains("speed") {
+        sqlx::query("ALTER TABLE downloads ADD COLUMN speed REAL DEFAULT 0.0")
+            .execute(pool)
+            .await?;
+    }
+    if !columns.contains("eta_seconds") {
+        sqlx::query("ALTER TABLE downloads ADD COLUMN eta_seconds INTEGER DEFAULT 0")
+            .execute(pool)
+            .await?;
+    }
+    if !columns.contains("created_at") {
+        sqlx::query("ALTER TABLE downloads ADD COLUMN created_at TEXT")
+            .execute(pool)
+            .await?;
+    }
+    if !columns.contains("started_at") {
+        sqlx::query("ALTER TABLE downloads ADD COLUMN started_at TEXT")
+            .execute(pool)
+            .await?;
+    }
+    if !columns.contains("completed_at") {
+        sqlx::query("ALTER TABLE downloads ADD COLUMN completed_at TEXT")
+            .execute(pool)
+            .await?;
+    }
+    if !columns.contains("error_message") {
+        sqlx::query("ALTER TABLE downloads ADD COLUMN error_message TEXT")
+            .execute(pool)
+            .await?;
+    }
+
+    // Backfill from legacy columns when present.
+    if columns.contains("output_path") {
+        sqlx::query(
+            "UPDATE downloads SET file_path = COALESCE(file_path, output_path, '')",
+        )
+        .execute(pool)
+        .await?;
+    }
+    if columns.contains("downloaded_at") {
+        sqlx::query(
+            "UPDATE downloads SET created_at = COALESCE(created_at, downloaded_at)",
+        )
+        .execute(pool)
+        .await?;
+    }
+
+    let now = chrono::Utc::now().to_rfc3339();
+    sqlx::query("UPDATE downloads SET quality = COALESCE(quality, 'unknown')")
+        .execute(pool)
+        .await?;
+    sqlx::query("UPDATE downloads SET file_path = COALESCE(file_path, '')")
+        .execute(pool)
+        .await?;
+    sqlx::query("UPDATE downloads SET created_at = COALESCE(created_at, ?)")
+        .bind(now)
+        .execute(pool)
+        .await?;
+
     Ok(())
 }
 
@@ -251,16 +350,31 @@ pub async fn create_download(video_id: &str, title: &str, file_path: &str, quali
     let pool = get_pool();
     let now = chrono::Utc::now().to_rfc3339();
 
-    let result = sqlx::query(
-        "INSERT INTO downloads (video_id, title, file_path, quality, status, progress, created_at) VALUES (?, ?, ?, ?, 'pending', 0.0, ?)"
-    )
-    .bind(video_id)
-    .bind(title)
-    .bind(file_path)
-    .bind(quality)
-    .bind(&now)
-    .execute(pool)
-    .await?;
+    let has_legacy_downloaded_at = has_downloaded_at_column(pool).await?;
+    let result = if has_legacy_downloaded_at {
+        sqlx::query(
+            "INSERT INTO downloads (video_id, title, file_path, quality, status, progress, created_at, downloaded_at) VALUES (?, ?, ?, ?, 'pending', 0.0, ?, ?)"
+        )
+        .bind(video_id)
+        .bind(title)
+        .bind(file_path)
+        .bind(quality)
+        .bind(&now)
+        .bind(&now)
+        .execute(pool)
+        .await?
+    } else {
+        sqlx::query(
+            "INSERT INTO downloads (video_id, title, file_path, quality, status, progress, created_at) VALUES (?, ?, ?, ?, 'pending', 0.0, ?)"
+        )
+        .bind(video_id)
+        .bind(title)
+        .bind(file_path)
+        .bind(quality)
+        .bind(&now)
+        .execute(pool)
+        .await?
+    };
 
     Ok(result.last_insert_rowid())
 }
@@ -331,18 +445,42 @@ pub async fn add_download(video_id: &str, title: &str, file_path: &str, quality:
     let pool = get_pool();
     let now = chrono::Utc::now().to_rfc3339();
 
-    sqlx::query(
-        "INSERT INTO downloads (video_id, title, file_path, quality, status, progress, created_at) VALUES (?, ?, ?, ?, 'completed', 100.0, ?)"
-    )
-    .bind(video_id)
-    .bind(title)
-    .bind(file_path)
-    .bind(quality)
-    .bind(now)
-    .execute(pool)
-    .await?;
+    let has_legacy_downloaded_at = has_downloaded_at_column(pool).await?;
+    if has_legacy_downloaded_at {
+        sqlx::query(
+            "INSERT INTO downloads (video_id, title, file_path, quality, status, progress, created_at, downloaded_at) VALUES (?, ?, ?, ?, 'completed', 100.0, ?, ?)"
+        )
+        .bind(video_id)
+        .bind(title)
+        .bind(file_path)
+        .bind(quality)
+        .bind(&now)
+        .bind(&now)
+        .execute(pool)
+        .await?;
+    } else {
+        sqlx::query(
+            "INSERT INTO downloads (video_id, title, file_path, quality, status, progress, created_at) VALUES (?, ?, ?, ?, 'completed', 100.0, ?)"
+        )
+        .bind(video_id)
+        .bind(title)
+        .bind(file_path)
+        .bind(quality)
+        .bind(now)
+        .execute(pool)
+        .await?;
+    }
 
     Ok(())
+}
+
+async fn has_downloaded_at_column(pool: &Pool<Sqlite>) -> Result<bool> {
+    let count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM pragma_table_info('downloads') WHERE name = 'downloaded_at'",
+    )
+    .fetch_one(pool)
+    .await?;
+    Ok(count > 0)
 }
 
 pub async fn get_downloads() -> Result<Vec<Download>> {

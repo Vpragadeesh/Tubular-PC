@@ -31,15 +31,43 @@ class _PlayerOverlay extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final playerState = ref.watch(playerControllerProvider);
+    final showHiddenEngine =
+        playerState.hasVideo && playerState.surface != PlayerSurface.fullscreen;
 
+    Widget surface;
     switch (playerState.surface) {
       case PlayerSurface.fullscreen:
-        return const _FullscreenPlayer();
+        surface = const _FullscreenPlayer();
+        break;
       case PlayerSurface.mini:
-        return const _MiniPlayer();
+        surface = const _MiniPlayer();
+        break;
+      case PlayerSurface.popup:
+        surface = const _PopupPlayer();
+        break;
       case PlayerSurface.hidden:
-        return const SizedBox.shrink();
+        surface = const SizedBox.shrink();
+        break;
     }
+
+    if (!showHiddenEngine) {
+      return surface;
+    }
+
+    return Stack(
+      children: [
+        Positioned.fill(
+          child: IgnorePointer(
+            child: Opacity(
+              opacity: 0,
+              // Keep media_kit engine alive for mini/popup/background playback.
+              child: _PlayerStage(playerState: playerState),
+            ),
+          ),
+        ),
+        surface,
+      ],
+    );
   }
 }
 
@@ -736,6 +764,146 @@ class _MiniPlayer extends ConsumerWidget {
                 ],
               ),
             ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PopupPlayer extends ConsumerStatefulWidget {
+  const _PopupPlayer();
+
+  @override
+  ConsumerState<_PopupPlayer> createState() => _PopupPlayerState();
+}
+
+class _PopupPlayerState extends ConsumerState<_PopupPlayer> {
+  Offset _offset = const Offset(24, 24);
+
+  @override
+  Widget build(BuildContext context) {
+    final playerState = ref.watch(playerControllerProvider);
+    final controller = ref.read(playerControllerProvider.notifier);
+    final video = playerState.video;
+    final size = MediaQuery.of(context).size;
+
+    if (video == null) {
+      return const SizedBox.shrink();
+    }
+
+    const popupWidth = 360.0;
+    const popupHeight = 220.0;
+
+    final maxDx = (size.width - popupWidth - 16).clamp(0.0, double.infinity);
+    final maxDy = (size.height - popupHeight - 16).clamp(0.0, double.infinity);
+
+    final clampedOffset = Offset(
+      _offset.dx.clamp(0.0, maxDx),
+      _offset.dy.clamp(0.0, maxDy),
+    );
+
+    if (clampedOffset != _offset) {
+      _offset = clampedOffset;
+    }
+
+    return Positioned(
+      left: _offset.dx,
+      top: _offset.dy,
+      child: Material(
+        color: Colors.transparent,
+        elevation: 12,
+        child: Container(
+          width: popupWidth,
+          height: popupHeight,
+          decoration: BoxDecoration(
+            color: const Color(0xFF111111),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: const Color(0xFF2C2C2C)),
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: Column(
+            children: [
+              GestureDetector(
+                onPanUpdate: (details) {
+                  setState(() {
+                    _offset = Offset(
+                      (_offset.dx + details.delta.dx).clamp(0.0, maxDx),
+                      (_offset.dy + details.delta.dy).clamp(0.0, maxDy),
+                    );
+                  });
+                },
+                child: Container(
+                  height: 34,
+                  color: const Color(0xFF1B1B1B),
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          video.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        tooltip: 'Mini player',
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints.tightFor(width: 28, height: 28),
+                        onPressed: controller.showMiniPlayer,
+                        icon: const Icon(Icons.call_to_action, size: 16, color: Colors.white),
+                      ),
+                      IconButton(
+                        tooltip: 'Fullscreen',
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints.tightFor(width: 28, height: 28),
+                        onPressed: controller.showFullscreen,
+                        icon: const Icon(Icons.fullscreen, size: 16, color: Colors.white),
+                      ),
+                      IconButton(
+                        tooltip: 'Close',
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints.tightFor(width: 28, height: 28),
+                        onPressed: controller.stop,
+                        icon: const Icon(Icons.close, size: 16, color: Colors.white),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              Expanded(
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    if (video.thumbnail.isNotEmpty)
+                      CachedNetworkImage(
+                        imageUrl: video.thumbnail,
+                        fit: BoxFit.cover,
+                        errorWidget: (_, __, ___) => const ColoredBox(color: Color(0xFF181818)),
+                      )
+                    else
+                      const ColoredBox(color: Color(0xFF181818)),
+                    Container(color: const Color(0x55000000)),
+                    Center(
+                      child: IconButton(
+                        tooltip: playerState.isPlaying ? 'Pause' : 'Play',
+                        onPressed: controller.togglePlayPause,
+                        color: Colors.white,
+                        iconSize: 44,
+                        icon: Icon(
+                          playerState.isPlaying ? Icons.pause_circle : Icons.play_circle,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
         ),
       ),

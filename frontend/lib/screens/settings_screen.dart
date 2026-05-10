@@ -1,3 +1,6 @@
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers.dart';
@@ -10,6 +13,9 @@ class SettingsScreen extends ConsumerStatefulWidget {
 }
 
 class _SettingsScreenState extends ConsumerState<SettingsScreen> {
+  static const String _tubularConfigFormat = 'tubular-settings';
+  static const int _tubularConfigVersion = 1;
+
   void _saveSetting(String key, String value) {
     final apiService = ref.read(apiServiceProvider);
     print('DEBUG: Saving setting $key = $value');
@@ -26,9 +32,214 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     });
   }
 
+  Future<void> _exportSettingsConfig() async {
+    final apiService = ref.read(apiServiceProvider);
+    try {
+      final settings = await apiService.getAllSettings();
+      final payload = {
+        'format': _tubularConfigFormat,
+        'version': _tubularConfigVersion,
+        'exported_at': DateTime.now().toIso8601String(),
+        'settings': settings,
+      };
+
+      final suggestedPath = _defaultExportPath();
+      final targetPath = await _promptForPath(
+        title: 'Export Settings',
+        hintText: '/home/user/Downloads/tubular-settings.tubular',
+        initialValue: suggestedPath,
+        confirmText: 'Export',
+      );
+      if (targetPath == null || targetPath.trim().isEmpty) return;
+
+      var finalPath = targetPath.trim();
+      if (!finalPath.endsWith('.tubular')) {
+        finalPath = '$finalPath.tubular';
+      }
+
+      final outputFile = File(finalPath);
+      await outputFile.parent.create(recursive: true);
+      await outputFile.writeAsString(
+        const JsonEncoder.withIndent('  ').convert(payload),
+      );
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Settings exported: $finalPath')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to export settings: $e'),
+          backgroundColor: Colors.red[700],
+        ),
+      );
+    }
+  }
+
+  Future<void> _importSettingsConfig() async {
+    final apiService = ref.read(apiServiceProvider);
+    final sourcePath = await _promptForPath(
+      title: 'Import Settings',
+      hintText: '/home/user/Downloads/tubular-settings.tubular',
+      initialValue: _defaultImportPath(),
+      confirmText: 'Import',
+    );
+    if (sourcePath == null || sourcePath.trim().isEmpty) return;
+
+    try {
+      final file = File(sourcePath.trim());
+      if (!await file.exists()) {
+        throw Exception('File not found: ${file.path}');
+      }
+
+      final raw = await file.readAsString();
+      final decoded = jsonDecode(raw);
+      if (decoded is! Map<String, dynamic>) {
+        throw Exception('Invalid config file structure');
+      }
+
+      final format = decoded['format']?.toString();
+      if (format != _tubularConfigFormat) {
+        throw Exception('Unsupported format: $format');
+      }
+
+      final settingsNode = decoded['settings'];
+      if (settingsNode is! Map) {
+        throw Exception('Missing settings block in config');
+      }
+
+      final imported = <String, String>{};
+      settingsNode.forEach((key, value) {
+        if (key != null && value != null) {
+          imported[key.toString()] = value.toString();
+        }
+      });
+
+      for (final entry in imported.entries) {
+        await apiService.setSetting(entry.key, entry.value);
+      }
+      _applyImportedSettings(imported);
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Settings imported (${imported.length} entries)')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to import settings: $e'),
+          backgroundColor: Colors.red[700],
+        ),
+      );
+    }
+  }
+
+  void _applyImportedSettings(Map<String, String> settings) {
+    if (settings.containsKey('theme')) {
+      final t = settings['theme'];
+      ref.read(themeModeProvider.notifier).state =
+          t == 'light' ? ThemeMode.light : (t == 'system' ? ThemeMode.system : ThemeMode.dark);
+    }
+    if (settings.containsKey('amoled_dark')) {
+      ref.read(amoledDarkProvider.notifier).state = settings['amoled_dark'] == 'true';
+    }
+    if (settings.containsKey('preferred_quality')) {
+      ref.read(preferredQualityProvider.notifier).state = settings['preferred_quality']!;
+    }
+    if (settings.containsKey('preferred_format')) {
+      ref.read(preferredFormatProvider.notifier).state = settings['preferred_format']!;
+    }
+    if (settings.containsKey('audio_only_mode')) {
+      ref.read(audioOnlyModeProvider.notifier).state = settings['audio_only_mode'] == 'true';
+    }
+    if (settings.containsKey('auto_play')) {
+      ref.read(autoPlayProvider.notifier).state = settings['auto_play'] == 'true';
+    }
+    if (settings.containsKey('subtitle_font_size')) {
+      final v = double.tryParse(settings['subtitle_font_size'] ?? '14.0') ?? 14.0;
+      ref.read(subtitleFontSizeProvider.notifier).state = v;
+    }
+    if (settings.containsKey('download_folder')) {
+      ref.read(downloadFolderProvider.notifier).state = settings['download_folder']!;
+    }
+    if (settings.containsKey('enable_sponsorblock')) {
+      ref.read(enableSponsorBlockProvider.notifier).state = settings['enable_sponsorblock'] == 'true';
+    }
+    if (settings.containsKey('enable_dislike_counts')) {
+      ref.read(enableDislikeCountsProvider.notifier).state = settings['enable_dislike_counts'] == 'true';
+    }
+    if (settings.containsKey('enable_subtitles')) {
+      ref.read(enableSubtitlesProvider.notifier).state = settings['enable_subtitles'] == 'true';
+    }
+    if (settings.containsKey('enable_notifications')) {
+      ref.read(enableNotificationsProvider.notifier).state = settings['enable_notifications'] == 'true';
+    }
+    if (settings.containsKey('playback_speed')) {
+      final v = double.tryParse(settings['playback_speed'] ?? '1.0') ?? 1.0;
+      ref.read(playbackSpeedProvider.notifier).state = v;
+    }
+  }
+
+  Future<String?> _promptForPath({
+    required String title,
+    required String hintText,
+    required String initialValue,
+    required String confirmText,
+  }) async {
+    final controller = TextEditingController(text: initialValue);
+    final value = await showDialog<String>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text(title),
+          content: TextField(
+            controller: controller,
+            decoration: InputDecoration(
+              hintText: hintText,
+              border: const OutlineInputBorder(),
+            ),
+            autofocus: true,
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.of(context).pop(controller.text.trim()),
+              child: Text(confirmText),
+            ),
+          ],
+        );
+      },
+    );
+    controller.dispose();
+    return value;
+  }
+
+  String _defaultExportPath() {
+    final home = Platform.environment['HOME'];
+    final base = home == null || home.isEmpty ? '.' : '$home/Downloads';
+    final now = DateTime.now();
+    final y = now.year.toString().padLeft(4, '0');
+    final m = now.month.toString().padLeft(2, '0');
+    final d = now.day.toString().padLeft(2, '0');
+    return '$base/tubular-settings-$y$m$d.tubular';
+  }
+
+  String _defaultImportPath() {
+    final home = Platform.environment['HOME'];
+    final base = home == null || home.isEmpty ? '.' : '$home/Downloads';
+    return '$base/tubular-settings.tubular';
+  }
+
   @override
   Widget build(BuildContext context) {
     final themeMode = ref.watch(themeModeProvider);
+    final amoledDark = ref.watch(amoledDarkProvider);
     final preferredQuality = ref.watch(preferredQualityProvider);
     final preferredFormat = ref.watch(preferredFormatProvider);
     final audioOnly = ref.watch(audioOnlyModeProvider);
@@ -72,6 +283,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     String themeValue = value == ThemeMode.dark ? 'dark' : (value == ThemeMode.light ? 'light' : 'system');
                     _saveSetting('theme', themeValue);
                   }
+                },
+              ),
+              const Divider(height: 1),
+              _buildSwitchTile(
+                'AMOLED Dark',
+                'Use pure black surfaces in dark theme',
+                amoledDark,
+                (value) {
+                  ref.read(amoledDarkProvider.notifier).state = value;
+                  _saveSetting('amoled_dark', value.toString());
                 },
               ),
               const Divider(height: 1),
@@ -218,6 +439,27 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                    _saveSetting('enable_dislike_counts', value.toString());
                  },
                ),
+            ],
+          ),
+          const SizedBox(height: 12),
+
+          // =========== SETTINGS CONFIG ===========
+          _buildSectionHeader(context, 'Settings Config', Icons.import_export),
+          _buildSectionCard(
+            children: [
+              ListTile(
+                title: const Text('Export Settings'),
+                subtitle: const Text('Export to .tubular config file'),
+                trailing: const Icon(Icons.upload_file),
+                onTap: _exportSettingsConfig,
+              ),
+              const Divider(height: 1),
+              ListTile(
+                title: const Text('Import Settings'),
+                subtitle: const Text('Import from .tubular config file'),
+                trailing: const Icon(Icons.download_for_offline),
+                onTap: _importSettingsConfig,
+              ),
             ],
           ),
           const SizedBox(height: 12),

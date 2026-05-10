@@ -46,6 +46,9 @@ class _TubularAppState extends ConsumerState<TubularApp> {
             t == 'light' ? ThemeMode.light : (t == 'system' ? ThemeMode.system : ThemeMode.dark);
         print('DEBUG: Set theme to $t');
       }
+      if (settings.containsKey('amoled_dark')) {
+        ref.read(amoledDarkProvider.notifier).state = settings['amoled_dark'] == 'true';
+      }
 
       if (settings.containsKey('preferred_quality')) {
         ref.read(preferredQualityProvider.notifier).state = settings['preferred_quality']!;
@@ -100,6 +103,12 @@ class _TubularAppState extends ConsumerState<TubularApp> {
 
   @override
   Widget build(BuildContext context) {
+    final amoledDark = ref.watch(amoledDarkProvider);
+
+    final darkScaffold = amoledDark ? Colors.black : Colors.grey[900];
+    final darkSurface = amoledDark ? const Color(0xFF000000) : const Color(0xFF1E1E1E);
+    final darkCard = amoledDark ? const Color(0xFF0A0A0A) : const Color(0xFF222222);
+
     return MaterialApp(
       title: 'Tubular PC',
       debugShowCheckedModeBanner: false,
@@ -117,9 +126,15 @@ class _TubularAppState extends ConsumerState<TubularApp> {
         primarySwatch: Colors.red,
         useMaterial3: true,
         brightness: Brightness.dark,
-        scaffoldBackgroundColor: Colors.grey[900],
+        scaffoldBackgroundColor: darkScaffold,
+        colorScheme: ColorScheme.dark(
+          primary: Colors.red[700]!,
+          secondary: Colors.red[400]!,
+          surface: darkSurface,
+        ),
         cardTheme: CardThemeData(
           elevation: 2,
+          color: darkCard,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         ),
       ),
@@ -153,7 +168,7 @@ class MainNavigation extends ConsumerWidget {
               ref.read(navigationIndexProvider.notifier).state = index;
             },
             labelType: NavigationRailLabelType.all,
-            backgroundColor: Colors.grey[900],
+            backgroundColor: Theme.of(context).colorScheme.surface,
             selectedIconTheme: IconThemeData(color: Colors.red[700]),
             selectedLabelTextStyle: TextStyle(color: Colors.red[700]),
             destinations: const [

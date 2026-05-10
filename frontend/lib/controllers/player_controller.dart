@@ -9,7 +9,7 @@ import '../services/player_service.dart';
 
 enum PlaybackStatus { idle, loading, playing, paused, stopped, error }
 
-enum PlayerSurface { hidden, fullscreen, mini }
+enum PlayerSurface { hidden, fullscreen, mini, popup }
 
 class TubularPlayerState {
   const TubularPlayerState({
@@ -218,6 +218,14 @@ class PlayerController extends StateNotifier<TubularPlayerState> {
     }
 
     state = state.copyWith(surface: PlayerSurface.mini);
+  }
+
+  void showPopupPlayer() {
+    if (!state.hasVideo) {
+      return;
+    }
+
+    state = state.copyWith(surface: PlayerSurface.popup);
   }
 
   Future<void> toggleBackgroundAudio() async {

@@ -7,6 +7,7 @@ final apiServiceProvider = Provider((ref) => ApiService());
 
 // Theme mode provider
 final themeModeProvider = StateProvider<ThemeMode>((ref) => ThemeMode.dark);
+final amoledDarkProvider = StateProvider<bool>((ref) => true);
 
 // Quality preference provider
 final preferredQualityProvider = StateProvider<String>((ref) => '720p');

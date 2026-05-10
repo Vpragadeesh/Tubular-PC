@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -70,13 +72,17 @@ class VideoDetailsScreen extends ConsumerWidget {
                                 icon: Icons.headset,
                                 label: 'Background',
                                 onTap: () async {
-                                  await ref
-                                      .read(playerControllerProvider.notifier)
-                                      .toggleAudioOnlyStream();
+                                  final controller = ref.read(playerControllerProvider.notifier);
+                                  await controller.playVideo(
+                                    video,
+                                    quality: 'audio',
+                                    surface: PlayerSurface.mini,
+                                  );
+                                  await controller.toggleBackgroundAudio();
                                   if (context.mounted) {
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       const SnackBar(
-                                        content: Text('Toggled background/audio-only'),
+                                        content: Text('Background mode enabled'),
                                       ),
                                     );
                                   }
@@ -85,19 +91,82 @@ class VideoDetailsScreen extends ConsumerWidget {
                               ActionItem(
                                 icon: Icons.crop_square,
                                 label: 'Popup',
-                                onTap: () {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(content: Text('Popup mode coming soon')),
+                                onTap: () async {
+                                  final controller = ref.read(playerControllerProvider.notifier);
+                                  await controller.playVideo(
+                                    video,
+                                    quality: ref.read(preferredQualityProvider),
+                                    surface: PlayerSurface.popup,
                                   );
+                                  if (context.mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(content: Text('Popup mode enabled')),
+                                    );
+                                  }
                                 },
                               ),
                               ActionItem(
                                 icon: Icons.download,
                                 label: 'Download',
-                                onTap: () {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(content: Text('Queued download')),
-                                  );
+                                onTap: () async {
+                                  final api = ref.read(apiServiceProvider);
+                                  final quality = ref.read(preferredQualityProvider);
+                                  final folder = ref.read(downloadFolderProvider);
+                                  final outputPath = _buildOutputPath(folder, safeDetails);
+                                  int? id;
+
+                                  try {
+                                    await File(outputPath).parent.create(recursive: true);
+
+                                    id = await api.createDownload(
+                                      video.id,
+                                      safeDetails.title,
+                                      outputPath,
+                                      quality,
+                                    );
+
+                                    if (id != null) {
+                                      await api.updateDownloadProgress(
+                                        id,
+                                        'downloading',
+                                        0.0,
+                                        0.0,
+                                        0,
+                                      );
+                                    }
+
+                                    await api.downloadVideo(
+                                      videoId: video.id,
+                                      outputPath: outputPath,
+                                      quality: quality,
+                                      audioOnly: quality == 'audio',
+                                    );
+
+                                    if (id != null) {
+                                      final fileSize = await File(outputPath)
+                                          .length()
+                                          .catchError((_) => 0);
+                                      await api.completeDownload(id, fileSize);
+                                    }
+
+                                    if (context.mounted) {
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        SnackBar(content: Text('Download complete: $outputPath')),
+                                      );
+                                    }
+                                  } catch (e) {
+                                    if (id != null) {
+                                      await api.failDownload(id, e.toString());
+                                    }
+                                    if (context.mounted) {
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        SnackBar(
+                                          content: Text('Download failed: $e'),
+                                          backgroundColor: Colors.red[700],
+                                        ),
+                                      );
+                                    }
+                                  }
                                 },
                               ),
                             ],
@@ -153,5 +222,20 @@ class VideoDetailsScreen extends ConsumerWidget {
       dislikeCount: details.dislikeCount,
       comments: details.comments,
     );
+  }
+
+  String _buildOutputPath(String folder, VideoDetails details) {
+    final home = Platform.environment['HOME'] ?? '.';
+    final basePath = folder.startsWith('~/')
+        ? '$home/${folder.substring(2)}'
+        : (folder.trim().isEmpty ? '$home/Downloads/Tubular' : folder);
+
+    final safeTitle = details.title
+        .replaceAll(RegExp(r'[\\/:*?"<>|]'), '_')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+
+    final ext = '.mp4';
+    return '$basePath/$safeTitle$ext';
   }
 }

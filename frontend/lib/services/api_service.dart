@@ -477,22 +477,34 @@ class ApiService {
 
       if (response.data['success'] == true) {
         final List<dynamic> data = response.data['data'];
-        // Convert backend Download objects to frontend Download objects
-        // For now, we'll map them as completed downloads
         return data.map((json) {
           final backendDownload = json as Map<String, dynamic>;
+          final status = (backendDownload['status'] ?? 'pending').toString();
+          final createdAtRaw =
+              backendDownload['created_at']?.toString() ??
+              backendDownload['completed_at']?.toString();
+          final completedAtRaw = backendDownload['completed_at']?.toString();
+
+          final createdAt =
+              DateTime.tryParse(createdAtRaw ?? '') ?? DateTime.now();
+          final completedAt = completedAtRaw != null
+              ? DateTime.tryParse(completedAtRaw)
+              : null;
+
           return Download(
             id: backendDownload['id'].toString(),
             videoId: backendDownload['video_id'] ?? '',
             title: backendDownload['title'] ?? '',
             filePath: backendDownload['file_path'] ?? '',
-            fileSize: 0, // Backend doesn't track this yet
-            format: 'video', // Default format
+            fileSize: (backendDownload['file_size'] as num?)?.toInt() ?? 0,
+            format: status == 'audio' ? 'audio' : 'video',
             quality: backendDownload['quality'] ?? 'unknown',
-            status: 'completed',
-            progress: 100.0,
-            createdAt: DateTime.parse(backendDownload['downloaded_at']),
-            completedAt: DateTime.parse(backendDownload['downloaded_at']),
+            status: status,
+            progress: (backendDownload['progress'] as num?)?.toDouble() ??
+                (status == 'completed' ? 100.0 : 0.0),
+            createdAt: createdAt,
+            completedAt: completedAt,
+            errorMessage: backendDownload['error_message']?.toString(),
           );
         }).toList();
       } else {
