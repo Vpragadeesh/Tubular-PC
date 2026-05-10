@@ -1,3 +1,5 @@
+import 'dart:io';
+import 'package:csv/csv.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/history_entry.dart';
@@ -85,6 +87,11 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
         foregroundColor: Colors.white,
         elevation: 0,
         actions: [
+          IconButton(
+            icon: const Icon(Icons.download),
+            tooltip: 'Export History as CSV',
+            onPressed: _exportHistoryAsCsv,
+          ),
           PopupMenuButton(
             icon: const Icon(Icons.more_vert),
             itemBuilder: (context) => [
@@ -268,6 +275,115 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  Future<void> _exportHistoryAsCsv() async {
+    final historyAsync = ref.watch(historyProvider);
+    
+    historyAsync.when(
+      data: (history) async {
+        if (history.isEmpty) {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('No history to export')),
+          );
+          return;
+        }
+
+        final apiService = ref.read(apiServiceProvider);
+        try {
+          // Prepare CSV data
+          List<List<dynamic>> rows = [
+            ['Video ID', 'Title', 'Channel', 'Thumbnail URL', 'Watched At', 'Progress']
+          ];
+          
+          for (final entry in history) {
+            rows.add([
+              entry.videoId,
+              entry.title,
+              entry.channel,
+              entry.thumbnail,
+              entry.watchedAt,
+              entry.progress?.toString() ?? '0.0',
+            ]);
+          }
+
+          String csv = const ListToCsvConverter().convert(rows);
+
+          // Prompt for save location
+          final home = Platform.environment['HOME'];
+          final base = home == null || home.isEmpty ? '.' : '$home/Downloads';
+          final now = DateTime.now();
+          final y = now.year.toString().padLeft(4, '0');
+          final m = now.month.toString().padLeft(2, '0');
+          final d = now.day.toString().padLeft(2, '0');
+          final suggestedPath = '$base/tubular-history-$y$m$d.csv';
+
+          final controller = TextEditingController(text: suggestedPath);
+          final value = await showDialog<String>(
+            context: context,
+            builder: (context) {
+              return AlertDialog(
+                title: const Text('Export History as CSV'),
+                content: TextField(
+                  controller: controller,
+                  decoration: InputDecoration(
+                    hintText: 'Enter file path',
+                    border: const OutlineInputBorder(),
+                  ),
+                  autofocus: true,
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: const Text('Cancel'),
+                  ),
+                  ElevatedButton(
+                    onPressed: () => Navigator.of(context).pop(controller.text.trim()),
+                    child: const Text('Export'),
+                  ),
+                ],
+              );
+            },
+          );
+          controller.dispose();
+
+          if (value == null || value.trim().isEmpty) return;
+
+          var finalPath = value.trim();
+          if (!finalPath.endsWith('.csv')) {
+            finalPath = '$finalPath.csv';
+          }
+
+          final outputFile = File(finalPath);
+          await outputFile.parent.create(recursive: true);
+          await outputFile.writeAsString(csv);
+
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('History exported: $finalPath')),
+          );
+        } catch (e) {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Failed to export history: $e'),
+              backgroundColor: Colors.red[700],
+            ),
+          );
+        }
+      },
+      loading: () => {},
+      error: (error, stack) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error loading history: $error'),
+            backgroundColor: Colors.red[700],
+          ),
+        );
+      },
     );
   }
 
