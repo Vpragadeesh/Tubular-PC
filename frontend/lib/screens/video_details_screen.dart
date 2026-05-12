@@ -109,68 +109,8 @@ class VideoDetailsScreen extends ConsumerWidget {
                                 icon: Icons.download,
                                 label: 'Download',
                                 onTap: () async {
-                                  final api = ref.read(apiServiceProvider);
-                                  final quality = ref.read(preferredQualityProvider);
-                                  final audioOnly = quality == 'audio';
-                                  final folder = ref.read(downloadFolderProvider);
-                                  final outputPath = _buildOutputPath(
-                                    folder,
-                                    safeDetails,
-                                    audioOnly: audioOnly,
-                                  );
-                                  int? id;
-
-                                  try {
-                                    await File(outputPath).parent.create(recursive: true);
-
-                                    id = await api.createDownload(
-                                      video.id,
-                                      safeDetails.title,
-                                      outputPath,
-                                      quality,
-                                    );
-
-                                    if (id != null) {
-                                      await api.updateDownloadProgress(
-                                        id,
-                                        'downloading',
-                                        0.0,
-                                        0.0,
-                                        0,
-                                      );
-                                    }
-
-                                    await api.downloadVideo(
-                                      videoId: video.id,
-                                      outputPath: outputPath,
-                                      quality: quality,
-                                      audioOnly: audioOnly,
-                                    );
-
-                                    if (id != null) {
-                                      final fileSize = await File(outputPath)
-                                          .length()
-                                          .catchError((_) => 0);
-                                      await api.completeDownload(id, fileSize);
-                                    }
-
-                                    if (context.mounted) {
-                                      ScaffoldMessenger.of(context).showSnackBar(
-                                        SnackBar(content: Text('Download complete: $outputPath')),
-                                      );
-                                    }
-                                  } catch (e) {
-                                    if (id != null) {
-                                      await api.failDownload(id, e.toString());
-                                    }
-                                    if (context.mounted) {
-                                      ScaffoldMessenger.of(context).showSnackBar(
-                                        SnackBar(
-                                          content: Text('Download failed: $e'),
-                                          backgroundColor: Colors.red[700],
-                                        ),
-                                      );
-                                    }
+                                  if (context.mounted) {
+                                    await _showQualitySelectionDialog(context, ref, video, safeDetails);
                                   }
                                 },
                               ),
@@ -247,4 +187,245 @@ class VideoDetailsScreen extends ConsumerWidget {
     final ext = audioOnly ? '.m4a' : '.mp4';
     return '$basePath/$safeTitle$ext';
   }
+
+  Future<void> _showQualitySelectionDialog(
+    Video video,
+    VideoDetails details,
+  ) async {
+    final selectedQuality = await showDialog<String>(
+      context: context,
+      builder: (context) => _QualitySelectionDialog(
+        currentQuality: ref.read(preferredQualityProvider),
+      ),
+    );
+
+    if (selectedQuality != null && context.mounted) {
+      await _performDownload(
+        context,
+        ref,
+        video,
+        details,
+        selectedQuality,
+      );
+    }
+  }
+
+  Future<void> _performDownload(
+    BuildContext context,
+    WidgetRef ref,
+    Video video,
+    VideoDetails details,
+    String quality,
+  ) async {
+    final api = ref.read(apiServiceProvider);
+    final audioOnly = quality == 'audio';
+    final folder = ref.read(downloadFolderProvider);
+    final outputPath = _buildOutputPath(
+      folder,
+      details,
+      audioOnly: audioOnly,
+    );
+    int? id;
+
+    try {
+      await File(outputPath).parent.create(recursive: true);
+
+      id = await api.createDownload(
+        video.id,
+        details.title,
+        outputPath,
+        quality,
+      );
+
+      if (id != null) {
+        await api.updateDownloadProgress(
+          id,
+          'downloading',
+          0.0,
+          0.0,
+          0,
+        );
+      }
+
+      await api.downloadVideo(
+        videoId: video.id,
+        outputPath: outputPath,
+        quality: quality,
+        audioOnly: audioOnly,
+      );
+
+      if (id != null) {
+        final fileSize = await File(outputPath)
+            .length()
+            .catchError((_) => 0);
+        await api.completeDownload(id, fileSize);
+      }
+
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Download complete: $outputPath')),
+        );
+      }
+    } catch (e) {
+      if (id != null) {
+        await api.failDownload(id, e.toString());
+      }
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Download failed: $e'),
+            backgroundColor: Colors.red[700],
+          ),
+        );
+      }
+    }
+  }
+
+}
+
+class _QualitySelectionDialog extends StatefulWidget {
+  final String currentQuality;
+
+  const _QualitySelectionDialog({required this.currentQuality});
+
+  @override
+  State<_QualitySelectionDialog> createState() => _QualitySelectionDialogState();
+}
+
+class _QualitySelectionDialogState extends State<_QualitySelectionDialog> {
+  late String _selectedQuality;
+
+  static const List<QualityOption> qualityOptions = [
+    QualityOption('best', 'Best (Auto)', Icons.auto_awesome, true),
+    QualityOption('1080p', '1080p (Full HD)', Icons.high_quality, false),
+    QualityOption('720p', '720p (HD)', Icons.high_quality, false),
+    QualityOption('480p', '480p (SD)', Icons.high_quality, false),
+    QualityOption('360p', '360p (Low)', Icons.high_quality, false),
+    QualityOption('audio', 'Audio Only', Icons.headphones, false),
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedQuality = widget.currentQuality;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Row(
+        children: [
+          Icon(Icons.file_download, color: Colors.red),
+          SizedBox(width: 8),
+          Text('Select Download Quality'),
+        ],
+      ),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ...qualityOptions.map((option) {
+              final isSelected = _selectedQuality == option.value;
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: () {
+                      setState(() => _selectedQuality = option.value);
+                    },
+                    borderRadius: BorderRadius.circular(8),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 10,
+                      ),
+                      decoration: BoxDecoration(
+                        border: Border.all(
+                          color: isSelected
+                              ? Colors.red[700]!
+                              : Colors.grey[600]!,
+                          width: isSelected ? 2 : 1,
+                        ),
+                        borderRadius: BorderRadius.circular(8),
+                        color: isSelected
+                            ? Colors.red[700]!.withValues(alpha: 0.1)
+                            : Colors.transparent,
+                      ),
+                      child: Row(
+                        children: [
+                          if (isSelected)
+                            Padding(
+                              padding: const EdgeInsets.only(right: 8),
+                              child: Icon(
+                                Icons.check_circle,
+                                color: Colors.red[700],
+                                size: 22,
+                              ),
+                            )
+                          else
+                            const SizedBox(width: 22 + 8),
+                          Icon(option.icon, size: 20),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  option.label,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                                if (option.isRecommended)
+                                  const Padding(
+                                    padding: EdgeInsets.only(top: 2),
+                                    child: Text(
+                                      'Recommended',
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        color: Colors.green,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            }).toList(),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        FilledButton.tonal(
+          onPressed: () => Navigator.pop(context, _selectedQuality),
+          child: const Text('Download'),
+        ),
+      ],
+    );
+  }
+}
+
+class QualityOption {
+  final String value;
+  final String label;
+  final IconData icon;
+  final bool isRecommended;
+
+  const QualityOption(
+    this.value,
+    this.label,
+    this.icon,
+    this.isRecommended,
+  );
 }
