@@ -16,7 +16,7 @@ import '../widgets/video_details/thumbnail_section.dart';
 class VideoDetailsScreen extends ConsumerWidget {
   final Video video;
 
-  const VideoDetailsScreen({Key? key, required this.video}) : super(key: key);
+  const VideoDetailsScreen({super.key, required this.video});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -111,8 +111,13 @@ class VideoDetailsScreen extends ConsumerWidget {
                                 onTap: () async {
                                   final api = ref.read(apiServiceProvider);
                                   final quality = ref.read(preferredQualityProvider);
+                                  final audioOnly = quality == 'audio';
                                   final folder = ref.read(downloadFolderProvider);
-                                  final outputPath = _buildOutputPath(folder, safeDetails);
+                                  final outputPath = _buildOutputPath(
+                                    folder,
+                                    safeDetails,
+                                    audioOnly: audioOnly,
+                                  );
                                   int? id;
 
                                   try {
@@ -139,7 +144,7 @@ class VideoDetailsScreen extends ConsumerWidget {
                                       videoId: video.id,
                                       outputPath: outputPath,
                                       quality: quality,
-                                      audioOnly: quality == 'audio',
+                                      audioOnly: audioOnly,
                                     );
 
                                     if (id != null) {
@@ -224,7 +229,11 @@ class VideoDetailsScreen extends ConsumerWidget {
     );
   }
 
-  String _buildOutputPath(String folder, VideoDetails details) {
+  String _buildOutputPath(
+    String folder,
+    VideoDetails details, {
+    required bool audioOnly,
+  }) {
     final home = Platform.environment['HOME'] ?? '.';
     final basePath = folder.startsWith('~/')
         ? '$home/${folder.substring(2)}'
@@ -235,7 +244,7 @@ class VideoDetailsScreen extends ConsumerWidget {
         .replaceAll(RegExp(r'\s+'), ' ')
         .trim();
 
-    final ext = '.mp4';
+    final ext = audioOnly ? '.m4a' : '.mp4';
     return '$basePath/$safeTitle$ext';
   }
 }

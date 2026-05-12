@@ -462,7 +462,9 @@ async fn get_stream_url_ytdlp_command(video_id: &str, quality: &str) -> Result<S
         });
     }
 
-    Err(last_error.unwrap_or_else(|| anyhow::anyhow!("all yt-dlp attempts failed")))
+    Err(last_error.unwrap_or_else(|| {
+        anyhow::anyhow!("all yt-dlp stream URL attempts failed (no error context available)")
+    }))
 }
 
 /// Get stream URL using rusty_ytdl (fallback)
@@ -556,35 +558,171 @@ pub async fn download_video(
     quality: &str,
     audio_only: bool,
 ) -> Result<String> {
-    use rusty_ytdl::{Video, VideoOptions};
-    
     tracing::info!("⬇️  Downloading video: {} to {}", video_id, output_path);
-    
+
+    match download_video_with_ytdlp_command(video_id, output_path, quality, audio_only).await {
+        Ok(path) => Ok(path),
+        Err(ytdlp_error) => {
+            tracing::warn!("⚠️  yt-dlp download failed, falling back to direct fetch: {}", ytdlp_error);
+
+            match download_video_direct(video_id, output_path, quality, audio_only).await {
+                Ok(path) => Ok(path),
+                Err(direct_error) => Err(anyhow::anyhow!(
+                    "yt-dlp download failed: {}; direct download failed: {}",
+                    ytdlp_error,
+                    direct_error
+                )),
+            }
+        }
+    }
+}
+
+async fn download_video_with_ytdlp_command(
+    video_id: &str,
+    output_path: &str,
+    quality: &str,
+    audio_only: bool,
+) -> Result<String> {
+    use tokio::process::Command;
+
     let url = format!("https://www.youtube.com/watch?v={}", video_id);
-    
+    let cookies_path = ytdlp_cookies_path();
+    let user_agent = ytdlp_user_agent();
+
+    if let Some(parent) = Path::new(output_path).parent() {
+        if !parent.as_os_str().is_empty() {
+            tokio::fs::create_dir_all(parent)
+                .await
+                .map_err(|e| anyhow::anyhow!("Failed to create output directory: {}", e))?;
+        }
+    }
+
+    let mut attempts: Vec<(&str, Vec<&str>)> = vec![
+        ("default", Vec::new()),
+        (
+            "android client",
+            vec!["--extractor-args", "youtube:player_client=android"],
+        ),
+    ];
+
+    if cookies_path.is_none() {
+        attempts.push(("firefox cookies", vec!["--cookies-from-browser", "firefox"]));
+        attempts.push(("chrome cookies", vec!["--cookies-from-browser", "chrome"]));
+    }
+
+    let mut last_error = None;
+
+    for (attempt_name, extra_args) in attempts {
+        let mut cmd = Command::new("yt-dlp");
+        cmd.arg("--no-warnings")
+            .arg("--no-playlist")
+            .arg("--newline")
+            .arg("-o")
+            .arg(output_path);
+
+        if let Some(ref ua) = user_agent {
+            cmd.arg("--user-agent").arg(ua);
+        }
+
+        if let Some(ref cookies) = cookies_path {
+            cmd.arg("--cookies").arg(cookies);
+        }
+
+        if audio_only {
+            cmd.arg("-x").arg("--audio-format").arg("m4a");
+        } else {
+            cmd.arg("--merge-output-format")
+                .arg("mp4")
+                .arg("-f")
+                .arg(ytdlp_format_selector(quality));
+        }
+
+        for arg in extra_args {
+            cmd.arg(arg);
+        }
+
+        cmd.arg(&url);
+
+        let output = match cmd.output().await {
+            Ok(output) => output,
+            Err(e) => {
+                let err = anyhow::anyhow!("{} attempt failed to execute yt-dlp: {}", attempt_name, e);
+                tracing::warn!("⚠️  {}", err);
+                last_error = Some(err);
+                continue;
+            }
+        };
+
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+            let mut details = if stderr.is_empty() {
+                "no stderr output".to_string()
+            } else {
+                stderr
+            };
+
+            if let Some(hint) = ytdlp_auth_hint(&details, cookies_path.as_deref()) {
+                details = format!("{} | hint: {}", details, hint);
+            }
+
+            let err = anyhow::anyhow!("{} attempt failed (status {}): {}", attempt_name, output.status, details);
+            tracing::warn!("⚠️  {}", err);
+            last_error = Some(err);
+            continue;
+        }
+
+        tracing::info!("✅ yt-dlp download complete: {}", output_path);
+        return Ok(output_path.to_string());
+    }
+
+    Err(last_error.unwrap_or_else(|| {
+        anyhow::anyhow!("all yt-dlp download attempts failed (no error context available)")
+    }))
+}
+
+async fn download_video_direct(
+    video_id: &str,
+    output_path: &str,
+    quality: &str,
+    audio_only: bool,
+) -> Result<String> {
+    use rusty_ytdl::{Video, VideoOptions};
+
+    let url = format!("https://www.youtube.com/watch?v={}", video_id);
+
     let video = Video::new_with_options(&url, VideoOptions::default())
         .map_err(|e| anyhow::anyhow!("Failed to create video: {:?}", e))?;
 
-    let info = video.get_info().await
+    let info = video
+        .get_info()
+        .await
         .map_err(|e| anyhow::anyhow!("Failed to get video info: {:?}", e))?;
 
-    // Find best format
     let format = if audio_only {
-        info.formats.iter()
+        info.formats
+            .iter()
             .filter(|f| f.has_audio && !f.has_video)
             .max_by_key(|f| f.audio_bitrate.unwrap_or(0))
     } else {
         match quality {
-            "1080p" => info.formats.iter()
+            "1080p" => info
+                .formats
+                .iter()
                 .filter(|f| f.has_video && f.height.unwrap_or(0) <= 1080)
                 .max_by_key(|f| f.height.unwrap_or(0)),
-            "720p" => info.formats.iter()
+            "720p" => info
+                .formats
+                .iter()
                 .filter(|f| f.has_video && f.height.unwrap_or(0) <= 720)
                 .max_by_key(|f| f.height.unwrap_or(0)),
-            "480p" => info.formats.iter()
+            "480p" => info
+                .formats
+                .iter()
                 .filter(|f| f.has_video && f.height.unwrap_or(0) <= 480)
                 .max_by_key(|f| f.height.unwrap_or(0)),
-            _ => info.formats.iter()
+            _ => info
+                .formats
+                .iter()
                 .filter(|f| f.has_video)
                 .max_by_key(|f| f.height.unwrap_or(0)),
         }
@@ -592,17 +730,22 @@ pub async fn download_video(
 
     let format = format.ok_or_else(|| anyhow::anyhow!("No suitable format found"))?;
 
-    // Download the video
     let client = reqwest::Client::new();
-    let response = client.get(&format.url).send().await
+    let response = client
+        .get(&format.url)
+        .send()
+        .await
         .map_err(|e| anyhow::anyhow!("Failed to download: {}", e))?;
 
-    let bytes = response.bytes().await
+    let bytes = response
+        .bytes()
+        .await
         .map_err(|e| anyhow::anyhow!("Failed to read response: {}", e))?;
 
-    tokio::fs::write(output_path, bytes).await
+    tokio::fs::write(output_path, bytes)
+        .await
         .map_err(|e| anyhow::anyhow!("Failed to write file: {}", e))?;
 
-    tracing::info!("✅ Download complete: {}", output_path);
+    tracing::info!("✅ Direct download complete: {}", output_path);
     Ok(output_path.to_string())
 }

@@ -45,6 +45,21 @@ impl<T: Serialize> ApiResponse<T> {
     }
 }
 
+// Fix LOW PRIORITY: Input validation helpers
+fn validate_video_id(id: &str) -> Result<(), String> {
+    if id.is_empty() || id.len() > 100 {
+        return Err("Invalid video ID length (must be 1-100 chars)".to_string());
+    }
+    if !id.chars().all(|c| c.is_alphanumeric() || c == '-' || c == '_') {
+        return Err("Invalid characters in video ID (only alphanumeric, -, _ allowed)".to_string());
+    }
+    Ok(())
+}
+
+fn validate_quality(quality: &str) -> bool {
+    matches!(quality, "best" | "worst" | "720p" | "480p" | "360p" | "1080p" | "audio")
+}
+
 pub async fn search(Query(params): Query<SearchQuery>) -> impl IntoResponse {
     match yt_dlp::search_videos(&params.q, params.limit).await {
         Ok(results) => (StatusCode::OK, Json(ApiResponse::success(results))),
@@ -71,6 +86,11 @@ pub async fn clear_search_cache() -> impl IntoResponse {
 }
 
 pub async fn get_video_info(Path(id): Path<String>) -> impl IntoResponse {
+    // Validate input
+    if let Err(e) = validate_video_id(&id) {
+        return (StatusCode::BAD_REQUEST, Json(ApiResponse::<yt_dlp::VideoInfo>::error(e)));
+    }
+    
     match yt_dlp::get_video_info(&id).await {
         Ok(info) => (StatusCode::OK, Json(ApiResponse::success(info))),
         Err(e) => (
@@ -107,6 +127,14 @@ pub struct VideoDetailsResponse {
 }
 
 pub async fn get_video_details(Path(id): Path<String>) -> impl IntoResponse {
+    // Validate input
+    if let Err(e) = validate_video_id(&id) {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(ApiResponse::<VideoDetailsResponse>::error(e)),
+        );
+    }
+    
     let info = match yt_dlp::get_video_info(&id).await {
         Ok(info) => info,
         Err(e) => {
@@ -120,10 +148,11 @@ pub async fn get_video_details(Path(id): Path<String>) -> impl IntoResponse {
     let dislike_data = returnyoutubedislike::get_dislikes(&id).await.ok();
     let comments = invidious::get_comments(&id).await.unwrap_or_default();
 
+    // Fix dislike count logic: use and_then for proper Option chaining
     let like_count = dislike_data
         .as_ref()
-        .map(|d| d.likes.max(0) as u64)
-        .or(info.like_count)
+        .and_then(|d| Some(d.likes.max(0) as u64))
+        .or_else(|| info.like_count)
         .unwrap_or(0);
 
     let dislike_count = dislike_data
@@ -145,13 +174,19 @@ pub async fn get_video_details(Path(id): Path<String>) -> impl IntoResponse {
         dislike_count,
         comments: comments
             .into_iter()
-            .map(|c| VideoDetailsCommentResponse {
-                user_id: c.author_id,
-                username: c.author,
-                avatar_url: c.author_avatar,
-                text: c.content,
-                timestamp: c.published_text,
-                like_count: c.like_count,
+            .map(|c| {
+                // Fix MEDIUM: Log incomplete comment data for debugging
+                if c.author.is_empty() || c.content.is_empty() {
+                    tracing::warn!("Incomplete comment data: author_id={}", c.author_id);
+                }
+                VideoDetailsCommentResponse {
+                    user_id: c.author_id,
+                    username: c.author,
+                    avatar_url: c.author_avatar,
+                    text: c.content,
+                    timestamp: c.published_text,
+                    like_count: c.like_count,
+                }
             })
             .collect(),
     };
@@ -173,6 +208,15 @@ pub async fn get_stream_url(
     Path(id): Path<String>,
     Query(params): Query<StreamQuery>,
 ) -> impl IntoResponse {
+    // Validate inputs
+    if let Err(e) = validate_video_id(&id) {
+        return (StatusCode::BAD_REQUEST, Json(ApiResponse::<yt_dlp::StreamUrl>::error(e)));
+    }
+    
+    if !validate_quality(&params.quality) {
+        tracing::warn!("Invalid quality requested: {}", params.quality);
+    }
+    
     match yt_dlp::get_stream_url(&id, &params.quality).await {
         Ok(stream) => (StatusCode::OK, Json(ApiResponse::success(stream))),
         Err(e) => (
@@ -262,27 +306,49 @@ pub async fn proxy_stream(
     // Convert response to stream
     let stream = response.bytes_stream();
     let stream = stream.map(|result| {
-        result.map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))
+        result.map_err(|e| {
+            // Fix MEDIUM: Add error context to stream errors
+            tracing::error!("Stream error during proxying: {}", e);
+            std::io::Error::new(std::io::ErrorKind::Other, e)
+        })
     });
 
     let body = Body::from_stream(stream);
 
     // Build response with proper headers
     let mut headers = HeaderMap::new();
-    headers.insert("content-type", HeaderValue::from_str(&content_type).unwrap());
+    
+    // Fix CRITICAL: Handle HeaderValue::from_str errors gracefully
+    if let Ok(ct) = HeaderValue::from_str(&content_type) {
+        headers.insert("content-type", ct);
+    } else {
+        tracing::warn!("Invalid content-type header: {}", content_type);
+    }
+    
     headers.insert("accept-ranges", HeaderValue::from_static("bytes"));
 
     if let Some(length) = content_length {
-        headers.insert("content-length", HeaderValue::from_str(&length.to_string()).unwrap());
+        if let Ok(cl) = HeaderValue::from_str(&length.to_string()) {
+            headers.insert("content-length", cl);
+        } else {
+            tracing::warn!("Invalid content-length header: {}", length);
+        }
     }
 
     if let Some(content_range) = content_range {
         if let Ok(value) = HeaderValue::from_str(&content_range) {
             headers.insert("content-range", value);
+        } else {
+            tracing::warn!("Invalid content-range header: {}", content_range);
         }
     }
 
-    let status = StatusCode::from_u16(upstream_status.as_u16()).unwrap_or(StatusCode::OK);
+    // Fix CRITICAL: Use BAD_GATEWAY instead of OK for invalid status codes
+    let status = StatusCode::from_u16(upstream_status.as_u16())
+        .unwrap_or_else(|_| {
+            tracing::error!("Invalid upstream status code: {}", upstream_status);
+            StatusCode::BAD_GATEWAY
+        });
     Ok((status, headers, body).into_response())
 }
 
@@ -478,6 +544,17 @@ pub struct UpdateDownloadProgressRequest {
 }
 
 pub async fn update_download_progress(Path(id): Path<i64>, Json(req): Json<UpdateDownloadProgressRequest>) -> impl IntoResponse {
+    // Fix HIGH: Validate progress and speed bounds
+    if !(0.0..=100.0).contains(&req.progress) {
+        return (StatusCode::BAD_REQUEST, Json(ApiResponse::<String>::error("Progress must be between 0 and 100".to_string())));
+    }
+    if req.speed < 0.0 {
+        return (StatusCode::BAD_REQUEST, Json(ApiResponse::<String>::error("Speed cannot be negative".to_string())));
+    }
+    if req.eta_seconds < 0 {
+        return (StatusCode::BAD_REQUEST, Json(ApiResponse::<String>::error("ETA seconds cannot be negative".to_string())));
+    }
+    
     match db::update_download_status(id, &req.status, req.progress, req.speed, req.eta_seconds).await {
         Ok(_) => (StatusCode::OK, Json(ApiResponse::success("Progress updated".to_string()))),
         Err(e) => (
@@ -647,15 +724,19 @@ pub async fn invidious_search(Query(params): Query<SearchQuery>) -> impl IntoRes
                     "channel": v.author,
                     "duration": v.length_seconds,
                     "view_count": v.view_count,
-                    "thumbnail": v.thumbnails.first().map(|t| &t.url).unwrap_or(&String::new()),
+                    "thumbnail": v.thumbnails.first().map(|t| &t.url).cloned().unwrap_or_default(),
                 })
             }).collect();
             (StatusCode::OK, Json(ApiResponse::success(results)))
         }
-        Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ApiResponse::<Vec<serde_json::Value>>::error(e.to_string())),
-        ),
+        Err(e) => {
+            // Fix MEDIUM: Add error logging for debugging
+            tracing::error!("Invidious search failed for '{}': {}", params.q, e);
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiResponse::<Vec<serde_json::Value>>::error(e.to_string())),
+            )
+        },
     }
 }
 

@@ -4,35 +4,21 @@ Source Tree:
 
 ```txt
 Tubular-PC
-├── CHANGELOG.md
-├── CONTRIBUTING.md
-├── Features.md
-├── IMPLEMENTATION_STATUS.txt
 ├── LICENSE
-├── QUICK_START.md
-├── README.md
-├── SETUP.md
-├── TODO.md
 ├── backend
 │   ├── Cargo.toml
 │   └── src
 │       ├── api.rs
 │       ├── db.rs
+│       ├── invidious.rs
 │       ├── lib.rs
 │       ├── main.rs
 │       ├── player.rs
 │       ├── returnyoutubedislike.rs
 │       ├── sponsorblock.rs
 │       └── yt_dlp.rs
-├── complete_project.md
-├── features.md
 ├── frontend
-│   ├── README.md
 │   ├── analysis_options.yaml
-│   ├── assets
-│   │   ├── fonts
-│   │   ├── icons
-│   │   └── images
 │   ├── lib
 │   │   ├── controllers
 │   │   │   └── player_controller.dart
@@ -49,681 +35,45 @@ Tubular-PC
 │   │   │   ├── subscription.dart
 │   │   │   ├── subscription.g.dart
 │   │   │   ├── video.dart
-│   │   │   └── video.g.dart
+│   │   │   ├── video.g.dart
+│   │   │   └── video_details.dart
+│   │   ├── providers.dart
 │   │   ├── screens
 │   │   │   ├── downloads_screen.dart
 │   │   │   ├── history_screen.dart
 │   │   │   ├── home_screen.dart
 │   │   │   ├── player_screen.dart
 │   │   │   ├── settings_screen.dart
-│   │   │   └── subscriptions_screen.dart
+│   │   │   ├── subscriptions_screen.dart
+│   │   │   └── video_details_screen.dart
 │   │   ├── services
 │   │   │   ├── api_service.dart
+│   │   │   ├── media_player_holder.dart
 │   │   │   └── player_service.dart
-│   │   ├── utils
 │   │   └── widgets
+│   │       ├── error_widget.dart
 │   │       ├── player_shell.dart
-│   │       └── video_card.dart
+│   │       ├── video_card.dart
+│   │       └── video_details
+│   │           ├── actions_section.dart
+│   │           ├── comments_section.dart
+│   │           ├── stats_section.dart
+│   │           └── thumbnail_section.dart
 │   ├── linux
-│   │   ├── CMakeLists.txt
 │   │   ├── flutter
-│   │   │   ├── CMakeLists.txt
 │   │   │   ├── generated_plugin_registrant.cc
 │   │   │   ├── generated_plugin_registrant.h
 │   │   │   └── generated_plugins.cmake
 │   │   └── runner
-│   │       ├── CMakeLists.txt
 │   │       ├── main.cc
 │   │       ├── my_application.cc
 │   │       └── my_application.h
 │   ├── pubspec.lock
 │   ├── pubspec.yaml
 │   └── test
+│       ├── history_screen_test.dart
 │       └── widget_test.dart
-├── plan.md
-├── prompt.md
-├── start.bat
-└── start.sh
-
-```
-
-`CHANGELOG.md`:
-
-```md
-# Changelog
-
-All notable changes to Tubular PC will be documented in this file.
-
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
-
-## [Unreleased]
-
-### Added
-- Initial project structure
-- Backend API server with Rust
-- Frontend UI with Flutter
-- Video search functionality
-- Video playback with mpv
-- Download functionality
-- Subscriptions management
-- Watch history tracking
-- SQLite database for local storage
-- REST API endpoints
-- Video card widget
-- Player screen
-- Home screen with search
-
-### In Progress
-- Download progress tracking
-- Subscriptions screen
-- History screen
-- Settings page
-
-### Planned
-- SponsorBlock integration
-- Return YouTube Dislike API
-- Background playback
-- Playlist support
-- Comments section
-- Channel pages
-- Trending videos
-- Multi-language support
-
-## [0.1.0] - 2024-XX-XX
-
-### Added
-- Initial MVP release
-- Basic video search and playback
-- Download functionality
-- Local database storage
-
----
-
-## Version History
-
-### Phase 1 - MVP (Current)
-- Core functionality
-- Basic UI
-- Video search and playback
-
-### Phase 2 - Features (Next)
-- Enhanced downloads
-- Subscriptions UI
-- History UI
-- Settings
-
-### Phase 3 - Integration
-- SponsorBlock
-- Dislike API
-- Background play
-
-### Phase 4 - Polish
-- UI refinements
-- Performance optimization
-- Cross-platform packaging
-
-```
-
-`CONTRIBUTING.md`:
-
-```md
-# Contributing to Tubular PC
-
-Thank you for your interest in contributing! 🎉
-
-## How to Contribute
-
-### Reporting Bugs
-
-1. Check if the bug has already been reported in Issues
-2. If not, create a new issue with:
-   - Clear title and description
-   - Steps to reproduce
-   - Expected vs actual behavior
-   - Your environment (OS, versions)
-   - Logs/screenshots if applicable
-
-### Suggesting Features
-
-1. Check if the feature has been suggested
-2. Create an issue with:
-   - Clear description of the feature
-   - Use cases
-   - Potential implementation approach
-
-### Code Contributions
-
-1. Fork the repository
-2. Create a feature branch: `git checkout -b feature/amazing-feature`
-3. Make your changes
-4. Test thoroughly
-5. Commit with clear messages: `git commit -m 'Add amazing feature'`
-6. Push to your fork: `git push origin feature/amazing-feature`
-7. Open a Pull Request
-
-## Development Guidelines
-
-### Backend (Rust)
-
-- Follow Rust naming conventions
-- Use `cargo fmt` before committing
-- Run `cargo clippy` to catch common issues
-- Add tests for new functionality
-- Document public APIs
-
-```bash
-cargo fmt
-cargo clippy
-cargo test
-```
-
-### Frontend (Flutter)
-
-- Follow Dart style guide
-- Use `flutter format` before committing
-- Run `flutter analyze` to check for issues
-- Keep widgets small and focused
-- Use Riverpod for state management
-
-```bash
-flutter format .
-flutter analyze
-flutter test
-```
-
-### Commit Messages
-
-Use clear, descriptive commit messages:
-
-- `feat: Add video quality selection`
-- `fix: Resolve stream URL extraction issue`
-- `docs: Update installation instructions`
-- `refactor: Simplify API service code`
-- `test: Add tests for video search`
-
-### Code Style
-
-#### Rust
-```rust
-// Good
-pub async fn search_videos(query: &str, limit: u32) -> Result<Vec<SearchResult>> {
-    // Implementation
-}
-
-// Use descriptive names
-// Add error handling
-// Document complex logic
-```
-
-#### Dart
-```dart
-// Good
-class VideoCard extends StatelessWidget {
-  final Video video;
-  final VoidCallback onTap;
-
-  const VideoCard({
-    Key? key,
-    required this.video,
-    required this.onTap,
-  }) : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    // Implementation
-  }
-}
-```
-
-## Testing
-
-### Backend Tests
-
-```bash
-cd backend
-cargo test
-```
-
-### Frontend Tests
-
-```bash
-cd frontend
-flutter test
-```
-
-### Integration Testing
-
-1. Start backend: `cd backend && cargo run`
-2. Test API endpoints manually or with tools like Postman
-3. Run frontend: `cd frontend && flutter run`
-4. Test user flows
-
-## Pull Request Process
-
-1. Update README.md if needed
-2. Update CHANGELOG.md with your changes
-3. Ensure all tests pass
-4. Request review from maintainers
-5. Address review feedback
-6. Squash commits if requested
-
-## Code Review
-
-We review PRs for:
-
-- Code quality and style
-- Test coverage
-- Documentation
-- Performance implications
-- Security considerations
-
-## Areas Needing Help
-
-- [ ] SponsorBlock integration
-- [ ] Return YouTube Dislike API
-- [ ] Playlist support
-- [ ] Better error handling
-- [ ] UI/UX improvements
-- [ ] Performance optimization
-- [ ] Documentation
-- [ ] Testing
-
-## Questions?
-
-Feel free to:
-- Open an issue for discussion
-- Join our community chat (if available)
-- Email maintainers
-
-## License
-
-By contributing, you agree that your contributions will be licensed under the MIT License.
-
-Thank you for contributing! 🚀
-
-```
-
-`Features.md`:
-
-```md
-Alright 😎🔥
-Here’s the **REAL, complete list of UNIQUE + standout features of Tubular** — not just generic stuff, but what actually makes it different from normal YouTube apps.
-
----
-
-# 🧠 🧨 Core Identity (what makes Tubular special)
-
-### 🔥 1. No Google / No API system
-
-* Doesn’t use YouTube API
-* Doesn’t use Google services
-* Parses website directly
-* Works even on devices **without Google Play Services** ([F-Droid][1])
-
-👉 This is HUGE (privacy + independence)
-
----
-
-### 🔒 2. Full Privacy Mode
-
-* No login required
-* No tracking
-* No account needed
-* Anonymous usage
-
-👉 You still get subscriptions locally 👀 ([Uptodown][2])
-
----
-
-# 🚀 🔥 Tubular-Specific Features (what makes it UNIQUE vs NewPipe)
-
----
-
-## 🧠 3. SponsorBlock Integration (🔥 killer feature)
-
-* Automatically skips:
-
-  * Sponsorships
-  * Intros / outros
-  * Non-music segments
-
-👉 Community-driven skip system
-
-✔️ This is NOT in base NewPipe
-✔️ This is Tubular’s biggest upgrade ([F-Droid][1])
-
----
-
-## 👍 4. Return YouTube Dislike
-
-* Shows real dislike count
-* Uses community API
-
-👉 YouTube removed dislikes → Tubular brings them back 😏 ([Uptodown][2])
-
----
-
-# 🎬 🎧 Media Features
-
----
-
-## 🎥 5. Ad-Free Streaming
-
-* No video ads
-* No banner ads
-* No interruptions
-
-👉 Clean experience vs official app ([Uptodown][2])
-
----
-
-## 🎧 6. Background Playback
-
-* Audio continues when:
-
-  * screen off
-  * using other apps
-
-👉 Like YouTube Premium (but free) ([Uptodown][2])
-
----
-
-## 🪟 7. Popup / Floating Player (PiP)
-
-* Video plays in small floating window
-* Can multitask
-
----
-
-## 🎵 8. Audio-Only Mode
-
-* Stream only audio
-* Saves data + battery
-
----
-
-# 📥 Download System (VERY powerful)
-
----
-
-## 📦 9. Download Video + Audio
-
-* Multiple qualities:
-
-  * 144p → 1080p
-* Formats:
-
-  * MP4
-  * OPUS
-  * M4A
-
-👉 Even shows file size before download ([Uptodown][2])
-
----
-
-## 🎶 10. Extract Audio Only
-
-* Convert video → music directly
-* Like built-in YouTube → MP3
-
----
-
-# 📺 Content Control (VERY UNDERRATED)
-
----
-
-## 🧠 11. No Algorithm Feed
-
-* No addictive recommendations
-* Focus on subscriptions
-
-👉 Less distraction, more control
-
----
-
-## 📡 12. Subscribe Without Account
-
-* Local subscription system
-* No Google login needed
-
----
-
-## 🧩 13. Channel Groups
-
-* Organize subscriptions into groups
-* Custom feeds
-
-👉 This is actually powerful UX ([MNR Store][3])
-
----
-
-## 📜 14. Local History
-
-* Watch history stored locally
-* Fully private
-
----
-
-# 🎛️ Advanced Controls
-
----
-
-## 🎚️ 15. Full Video Control
-
-* Choose resolution manually
-* Show/hide:
-
-  * comments
-  * related videos
-  * descriptions
-
----
-
-## 🔤 16. Subtitles + Captions
-
-* Enable/disable subtitles
-* Multi-language support
-
----
-
-## 🔍 17. Advanced Search
-
-* Search:
-
-  * videos
-  * channels
-  * playlists
-  * audio
-
----
-
-# 🌐 Multi-Platform Content (hidden feature)
-
----
-
-## 🎧 18. Supports More Than YouTube
-
-* SoundCloud
-* Bandcamp
-* PeerTube
-
-👉 One app = multiple platforms ([AlternativeTo][4])
-
----
-
-# ⚡ UX Features (why it feels smooth)
-
----
-
-## 🎯 19. Lightweight App
-
-* Very small size
-* Fast performance
-
----
-
-## 🧠 20. Offline Friendly
-
-* Download → watch without internet
-
----
-
-## 🔄 21. Import / Export Data
-
-* Backup:
-
-  * subscriptions
-  * playlists
-  * settings
-
-👉 Power-user feature ([AlternativeTo][4])
-
----
-
-# 🧠 🏆 Summary (REAL DIFFERENTIATOR)
-
-👉 Tubular is NOT just a YouTube client
-
-It is:
-
-> 🔥 “Privacy-first + ad-free + power-user YouTube experience”
-
----
-
-# 🧨 THE BIG 5 (must-copy for your project)
-
-If you're building **Tubular-PC**, these are NON-NEGOTIABLE:
-
-1. SponsorBlock
-2. Dislike API
-3. Background playback
-4. Download system
-5. No login + local subscriptions
-
----
-
-# 😏 Final insight (important for your project)
-
-Most people think:
-
-> Tubular = “YouTube without ads”
-
-But actually:
-
-> Tubular = **YouTube without Google**
-
----
-
-If you want next step, I can:
-
-* map these features → **exact implementation plan in your codebase**
-* or rank features by **difficulty for your project**
-
-Just say 😎
-```
-
-`IMPLEMENTATION_STATUS.txt`:
-
-```txt
-TUBULAR PC - FEATURE IMPLEMENTATION STATUS
-==========================================
-
-✅ = Implemented
-🚧 = In Progress  
-⏳ = Planned
-❌ = Not Started
-
-CORE IDENTITY
--------------
-✅ 1. No Google / No API system - Using yt-dlp for direct extraction
-✅ 2. Full Privacy Mode - No login, no tracking, anonymous usage
-
-TUBULAR-SPECIFIC FEATURES
---------------------------
-✅ 3. SponsorBlock Integration - Backend API ready (/sponsorblock/:id)
-✅ 4. Return YouTube Dislike - Backend API ready (/dislikes/:id)
-
-MEDIA FEATURES
---------------
-✅ 5. Ad-Free Streaming - No ads by design
-✅ 6. Background Playback - Backend player supports audio-only
-✅ 7. Popup / Floating Player (PiP) - Desktop native support
-✅ 8. Audio-Only Mode - Backend supports audio extraction
-
-DOWNLOAD SYSTEM
----------------
-✅ 9. Download Video + Audio - Multiple qualities supported
-✅ 10. Extract Audio Only - Backend supports audio-only downloads
-
-CONTENT CONTROL
----------------
-✅ 11. No Algorithm Feed - Search-based, no recommendations
-✅ 12. Subscribe Without Account - Local subscription system in DB
-🚧 13. Channel Groups - Database ready, UI pending
-✅ 14. Local History - Fully implemented with SQLite
-
-ADVANCED CONTROLS
------------------
-✅ 15. Full Video Control - Quality selection implemented
-🚧 16. Subtitles + Captions - yt-dlp supports, UI pending
-✅ 17. Advanced Search - Video + Channel search implemented
-
-MULTI-PLATFORM CONTENT
-----------------------
-⏳ 18. Supports More Than YouTube - yt-dlp supports, needs UI
-
-UX FEATURES
------------
-✅ 19. Lightweight App - Rust backend + Flutter frontend
-✅ 20. Offline Friendly - Download system ready
-⏳ 21. Import / Export Data - Database ready, needs export UI
-
-CURRENT CAPABILITIES
---------------------
-Backend (Rust):
-- ✅ Video search (videos + channels)
-- ✅ Stream URL extraction
-- ✅ Download system
-- ✅ SponsorBlock API integration
-- ✅ Return YouTube Dislike API
-- ✅ Local database (subscriptions, history, downloads)
-- ✅ Background audio playback
-- ✅ MPV player integration
-
-Frontend (Flutter):
-- ✅ Search interface
-- ✅ Video grid display
-- ✅ Mock data fallback
-- ✅ Responsive layout
-- 🚧 Player screen (basic)
-- ⏳ SponsorBlock UI
-- ⏳ Dislike display
-- ⏳ Download manager UI
-- ⏳ Subscriptions UI
-- ⏳ History UI
-- ⏳ Settings UI
-
-NEXT PRIORITIES
----------------
-1. Display SponsorBlock segments in player
-2. Show dislike counts on videos
-3. Download manager UI with progress
-4. Subscriptions management screen
-5. History screen
-6. Settings page
-7. Channel groups UI
-8. Import/Export functionality
-
-TECHNICAL NOTES
----------------
-- Backend runs on localhost:3030
-- Frontend uses Dio for HTTP with 120s timeout
-- yt-dlp optimized with --quiet, --no-warnings, --socket-timeout
-- Mock data fallback for offline/slow connections
-- SQLite for local storage
-- No Google services required
-- No tracking or analytics
+└── start.bat
 
 ```
 
@@ -766,886 +116,6 @@ Google, NewPipe, or Tubular in any way.
 
 ```
 
-`QUICK_START.md`:
-
-```md
-# Quick Start Guide 🚀
-
-Get Tubular PC running in 5 minutes!
-
-## Prerequisites Check
-
-Run these commands to verify you have everything:
-
-```bash
-yt-dlp --version    # Should show version number
-mpv --version       # Should show version number
-cargo --version     # Should show Rust version
-flutter --version   # Should show Flutter version
-```
-
-If any command fails, see [SETUP.md](SETUP.md) for installation instructions.
-
-## Quick Setup
-
-### 1. Install Dependencies (if needed)
-
-**Linux:**
-```bash
-sudo apt install yt-dlp mpv
-```
-
-**macOS:**
-```bash
-brew install yt-dlp mpv
-```
-
-**Windows:**
-```powershell
-winget install yt-dlp.yt-dlp mpv.mpv
-```
-
-### 2. Setup Project
-
-```bash
-# Backend
-cd backend
-cargo build
-cd ..
-
-# Frontend
-cd frontend
-flutter pub get
-flutter pub run build_runner build
-cd ..
-```
-
-### 3. Run the App
-
-**Option A: Use startup script (Linux/macOS)**
-```bash
-./start.sh
-```
-
-**Option B: Use startup script (Windows)**
-```cmd
-start.bat
-```
-
-**Option C: Manual start**
-
-Terminal 1 (Backend):
-```bash
-cd backend
-cargo run
-```
-
-Terminal 2 (Frontend):
-```bash
-cd frontend
-flutter run -d linux    # or windows, macos
-```
-
-## First Use
-
-1. **Search**: Type "lofi music" in the search bar and press Enter
-2. **Play**: Click on any video thumbnail
-3. **Download**: Click the download button and select quality
-4. **Enjoy**: Ad-free, privacy-focused video streaming!
-
-## Common Issues
-
-### "Backend connection failed"
-- Make sure backend is running on port 3030
-- Check: `curl http://localhost:3030`
-
-### "yt-dlp extraction failed"
-- Update yt-dlp: `pip install -U yt-dlp`
-- Some videos may be geo-restricted
-
-### "mpv not found"
-- Install mpv (see Prerequisites)
-- Make sure it's in your PATH
-
-## Next Steps
-
-- Read [README.md](README.md) for full documentation
-- Check [SETUP.md](SETUP.md) for detailed setup
-- See [CONTRIBUTING.md](CONTRIBUTING.md) to contribute
-
-## Keyboard Shortcuts (in development)
-
-- `Ctrl+F` - Focus search
-- `Space` - Play/Pause
-- `F` - Fullscreen
-- `M` - Mute
-
-## Tips
-
-1. **Better Search**: Use specific keywords like "official music video"
-2. **Quality**: Select quality before playing for best experience
-3. **Downloads**: Downloaded videos are saved to `~/Videos/`
-4. **Privacy**: No login required, no tracking, no ads!
-
-## Getting Help
-
-- Check logs in terminal
-- Read error messages carefully
-- Update yt-dlp regularly
-- Open an issue on GitHub
-
----
-
-**Enjoy Tubular PC!** 🎉
-
-```
-
-`README.md`:
-
-```md
-# Tubular PC 🎥
-
-A desktop YouTube client inspired by Tubular/NewPipe - ad-free, privacy-focused video streaming for Linux, Windows, and macOS.
-
-## Features ✨
-
-- 🔍 **Search Videos** - Search YouTube without ads
-- 🎬 **Stream Videos** - Watch videos using mpv player
-- 📥 **Download Videos** - Download videos in multiple qualities
-- 🎵 **Audio Only** - Extract audio from videos
-- 📚 **Subscriptions** - Manage channel subscriptions locally
-- 📜 **History** - Track your watch history
-- 🔒 **Privacy First** - No Google account required, no tracking
-- 🌙 **Dark Mode** - Easy on the eyes
-
-## Architecture
-
-```
-Tubular-PC/
-├── frontend/        Flutter Desktop UI
-├── backend/         Rust API server
-└── extractor/       yt-dlp wrapper
-```
-
-## Prerequisites
-
-### Required
-
-1. **yt-dlp** - Video extraction engine
-   ```bash
-   # Linux
-   sudo apt install yt-dlp
-   # or
-   pip install yt-dlp
-   
-   # macOS
-   brew install yt-dlp
-   
-   # Windows
-   winget install yt-dlp
-   ```
-
-2. **mpv** - Video player
-   ```bash
-   # Linux
-   sudo apt install mpv
-   
-   # macOS
-   brew install mpv
-   
-   # Windows
-   winget install mpv
-   ```
-
-3. **Rust** - Backend development
-   ```bash
-   curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-   ```
-
-4. **Flutter** - Frontend development
-   ```bash
-   # Follow instructions at: https://flutter.dev/docs/get-started/install
-   ```
-
-## Installation
-
-### 1. Clone the repository
-
-```bash
-git clone https://github.com/yourusername/tubular-pc.git
-cd tubular-pc
-```
-
-### 2. Setup Backend
-
-```bash
-cd backend
-cargo build --release
-```
-
-### 3. Setup Frontend
-
-```bash
-cd frontend
-flutter pub get
-flutter pub run build_runner build
-```
-
-## Running the Application
-
-### Start Backend Server
-
-```bash
-cd backend
-cargo run --release
-```
-
-The backend will start on `http://localhost:3030`
-
-### Start Frontend
-
-In a new terminal:
-
-```bash
-cd frontend
-flutter run -d linux    # or windows, macos
-```
-
-## Usage
-
-1. **Search**: Enter a search query in the search bar
-2. **Play**: Click on a video to open the player
-3. **Download**: Click the download button and select quality
-4. **Subscribe**: Subscribe to channels to track new uploads
-
-## Development Roadmap
-
-### Phase 1 (MVP) ✅
-- [x] Search + video list
-- [x] Play video (mpv)
-- [x] Basic UI
-- [x] Backend API
-
-### Phase 2 (In Progress)
-- [ ] Downloads with progress tracking
-- [ ] Subscriptions management
-- [ ] History tracking
-- [ ] Settings page
-
-### Phase 3 (Planned)
-- [ ] SponsorBlock integration
-- [ ] Return YouTube Dislike API
-- [ ] Background playback
-- [ ] Playlists
-
-### Phase 4 (Future)
-- [ ] UI polish (exact Tubular feel)
-- [ ] Animations
-- [ ] Performance tuning
-- [ ] Multi-platform packaging
-
-## Project Structure
-
-### Backend (Rust)
-
-```
-backend/src/
-├── main.rs          # Server entry point
-├── api.rs           # REST API endpoints
-├── yt_dlp.rs        # yt-dlp wrapper
-├── player.rs        # mpv player control
-└── db.rs            # SQLite database
-```
-
-### Frontend (Flutter)
-
-```
-frontend/lib/
-├── main.dart
-├── screens/
-│   ├── home_screen.dart
-│   ├── player_screen.dart
-│   ├── subscriptions_screen.dart
-│   └── downloads_screen.dart
-├── widgets/
-│   ├── video_card.dart
-│   └── player_controls.dart
-├── services/
-│   └── api_service.dart
-└── models/
-    └── video.dart
-```
-
-## API Endpoints
-
-- `GET /search?q=query&limit=20` - Search videos
-- `GET /video/:id` - Get video info
-- `GET /stream/:id?quality=best` - Get stream URL
-- `POST /download` - Download video
-- `GET /subscriptions` - Get subscriptions
-- `POST /subscriptions` - Add subscription
-- `GET /history` - Get watch history
-- `POST /history` - Add to history
-
-## Building for Production
-
-### Linux
-
-```bash
-cd frontend
-flutter build linux --release
-```
-
-Package as AppImage or Flatpak.
-
-### Windows
-
-```bash
-cd frontend
-flutter build windows --release
-```
-
-Create installer with Inno Setup or NSIS.
-
-### macOS
-
-```bash
-cd frontend
-flutter build macos --release
-```
-
-Create DMG installer.
-
-## Important Notes ⚠️
-
-### Legal Considerations
-
-- This project is for **personal use** and **educational purposes**
-- Downloading copyrighted content may violate YouTube's Terms of Service
-- Use responsibly and respect content creators
-
-### Maintenance
-
-- YouTube frequently changes their API, which may break yt-dlp
-- Keep yt-dlp updated: `pip install -U yt-dlp`
-- Sometimes cookies are required for extraction
-
-### Known Issues
-
-- Extraction may fail when YouTube updates
-- Some videos may be geo-restricted
-- Age-restricted content requires authentication
-
-## Contributing
-
-Contributions are welcome! Please:
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Submit a pull request
-
-## License
-
-MIT License - See LICENSE file for details
-
-## Acknowledgments
-
-- [NewPipe](https://newpipe.net/) - Original inspiration
-- [Tubular](https://github.com/polymorphicshade/Tubular) - Direct inspiration
-- [yt-dlp](https://github.com/yt-dlp/yt-dlp) - Video extraction
-- [mpv](https://mpv.io/) - Video playback
-
-## Support
-
-For issues and questions:
-- Open an issue on GitHub
-- Check existing issues for solutions
-
----
-
-**Note**: This is an independent project and is not affiliated with YouTube, Google, NewPipe, or Tubular.
-
-```
-
-`SETUP.md`:
-
-```md
-# Tubular PC - Detailed Setup Guide
-
-## Step-by-Step Installation
-
-### 1. Install System Dependencies
-
-#### Linux (Ubuntu/Debian)
-
-```bash
-# Update package list
-sudo apt update
-
-# Install yt-dlp
-sudo apt install yt-dlp
-# OR use pip
-pip install yt-dlp
-
-# Install mpv
-sudo apt install mpv
-
-# Install Rust
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-source $HOME/.cargo/env
-
-# Install Flutter dependencies
-sudo apt install clang cmake ninja-build pkg-config libgtk-3-dev
-```
-
-#### macOS
-
-```bash
-# Install Homebrew if not already installed
-/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-
-# Install dependencies
-brew install yt-dlp mpv
-
-# Install Rust
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-source $HOME/.cargo/env
-```
-
-#### Windows
-
-```powershell
-# Install using winget (Windows Package Manager)
-winget install yt-dlp.yt-dlp
-winget install mpv.mpv
-winget install Rustlang.Rustup
-
-# OR use Chocolatey
-choco install yt-dlp mpv rust
-```
-
-### 2. Install Flutter
-
-#### All Platforms
-
-1. Download Flutter SDK from: https://flutter.dev/docs/get-started/install
-2. Extract to a location (e.g., `~/development/flutter` or `C:\flutter`)
-3. Add Flutter to PATH:
-
-**Linux/macOS:**
-```bash
-export PATH="$PATH:`pwd`/flutter/bin"
-# Add to ~/.bashrc or ~/.zshrc for persistence
-```
-
-**Windows:**
-Add `C:\flutter\bin` to your PATH environment variable
-
-4. Verify installation:
-```bash
-flutter doctor
-```
-
-### 3. Clone and Setup Project
-
-```bash
-# Clone repository
-git clone https://github.com/yourusername/tubular-pc.git
-cd tubular-pc
-```
-
-### 4. Setup Backend
-
-```bash
-cd backend
-
-# Build the project (this will download dependencies)
-cargo build
-
-# Run in development mode
-cargo run
-```
-
-The backend should now be running on `http://localhost:3030`
-
-### 5. Setup Frontend
-
-Open a new terminal:
-
-```bash
-cd frontend
-
-# Get Flutter dependencies
-flutter pub get
-
-# Generate code for JSON serialization
-flutter pub run build_runner build
-
-# Enable desktop support (if not already enabled)
-flutter config --enable-linux-desktop    # Linux
-flutter config --enable-windows-desktop  # Windows
-flutter config --enable-macos-desktop    # macOS
-
-# Run the app
-flutter run -d linux    # or windows, macos
-```
-
-## Troubleshooting
-
-### Backend Issues
-
-#### "yt-dlp not found"
-
-Make sure yt-dlp is in your PATH:
-```bash
-which yt-dlp  # Linux/macOS
-where yt-dlp  # Windows
-```
-
-If not found, install it:
-```bash
-pip install yt-dlp
-# OR
-sudo apt install yt-dlp  # Linux
-brew install yt-dlp      # macOS
-```
-
-#### "mpv not found"
-
-Install mpv:
-```bash
-sudo apt install mpv     # Linux
-brew install mpv         # macOS
-winget install mpv.mpv   # Windows
-```
-
-#### Database errors
-
-Delete the database and restart:
-```bash
-rm tubular.db
-cargo run
-```
-
-### Frontend Issues
-
-#### "No devices found"
-
-Enable desktop support:
-```bash
-flutter config --enable-linux-desktop
-flutter config --enable-windows-desktop
-flutter config --enable-macos-desktop
-```
-
-#### Build runner errors
-
-Clean and rebuild:
-```bash
-flutter clean
-flutter pub get
-flutter pub run build_runner build --delete-conflicting-outputs
-```
-
-#### Connection refused to backend
-
-Make sure the backend is running on port 3030:
-```bash
-cd backend
-cargo run
-```
-
-Check if port 3030 is available:
-```bash
-lsof -i :3030  # Linux/macOS
-netstat -ano | findstr :3030  # Windows
-```
-
-### yt-dlp Issues
-
-#### "Unable to extract video data"
-
-Update yt-dlp:
-```bash
-pip install -U yt-dlp
-```
-
-#### "Sign in to confirm you're not a bot"
-
-YouTube may require cookies. Export cookies from your browser:
-
-1. Install browser extension: "Get cookies.txt"
-2. Export cookies to `cookies.txt`
-3. Use with yt-dlp:
-```bash
-yt-dlp --cookies cookies.txt <url>
-```
-
-Update backend to use cookies (in `yt_dlp.rs`):
-```rust
-Command::new("yt-dlp")
-    .arg("--cookies")
-    .arg("cookies.txt")
-    // ... rest of args
-```
-
-## Development Tips
-
-### Hot Reload (Frontend)
-
-Flutter supports hot reload during development:
-- Press `r` in the terminal to hot reload
-- Press `R` to hot restart
-- Press `q` to quit
-
-### Backend Development
-
-Use `cargo watch` for auto-recompilation:
-```bash
-cargo install cargo-watch
-cargo watch -x run
-```
-
-### Debugging
-
-#### Backend Logs
-
-The backend uses `tracing` for logging. Set log level:
-```bash
-RUST_LOG=debug cargo run
-```
-
-#### Frontend Logs
-
-Flutter prints logs to console. Use `logger` package:
-```dart
-final logger = Logger();
-logger.d('Debug message');
-logger.i('Info message');
-logger.e('Error message');
-```
-
-## Performance Optimization
-
-### Backend
-
-Build with optimizations:
-```bash
-cargo build --release
-cargo run --release
-```
-
-### Frontend
-
-Build optimized release:
-```bash
-flutter build linux --release
-flutter build windows --release
-flutter build macos --release
-```
-
-## Next Steps
-
-1. Test search functionality
-2. Try playing a video
-3. Test download feature
-4. Explore subscriptions
-5. Check history tracking
-
-## Getting Help
-
-If you encounter issues:
-
-1. Check the logs (backend and frontend)
-2. Verify all dependencies are installed
-3. Update yt-dlp: `pip install -U yt-dlp`
-4. Check GitHub issues
-5. Open a new issue with:
-   - Your OS and version
-   - Error messages
-   - Steps to reproduce
-
-## Useful Commands
-
-```bash
-# Backend
-cargo build              # Build
-cargo run                # Run
-cargo test               # Test
-cargo clean              # Clean build artifacts
-
-# Frontend
-flutter pub get          # Get dependencies
-flutter run              # Run app
-flutter build <platform> # Build for platform
-flutter clean            # Clean build cache
-flutter doctor           # Check setup
-
-# yt-dlp
-yt-dlp -U                # Update
-yt-dlp --version         # Check version
-yt-dlp -F <url>          # List formats
-```
-
-```
-
-`TODO.md`:
-
-```md
-# TODO List
-
-## High Priority 🔴
-
-### Backend
-- [ ] Add proper error handling for yt-dlp failures
-- [ ] Implement download progress tracking
-- [ ] Add cookie support for age-restricted videos
-- [ ] Implement rate limiting
-- [ ] Add caching for search results
-- [ ] Better logging and error messages
-
-### Frontend
-- [ ] Create subscriptions screen
-- [ ] Create history screen
-- [ ] Create downloads screen with progress
-- [ ] Create settings screen
-- [ ] Add loading states for all async operations
-- [ ] Implement proper error handling UI
-- [ ] Add retry mechanisms
-
-### Integration
-- [ ] Connect mpv player properly (currently placeholder)
-- [ ] Implement actual video playback in Flutter
-- [ ] Add keyboard shortcuts
-- [ ] Add video controls (play, pause, seek)
-
-## Medium Priority 🟡
-
-### Features
-- [ ] SponsorBlock integration
-- [ ] Return YouTube Dislike API
-- [ ] Background playback
-- [ ] Playlist support
-- [ ] Channel pages
-- [ ] Comments section
-- [ ] Trending videos
-- [ ] Search filters (duration, upload date, etc.)
-
-### UI/UX
-- [ ] Dark mode toggle
-- [ ] Custom themes
-- [ ] Animations and transitions
-- [ ] Responsive layout improvements
-- [ ] Video thumbnail hover effects
-- [ ] Context menus (right-click)
-- [ ] Drag and drop for playlists
-
-### Performance
-- [ ] Lazy loading for video lists
-- [ ] Image caching optimization
-- [ ] Database query optimization
-- [ ] Memory usage optimization
-- [ ] Startup time improvement
-
-## Low Priority 🟢
-
-### Nice to Have
-- [ ] Import/export subscriptions
-- [ ] Backup and restore data
-- [ ] Multiple quality streams simultaneously
-- [ ] Picture-in-picture mode
-- [ ] Mini player
-- [ ] Video queue
-- [ ] Watch later list
-- [ ] Favorites/bookmarks
-- [ ] Search history
-- [ ] Auto-play next video
-
-### Documentation
-- [ ] API documentation
-- [ ] Architecture diagrams
-- [ ] Video tutorials
-- [ ] FAQ section
-- [ ] Troubleshooting guide
-- [ ] Performance benchmarks
-
-### Testing
-- [ ] Unit tests for backend
-- [ ] Unit tests for frontend
-- [ ] Integration tests
-- [ ] E2E tests
-- [ ] Performance tests
-- [ ] CI/CD pipeline
-
-### Packaging
-- [ ] Linux AppImage
-- [ ] Linux Flatpak
-- [ ] Linux Snap
-- [ ] Windows installer (NSIS/Inno Setup)
-- [ ] macOS DMG
-- [ ] Auto-update mechanism
-
-## Future Ideas 💡
-
-- [ ] Support for other platforms (PeerTube, Vimeo, etc.)
-- [ ] Built-in video editor
-- [ ] Screen recording
-- [ ] Live stream support
-- [ ] Chat/comments
-- [ ] Social features (share, like)
-- [ ] Multi-account support
-- [ ] Sync across devices
-- [ ] Mobile app (Android/iOS)
-- [ ] Browser extension
-- [ ] CLI interface
-
-## Known Bugs 🐛
-
-- [ ] Video duration not always displayed correctly
-- [ ] Thumbnail loading can be slow
-- [ ] Search results limited to 20 items
-- [ ] No pagination for search results
-- [ ] mpv player not integrated (placeholder only)
-- [ ] Download path hardcoded
-- [ ] No download cancellation
-- [ ] Database not properly closed on exit
-
-## Technical Debt 🔧
-
-- [ ] Refactor API service error handling
-- [ ] Improve code documentation
-- [ ] Add more type safety
-- [ ] Reduce code duplication
-- [ ] Better separation of concerns
-- [ ] Implement proper logging framework
-- [ ] Add configuration file support
-- [ ] Environment variables for settings
-
-## Completed ✅
-
-- [x] Basic project structure
-- [x] Backend API server
-- [x] Frontend UI
-- [x] Video search
-- [x] Video info extraction
-- [x] Stream URL extraction
-- [x] Download functionality
-- [x] Database setup
-- [x] Subscriptions API
-- [x] History API
-- [x] Video card widget
-- [x] Player screen
-- [x] Home screen
-
----
-
-**Last Updated:** 2024-XX-XX
-
-**Contributors:** Add your name when you complete a task!
-
-```
-
 `backend/Cargo.toml`:
 
 ```toml
@@ -1658,7 +128,7 @@ edition = "2021"
 tokio = { version = "1.35", features = ["full"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-reqwest = { version = "0.11", features = ["json"] }
+reqwest = { version = "0.11", features = ["json", "stream"] }
 sqlx = { version = "0.7", features = ["runtime-tokio-native-tls", "sqlite"] }
 axum = "0.7"
 tower = "0.4"
@@ -1667,6 +137,10 @@ anyhow = "1.0"
 tracing = "0.1"
 tracing-subscriber = "0.3"
 chrono = "0.4"
+lazy_static = "1.4"
+rusty_ytdl = { version = "0.7", features = ["search"] }
+futures = "0.3"
+urlencoding = "2.1"
 
 [lib]
 name = "tubular_backend"
@@ -1683,12 +157,14 @@ path = "src/main.rs"
 ```rs
 use axum::{
     extract::{Path, Query, State},
-    http::StatusCode,
-    response::{IntoResponse, Json},
+    http::{StatusCode, HeaderMap, HeaderValue},
+    response::{IntoResponse, Json, Response},
+    body::Body,
 };
 use serde::{Deserialize, Serialize};
+use futures::StreamExt;
 
-use crate::{db, player, yt_dlp, sponsorblock, returnyoutubedislike};
+use crate::{db, player, yt_dlp, sponsorblock, returnyoutubedislike, invidious};
 
 #[derive(Debug, Deserialize)]
 pub struct SearchQuery {
@@ -1736,6 +212,21 @@ pub async fn search(Query(params): Query<SearchQuery>) -> impl IntoResponse {
     }
 }
 
+pub async fn warmup() -> impl IntoResponse {
+    match yt_dlp::warmup().await {
+        Ok(_) => (StatusCode::OK, Json(ApiResponse::success("yt-dlp warmup complete".to_string()))),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiResponse::<String>::error(format!("Warmup failed: {}", e))),
+        ),
+    }
+}
+
+pub async fn clear_search_cache() -> impl IntoResponse {
+    yt_dlp::clear_search_cache().await;
+    (StatusCode::OK, Json(ApiResponse::success("Search cache cleared")))
+}
+
 pub async fn get_video_info(Path(id): Path<String>) -> impl IntoResponse {
     match yt_dlp::get_video_info(&id).await {
         Ok(info) => (StatusCode::OK, Json(ApiResponse::success(info))),
@@ -1744,6 +235,85 @@ pub async fn get_video_info(Path(id): Path<String>) -> impl IntoResponse {
             Json(ApiResponse::<yt_dlp::VideoInfo>::error(e.to_string())),
         ),
     }
+}
+
+#[derive(Debug, Serialize)]
+pub struct VideoDetailsCommentResponse {
+    user_id: String,
+    username: String,
+    avatar_url: String,
+    text: String,
+    timestamp: String,
+    like_count: i64,
+}
+
+#[derive(Debug, Serialize)]
+pub struct VideoDetailsResponse {
+    id: String,
+    title: String,
+    channel_name: String,
+    channel_id: String,
+    subscriber_count: u64,
+    view_count: u64,
+    upload_date: String,
+    duration_seconds: u64,
+    thumbnail_url: String,
+    like_count: u64,
+    dislike_count: u64,
+    comments: Vec<VideoDetailsCommentResponse>,
+}
+
+pub async fn get_video_details(Path(id): Path<String>) -> impl IntoResponse {
+    let info = match yt_dlp::get_video_info(&id).await {
+        Ok(info) => info,
+        Err(e) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiResponse::<VideoDetailsResponse>::error(e.to_string())),
+            );
+        }
+    };
+
+    let dislike_data = returnyoutubedislike::get_dislikes(&id).await.ok();
+    let comments = invidious::get_comments(&id).await.unwrap_or_default();
+
+    let like_count = dislike_data
+        .as_ref()
+        .map(|d| d.likes.max(0) as u64)
+        .or(info.like_count)
+        .unwrap_or(0);
+
+    let dislike_count = dislike_data
+        .as_ref()
+        .map(|d| d.dislikes.max(0) as u64)
+        .unwrap_or(0);
+
+    let details = VideoDetailsResponse {
+        id: info.id,
+        title: info.title,
+        channel_name: info.channel,
+        channel_id: info.channel_id,
+        subscriber_count: 0,
+        view_count: info.view_count.unwrap_or(0),
+        upload_date: info.upload_date.unwrap_or_default(),
+        duration_seconds: info.duration.unwrap_or(0),
+        thumbnail_url: info.thumbnail,
+        like_count,
+        dislike_count,
+        comments: comments
+            .into_iter()
+            .map(|c| VideoDetailsCommentResponse {
+                user_id: c.author_id,
+                username: c.author,
+                avatar_url: c.author_avatar,
+                text: c.content,
+                timestamp: c.published_text,
+                like_count: c.like_count,
+            })
+            .collect(),
+    };
+
+    (StatusCode::OK, Json(ApiResponse::success(details)))
 }
 
 #[derive(Debug, Deserialize)]
@@ -1767,6 +337,110 @@ pub async fn get_stream_url(
             Json(ApiResponse::<yt_dlp::StreamUrl>::error(e.to_string())),
         ),
     }
+}
+
+/// Proxy stream endpoint - streams video through backend to avoid CORS issues
+pub async fn proxy_stream(
+    Path(id): Path<String>,
+    request_headers: HeaderMap,
+    Query(params): Query<StreamQuery>,
+) -> Result<Response, StatusCode> {
+    // Get stream URL from rusty_ytdl
+    let stream_info = match yt_dlp::get_stream_url(&id, &params.quality).await {
+        Ok(info) => info,
+        Err(e) => {
+            tracing::error!("Failed to get stream URL: {}", e);
+            return Err(StatusCode::INTERNAL_SERVER_ERROR);
+        }
+    };
+
+    tracing::info!("🎥 Proxying stream for video: {} (quality: {})", id, params.quality);
+
+    let user_agent = std::env::var("TUBULAR_STREAM_USER_AGENT")
+        .or_else(|_| std::env::var("TUBULAR_YTDLP_USER_AGENT"))
+        .ok()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+        .unwrap_or_else(|| {
+            "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36".to_string()
+        });
+
+    let referer = std::env::var("TUBULAR_STREAM_REFERER")
+        .ok()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+        .unwrap_or_else(|| "https://www.youtube.com/".to_string());
+
+    // Create HTTP client and fetch the stream
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(300))
+        .user_agent(user_agent)
+        .build()
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    let mut upstream_request = client
+        .get(&stream_info.url)
+        .header("Referer", referer);
+
+    if let Some(range) = request_headers.get("range").and_then(|value| value.to_str().ok()) {
+        upstream_request = upstream_request.header("Range", range);
+    }
+
+    let response = upstream_request
+        .send()
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to fetch stream: {}", e);
+            StatusCode::BAD_GATEWAY
+        })?;
+
+    if !(response.status().is_success() || response.status() == reqwest::StatusCode::PARTIAL_CONTENT) {
+        tracing::error!("Upstream stream returned non-success status: {}", response.status());
+        return Err(StatusCode::BAD_GATEWAY);
+    }
+
+    let upstream_status = response.status();
+
+    // Get content type and length
+    let content_type = response
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("video/mp4")
+        .to_string();
+
+    let content_length = response.content_length();
+    let content_range = response
+        .headers()
+        .get("content-range")
+        .and_then(|v| v.to_str().ok())
+        .map(|v| v.to_string());
+
+    // Convert response to stream
+    let stream = response.bytes_stream();
+    let stream = stream.map(|result| {
+        result.map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))
+    });
+
+    let body = Body::from_stream(stream);
+
+    // Build response with proper headers
+    let mut headers = HeaderMap::new();
+    headers.insert("content-type", HeaderValue::from_str(&content_type).unwrap());
+    headers.insert("accept-ranges", HeaderValue::from_static("bytes"));
+
+    if let Some(length) = content_length {
+        headers.insert("content-length", HeaderValue::from_str(&length.to_string()).unwrap());
+    }
+
+    if let Some(content_range) = content_range {
+        if let Ok(value) = HeaderValue::from_str(&content_range) {
+            headers.insert("content-range", value);
+        }
+    }
+
+    let status = StatusCode::from_u16(upstream_status.as_u16()).unwrap_or(StatusCode::OK);
+    Ok((status, headers, body).into_response())
 }
 
 pub async fn get_player_state(State(player): State<player::PlayerHandle>) -> impl IntoResponse {
@@ -1844,6 +518,7 @@ pub struct CreateDownloadRequest {
     title: String,
     output_path: String,
     quality: String,
+    #[allow(dead_code)]
     audio_only: bool,
 }
 
@@ -2117,6 +792,193 @@ pub async fn get_all_settings() -> impl IntoResponse {
     }
 }
 
+/// Invidious: Search videos
+pub async fn invidious_search(Query(params): Query<SearchQuery>) -> impl IntoResponse {
+    match invidious::search_videos(&params.q, params.limit).await {
+        Ok(videos) => {
+            // Convert to our Video format
+            let results: Vec<_> = videos.iter().map(|v| {
+                serde_json::json!({
+                    "id": v.video_id,
+                    "title": v.title,
+                    "channel": v.author,
+                    "duration": v.length_seconds,
+                    "view_count": v.view_count,
+                    "thumbnail": v.thumbnails.first().map(|t| &t.url).unwrap_or(&String::new()),
+                })
+            }).collect();
+            (StatusCode::OK, Json(ApiResponse::success(results)))
+        }
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiResponse::<Vec<serde_json::Value>>::error(e.to_string())),
+        ),
+    }
+}
+
+/// Invidious: Get video info
+pub async fn invidious_video_info(Path(id): Path<String>) -> impl IntoResponse {
+    match invidious::get_video_info(&id).await {
+        Ok(info) => (StatusCode::OK, Json(ApiResponse::success(serde_json::json!({
+            "id": info.video_id,
+            "title": info.title,
+            "description": info.description,
+            "channel": info.author,
+            "channel_id": info.author_id,
+            "duration": info.length_seconds,
+            "view_count": info.view_count,
+            "like_count": info.like_count,
+        })))),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiResponse::<serde_json::Value>::error(e.to_string())),
+        ),
+    }
+}
+
+/// Invidious: Get stream URL
+pub async fn invidious_stream_url(
+    Path(id): Path<String>,
+    Query(params): Query<StreamQuery>,
+) -> impl IntoResponse {
+    match invidious::get_stream_url(&id, &params.quality).await {
+        Ok(url) => (StatusCode::OK, Json(ApiResponse::success(serde_json::json!({
+            "url": url,
+            "quality": params.quality,
+        })))),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiResponse::<serde_json::Value>::error(e.to_string())),
+        ),
+    }
+}
+
+/// Set Invidious instance
+#[derive(Debug, Deserialize)]
+pub struct SetInstanceRequest {
+    url: String,
+}
+
+pub async fn set_invidious_instance(Json(req): Json<SetInstanceRequest>) -> impl IntoResponse {
+    invidious::set_instance(req.url.clone()).await;
+    (StatusCode::OK, Json(ApiResponse::success(format!("Instance set to: {}", req.url))))
+}
+
+/// Get current Invidious instance
+pub async fn get_invidious_instance() -> impl IntoResponse {
+    let instance = invidious::get_current_instance().await;
+    (StatusCode::OK, Json(ApiResponse::success(serde_json::json!({
+        "instance": instance,
+    }))))
+}
+
+/// Get list of default Invidious instances
+pub async fn get_invidious_instances() -> impl IntoResponse {
+    let instances = invidious::get_default_instances();
+    (StatusCode::OK, Json(ApiResponse::success(instances)))
+}
+
+
+// Playlist endpoints
+#[derive(Debug, Deserialize)]
+pub struct CreatePlaylistRequest {
+    name: String,
+    description: Option<String>,
+}
+
+pub async fn create_playlist(Json(req): Json<CreatePlaylistRequest>) -> impl IntoResponse {
+    match db::create_playlist(&req.name, req.description.as_deref()).await {
+        Ok(id) => (StatusCode::OK, Json(ApiResponse::success(serde_json::json!({"id": id})))),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiResponse::<serde_json::Value>::error(e.to_string())),
+        ),
+    }
+}
+
+pub async fn get_playlists() -> impl IntoResponse {
+    match db::get_playlists().await {
+        Ok(playlists) => (StatusCode::OK, Json(ApiResponse::success(playlists))),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiResponse::<Vec<db::Playlist>>::error(e.to_string())),
+        ),
+    }
+}
+
+pub async fn get_playlist(Path(id): Path<i64>) -> impl IntoResponse {
+    match db::get_playlist(id).await {
+        Ok(Some(playlist)) => (StatusCode::OK, Json(ApiResponse::success(playlist))),
+        Ok(None) => (
+            StatusCode::NOT_FOUND,
+            Json(ApiResponse::<db::Playlist>::error("Playlist not found".to_string())),
+        ),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiResponse::<db::Playlist>::error(e.to_string())),
+        ),
+    }
+}
+
+pub async fn delete_playlist(Path(id): Path<i64>) -> impl IntoResponse {
+    match db::delete_playlist(id).await {
+        Ok(_) => (StatusCode::OK, Json(ApiResponse::success("Playlist deleted".to_string()))),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiResponse::<String>::error(e.to_string())),
+        ),
+    }
+}
+
+#[derive(Debug, Deserialize)]
+pub struct AddVideoToPlaylistRequest {
+    video_id: String,
+    title: String,
+    channel: String,
+    thumbnail: String,
+}
+
+pub async fn add_video_to_playlist(
+    Path(id): Path<i64>,
+    Json(req): Json<AddVideoToPlaylistRequest>,
+) -> impl IntoResponse {
+    match db::add_video_to_playlist(id, &req.video_id, &req.title, &req.channel, &req.thumbnail).await {
+        Ok(_) => (StatusCode::OK, Json(ApiResponse::success("Video added to playlist".to_string()))),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiResponse::<String>::error(e.to_string())),
+        ),
+    }
+}
+
+pub async fn get_playlist_videos(Path(id): Path<i64>) -> impl IntoResponse {
+    match db::get_playlist_videos(id).await {
+        Ok(videos) => (StatusCode::OK, Json(ApiResponse::success(videos))),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiResponse::<Vec<db::PlaylistVideo>>::error(e.to_string())),
+        ),
+    }
+}
+
+#[derive(Debug, Deserialize)]
+pub struct RemoveVideoRequest {
+    video_id: String,
+}
+
+pub async fn remove_video_from_playlist(
+    Path(id): Path<i64>,
+    Json(req): Json<RemoveVideoRequest>,
+) -> impl IntoResponse {
+    match db::remove_video_from_playlist(id, &req.video_id).await {
+        Ok(_) => (StatusCode::OK, Json(ApiResponse::success("Video removed from playlist".to_string()))),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiResponse::<String>::error(e.to_string())),
+        ),
+    }
+}
+
 ```
 
 `backend/src/db.rs`:
@@ -2238,6 +1100,7 @@ pub async fn init_db() -> Result<()> {
     )
     .execute(&pool)
     .await?;
+    migrate_downloads_schema(&pool).await?;
 
     sqlx::query(
         r#"
@@ -2250,7 +1113,138 @@ pub async fn init_db() -> Result<()> {
     .execute(&pool)
     .await?;
 
+    // Create playlists table
+    sqlx::query(
+        r#"
+        CREATE TABLE IF NOT EXISTS playlists (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            description TEXT,
+            created_at TEXT NOT NULL
+        )
+        "#,
+    )
+    .execute(&pool)
+    .await?;
+
+    // Create playlist_videos table
+    sqlx::query(
+        r#"
+        CREATE TABLE IF NOT EXISTS playlist_videos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            playlist_id INTEGER NOT NULL,
+            video_id TEXT NOT NULL,
+            title TEXT NOT NULL,
+            channel TEXT NOT NULL,
+            thumbnail TEXT NOT NULL,
+            position INTEGER NOT NULL,
+            added_at TEXT NOT NULL,
+            FOREIGN KEY (playlist_id) REFERENCES playlists(id) ON DELETE CASCADE
+        )
+        "#,
+    )
+    .execute(&pool)
+    .await?;
+
     DB_POOL.set(pool).map_err(|_| anyhow::anyhow!("Failed to set DB pool"))?;
+    Ok(())
+}
+
+async fn migrate_downloads_schema(pool: &Pool<Sqlite>) -> Result<()> {
+    let rows = sqlx::query("PRAGMA table_info(downloads)")
+        .fetch_all(pool)
+        .await?;
+
+    let mut columns = std::collections::HashSet::new();
+    for row in rows {
+        let name: String = row.get("name");
+        columns.insert(name);
+    }
+
+    if !columns.contains("file_path") {
+        sqlx::query("ALTER TABLE downloads ADD COLUMN file_path TEXT")
+            .execute(pool)
+            .await?;
+    }
+    if !columns.contains("quality") {
+        sqlx::query("ALTER TABLE downloads ADD COLUMN quality TEXT")
+            .execute(pool)
+            .await?;
+    }
+    if !columns.contains("status") {
+        sqlx::query("ALTER TABLE downloads ADD COLUMN status TEXT NOT NULL DEFAULT 'pending'")
+            .execute(pool)
+            .await?;
+    }
+    if !columns.contains("progress") {
+        sqlx::query("ALTER TABLE downloads ADD COLUMN progress REAL DEFAULT 0.0")
+            .execute(pool)
+            .await?;
+    }
+    if !columns.contains("file_size") {
+        sqlx::query("ALTER TABLE downloads ADD COLUMN file_size INTEGER DEFAULT 0")
+            .execute(pool)
+            .await?;
+    }
+    if !columns.contains("speed") {
+        sqlx::query("ALTER TABLE downloads ADD COLUMN speed REAL DEFAULT 0.0")
+            .execute(pool)
+            .await?;
+    }
+    if !columns.contains("eta_seconds") {
+        sqlx::query("ALTER TABLE downloads ADD COLUMN eta_seconds INTEGER DEFAULT 0")
+            .execute(pool)
+            .await?;
+    }
+    if !columns.contains("created_at") {
+        sqlx::query("ALTER TABLE downloads ADD COLUMN created_at TEXT")
+            .execute(pool)
+            .await?;
+    }
+    if !columns.contains("started_at") {
+        sqlx::query("ALTER TABLE downloads ADD COLUMN started_at TEXT")
+            .execute(pool)
+            .await?;
+    }
+    if !columns.contains("completed_at") {
+        sqlx::query("ALTER TABLE downloads ADD COLUMN completed_at TEXT")
+            .execute(pool)
+            .await?;
+    }
+    if !columns.contains("error_message") {
+        sqlx::query("ALTER TABLE downloads ADD COLUMN error_message TEXT")
+            .execute(pool)
+            .await?;
+    }
+
+    // Backfill from legacy columns when present.
+    if columns.contains("output_path") {
+        sqlx::query(
+            "UPDATE downloads SET file_path = COALESCE(file_path, output_path, '')",
+        )
+        .execute(pool)
+        .await?;
+    }
+    if columns.contains("downloaded_at") {
+        sqlx::query(
+            "UPDATE downloads SET created_at = COALESCE(created_at, downloaded_at)",
+        )
+        .execute(pool)
+        .await?;
+    }
+
+    let now = chrono::Utc::now().to_rfc3339();
+    sqlx::query("UPDATE downloads SET quality = COALESCE(quality, 'unknown')")
+        .execute(pool)
+        .await?;
+    sqlx::query("UPDATE downloads SET file_path = COALESCE(file_path, '')")
+        .execute(pool)
+        .await?;
+    sqlx::query("UPDATE downloads SET created_at = COALESCE(created_at, ?)")
+        .bind(now)
+        .execute(pool)
+        .await?;
+
     Ok(())
 }
 
@@ -2342,16 +1336,31 @@ pub async fn create_download(video_id: &str, title: &str, file_path: &str, quali
     let pool = get_pool();
     let now = chrono::Utc::now().to_rfc3339();
 
-    let result = sqlx::query(
-        "INSERT INTO downloads (video_id, title, file_path, quality, status, progress, created_at) VALUES (?, ?, ?, ?, 'pending', 0.0, ?)"
-    )
-    .bind(video_id)
-    .bind(title)
-    .bind(file_path)
-    .bind(quality)
-    .bind(&now)
-    .execute(pool)
-    .await?;
+    let has_legacy_downloaded_at = has_downloaded_at_column(pool).await?;
+    let result = if has_legacy_downloaded_at {
+        sqlx::query(
+            "INSERT INTO downloads (video_id, title, file_path, quality, status, progress, created_at, downloaded_at) VALUES (?, ?, ?, ?, 'pending', 0.0, ?, ?)"
+        )
+        .bind(video_id)
+        .bind(title)
+        .bind(file_path)
+        .bind(quality)
+        .bind(&now)
+        .bind(&now)
+        .execute(pool)
+        .await?
+    } else {
+        sqlx::query(
+            "INSERT INTO downloads (video_id, title, file_path, quality, status, progress, created_at) VALUES (?, ?, ?, ?, 'pending', 0.0, ?)"
+        )
+        .bind(video_id)
+        .bind(title)
+        .bind(file_path)
+        .bind(quality)
+        .bind(&now)
+        .execute(pool)
+        .await?
+    };
 
     Ok(result.last_insert_rowid())
 }
@@ -2417,22 +1426,47 @@ pub async fn fail_download(id: i64, error_message: &str) -> Result<()> {
     Ok(())
 }
 
+#[allow(dead_code)]
 pub async fn add_download(video_id: &str, title: &str, file_path: &str, quality: &str) -> Result<()> {
     let pool = get_pool();
     let now = chrono::Utc::now().to_rfc3339();
 
-    sqlx::query(
-        "INSERT INTO downloads (video_id, title, file_path, quality, status, progress, created_at) VALUES (?, ?, ?, ?, 'completed', 100.0, ?)"
-    )
-    .bind(video_id)
-    .bind(title)
-    .bind(file_path)
-    .bind(quality)
-    .bind(now)
-    .execute(pool)
-    .await?;
+    let has_legacy_downloaded_at = has_downloaded_at_column(pool).await?;
+    if has_legacy_downloaded_at {
+        sqlx::query(
+            "INSERT INTO downloads (video_id, title, file_path, quality, status, progress, created_at, downloaded_at) VALUES (?, ?, ?, ?, 'completed', 100.0, ?, ?)"
+        )
+        .bind(video_id)
+        .bind(title)
+        .bind(file_path)
+        .bind(quality)
+        .bind(&now)
+        .bind(&now)
+        .execute(pool)
+        .await?;
+    } else {
+        sqlx::query(
+            "INSERT INTO downloads (video_id, title, file_path, quality, status, progress, created_at) VALUES (?, ?, ?, ?, 'completed', 100.0, ?)"
+        )
+        .bind(video_id)
+        .bind(title)
+        .bind(file_path)
+        .bind(quality)
+        .bind(now)
+        .execute(pool)
+        .await?;
+    }
 
     Ok(())
+}
+
+async fn has_downloaded_at_column(pool: &Pool<Sqlite>) -> Result<bool> {
+    let count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM pragma_table_info('downloads') WHERE name = 'downloaded_at'",
+    )
+    .fetch_one(pool)
+    .await?;
+    Ok(count > 0)
 }
 
 pub async fn get_downloads() -> Result<Vec<Download>> {
@@ -2499,6 +1533,590 @@ pub async fn get_all_settings() -> Result<Vec<Setting>> {
     Ok(settings.into_iter().map(|(k, v)| Setting { key: k, value: v }).collect())
 }
 
+// Playlist operations
+#[derive(Debug, Serialize, Deserialize, sqlx::FromRow)]
+pub struct Playlist {
+    pub id: i64,
+    pub name: String,
+    pub description: Option<String>,
+    pub created_at: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, sqlx::FromRow)]
+pub struct PlaylistVideo {
+    pub id: i64,
+    pub playlist_id: i64,
+    pub video_id: String,
+    pub title: String,
+    pub channel: String,
+    pub thumbnail: String,
+    pub position: i64,
+    pub added_at: String,
+}
+
+pub async fn create_playlist(name: &str, description: Option<&str>) -> Result<i64> {
+    let pool = get_pool();
+    let now = chrono::Utc::now().to_rfc3339();
+
+    let result = sqlx::query(
+        "INSERT INTO playlists (name, description, created_at) VALUES (?, ?, ?)"
+    )
+    .bind(name)
+    .bind(description)
+    .bind(now)
+    .execute(pool)
+    .await?;
+
+    Ok(result.last_insert_rowid())
+}
+
+pub async fn get_playlists() -> Result<Vec<Playlist>> {
+    let pool = get_pool();
+    let playlists = sqlx::query_as::<_, Playlist>(
+        "SELECT * FROM playlists ORDER BY created_at DESC"
+    )
+    .fetch_all(pool)
+    .await?;
+    Ok(playlists)
+}
+
+pub async fn get_playlist(id: i64) -> Result<Option<Playlist>> {
+    let pool = get_pool();
+    let playlist = sqlx::query_as::<_, Playlist>(
+        "SELECT * FROM playlists WHERE id = ?"
+    )
+    .bind(id)
+    .fetch_optional(pool)
+    .await?;
+    Ok(playlist)
+}
+
+pub async fn delete_playlist(id: i64) -> Result<()> {
+    let pool = get_pool();
+    sqlx::query("DELETE FROM playlists WHERE id = ?")
+        .bind(id)
+        .execute(pool)
+        .await?;
+    Ok(())
+}
+
+pub async fn add_video_to_playlist(
+    playlist_id: i64,
+    video_id: &str,
+    title: &str,
+    channel: &str,
+    thumbnail: &str,
+) -> Result<()> {
+    let pool = get_pool();
+    let now = chrono::Utc::now().to_rfc3339();
+
+    // Get next position
+    let position: i64 = sqlx::query_scalar(
+        "SELECT COALESCE(MAX(position), -1) + 1 FROM playlist_videos WHERE playlist_id = ?"
+    )
+    .bind(playlist_id)
+    .fetch_one(pool)
+    .await?;
+
+    sqlx::query(
+        "INSERT INTO playlist_videos (playlist_id, video_id, title, channel, thumbnail, position, added_at) 
+         VALUES (?, ?, ?, ?, ?, ?, ?)"
+    )
+    .bind(playlist_id)
+    .bind(video_id)
+    .bind(title)
+    .bind(channel)
+    .bind(thumbnail)
+    .bind(position)
+    .bind(now)
+    .execute(pool)
+    .await?;
+
+    Ok(())
+}
+
+pub async fn get_playlist_videos(playlist_id: i64) -> Result<Vec<PlaylistVideo>> {
+    let pool = get_pool();
+    let videos = sqlx::query_as::<_, PlaylistVideo>(
+        "SELECT * FROM playlist_videos WHERE playlist_id = ? ORDER BY position ASC"
+    )
+    .bind(playlist_id)
+    .fetch_all(pool)
+    .await?;
+    Ok(videos)
+}
+
+pub async fn remove_video_from_playlist(playlist_id: i64, video_id: &str) -> Result<()> {
+    let pool = get_pool();
+    sqlx::query("DELETE FROM playlist_videos WHERE playlist_id = ? AND video_id = ?")
+        .bind(playlist_id)
+        .bind(video_id)
+        .execute(pool)
+        .await?;
+    Ok(())
+}
+
+pub async fn reorder_playlist_video(playlist_id: i64, video_id: &str, new_position: i64) -> Result<()> {
+    let pool = get_pool();
+    sqlx::query(
+        "UPDATE playlist_videos SET position = ? WHERE playlist_id = ? AND video_id = ?"
+    )
+    .bind(new_position)
+    .bind(playlist_id)
+    .bind(video_id)
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
+```
+
+`backend/src/invidious.rs`:
+
+```rs
+use anyhow::Result;
+use serde::{Deserialize, Serialize};
+use serde_json::Value;
+use std::sync::Arc;
+use tokio::sync::RwLock;
+
+/// Invidious instance configuration
+#[derive(Debug, Clone)]
+pub struct InvidiousInstance {
+    pub url: String,
+    pub health: InstanceHealth,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum InstanceHealth {
+    Healthy,
+    Degraded,
+    Unhealthy,
+}
+
+/// Default Invidious instances (public instances)
+/// Updated list with more reliable instances as of 2026
+const DEFAULT_INSTANCES: &[&str] = &[
+    "https://inv.thepixora.com",
+    "https://invidious.fdn.fr",
+    "https://inv.nadeko.net",
+    "https://invidious.nerdvpn.de",
+    "https://vid.puffyan.us",
+    "https://yewtu.be",
+    "https://invidious.io.lol",
+];
+
+lazy_static::lazy_static! {
+    static ref CURRENT_INSTANCE: Arc<RwLock<String>> = 
+        Arc::new(RwLock::new(DEFAULT_INSTANCES[0].to_string()));
+    static ref INSTANCE_INDEX: Arc<RwLock<usize>> = 
+        Arc::new(RwLock::new(0));
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct InvidiousVideo {
+    #[serde(rename = "videoId")]
+    pub video_id: String,
+    pub title: String,
+    pub author: String,
+    #[serde(rename = "authorId")]
+    pub author_id: String,
+    #[serde(rename = "videoThumbnails")]
+    pub thumbnails: Vec<InvidiousThumbnail>,
+    #[serde(rename = "lengthSeconds")]
+    pub length_seconds: u64,
+    #[serde(rename = "viewCount")]
+    pub view_count: u64,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct InvidiousThumbnail {
+    pub url: String,
+    pub width: u32,
+    pub height: u32,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct InvidiousVideoInfo {
+    #[serde(rename = "videoId")]
+    pub video_id: String,
+    pub title: String,
+    pub description: String,
+    pub author: String,
+    #[serde(rename = "authorId")]
+    pub author_id: String,
+    #[serde(rename = "lengthSeconds")]
+    pub length_seconds: u64,
+    #[serde(rename = "viewCount")]
+    pub view_count: u64,
+    #[serde(rename = "likeCount")]
+    pub like_count: Option<u64>,
+    #[serde(rename = "formatStreams")]
+    pub format_streams: Vec<InvidiousFormat>,
+    #[serde(rename = "adaptiveFormats")]
+    pub adaptive_formats: Vec<InvidiousFormat>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct InvidiousFormat {
+    pub url: String,
+    #[serde(rename = "type")]
+    pub format_type: String,
+    pub quality: Option<String>,
+    pub resolution: Option<String>,
+    pub bitrate: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct InvidiousCommentItem {
+    pub author: String,
+    pub author_id: String,
+    pub author_avatar: String,
+    pub content: String,
+    pub published_text: String,
+    pub like_count: i64,
+}
+
+/// Search videos using Invidious API
+pub async fn search_videos(query: &str, limit: u32) -> Result<Vec<InvidiousVideo>> {
+    let instance = CURRENT_INSTANCE.read().await;
+    let url = format!("{}/api/v1/search?q={}&type=video", instance, 
+        urlencoding::encode(query));
+    
+    tracing::info!("🔍 Searching Invidious: {} (limit: {})", query, limit);
+    
+    let client = reqwest::Client::new();
+    let response = client
+        .get(&url)
+        .timeout(std::time::Duration::from_secs(30))
+        .send()
+        .await?;
+    
+    if !response.status().is_success() {
+        return Err(anyhow::anyhow!("Invidious API error: {}", response.status()));
+    }
+    
+    let videos: Vec<InvidiousVideo> = response.json().await?;
+    let limited: Vec<InvidiousVideo> = videos.into_iter().take(limit as usize).collect();
+    
+    tracing::info!("✅ Found {} results from Invidious", limited.len());
+    Ok(limited)
+}
+
+/// Get video info using Invidious API with automatic instance switching
+pub async fn get_video_info(video_id: &str) -> Result<InvidiousVideoInfo> {
+    let max_retries = 3;
+    let mut last_error = None;
+    
+    for attempt in 0..max_retries {
+        let instance = CURRENT_INSTANCE.read().await.clone();
+        let url = format!("{}/api/v1/videos/{}", instance, video_id);
+        
+        tracing::info!("📹 Fetching video info from Invidious: {} (attempt {}/{})", video_id, attempt + 1, max_retries);
+        
+        let client = reqwest::Client::new();
+        match client
+            .get(&url)
+            .timeout(std::time::Duration::from_secs(30))
+            .send()
+            .await
+        {
+            Ok(response) => {
+                if response.status().is_success() {
+                    match response.json::<InvidiousVideoInfo>().await {
+                        Ok(info) => return Ok(info),
+                        Err(e) => {
+                            last_error = Some(anyhow::anyhow!("Failed to parse response: {}", e));
+                            tracing::warn!("⚠️  Failed to parse Invidious response: {}", e);
+                        }
+                    }
+                } else {
+                    last_error = Some(anyhow::anyhow!("Invidious API error: {}", response.status()));
+                    tracing::warn!("⚠️  Invidious API error: {}", response.status());
+                }
+            }
+            Err(e) => {
+                last_error = Some(anyhow::anyhow!("Request failed: {}", e));
+                tracing::warn!("⚠️  Invidious request failed: {}", e);
+            }
+        }
+        
+        // Try next instance
+        if attempt < max_retries - 1 {
+            switch_to_next_instance().await;
+        }
+    }
+    
+    Err(last_error.unwrap_or_else(|| anyhow::anyhow!("Failed to get video info after {} attempts", max_retries)))
+}
+
+/// Switch to the next Invidious instance
+async fn switch_to_next_instance() {
+    let mut index = INSTANCE_INDEX.write().await;
+    *index = (*index + 1) % DEFAULT_INSTANCES.len();
+    let new_instance = DEFAULT_INSTANCES[*index].to_string();
+    
+    let mut instance = CURRENT_INSTANCE.write().await;
+    *instance = new_instance.clone();
+    
+    tracing::info!("🔄 Switched to Invidious instance: {}", new_instance);
+}
+
+/// Get stream URL from Invidious
+pub async fn get_stream_url(video_id: &str, quality: &str) -> Result<String> {
+    let info = get_video_info(video_id).await?;
+    
+    tracing::info!("📊 Invidious formats: {} format_streams, {} adaptive_formats", 
+        info.format_streams.len(), info.adaptive_formats.len());
+    
+    // Log all available formats for debugging
+    for (i, f) in info.format_streams.iter().enumerate() {
+        tracing::debug!("FormatStream {}: quality={:?}, resolution={:?}, type={}", 
+            i, f.quality, f.resolution, f.format_type);
+    }
+    
+    // Try format streams first (combined video+audio) - these are best for streaming
+    if let Some(format) = find_best_format(&info.format_streams, quality) {
+        tracing::info!("✅ Found format stream: quality={:?}, resolution={:?}, type={}", 
+            format.quality, format.resolution, format.format_type);
+        return Ok(format.url.clone());
+    }
+    
+    // Fallback to adaptive formats (video only or audio only)
+    if let Some(format) = find_best_format(&info.adaptive_formats, quality) {
+        tracing::warn!("⚠️  Using adaptive format (may be video-only or audio-only): quality={:?}, resolution={:?}, type={}", 
+            format.quality, format.resolution, format.format_type);
+        return Ok(format.url.clone());
+    }
+    
+    // Last resort: just get the first available format stream (should have both video+audio)
+    if let Some(format) = info.format_streams.first() {
+        tracing::warn!("⚠️  Using first available format stream as fallback: quality={:?}, type={}", 
+            format.quality, format.format_type);
+        return Ok(format.url.clone());
+    }
+    
+    Err(anyhow::anyhow!("No suitable format found"))
+}
+
+fn find_best_format<'a>(formats: &'a [InvidiousFormat], quality: &str) -> Option<&'a InvidiousFormat> {
+    // Log available formats for debugging
+    for (i, f) in formats.iter().enumerate() {
+        tracing::debug!("Format {}: quality={:?}, resolution={:?}, type={}", 
+            i, f.quality, f.resolution, f.format_type);
+    }
+    
+    // For format_streams, prioritize formats that contain both video and audio
+    // These typically have "video/mp4" or similar in the type
+    let video_formats: Vec<&InvidiousFormat> = formats.iter()
+        .filter(|f| {
+            let t = f.format_type.to_lowercase();
+            t.contains("video") && !t.contains("audio/")
+        })
+        .collect();
+    
+    match quality {
+        "best" => {
+            // For "best", try to find highest quality format with video
+            video_formats.iter()
+                .filter(|f| f.resolution.is_some())
+                .max_by_key(|f| {
+                    // Extract height from resolution (e.g., "1920x1080" -> 1080)
+                    f.resolution.as_ref()
+                        .and_then(|r| r.split('x').nth(1))
+                        .and_then(|h| h.parse::<u32>().ok())
+                        .unwrap_or(0)
+                })
+                .copied()
+                .or_else(|| video_formats.first().copied())
+                .or_else(|| formats.first())
+        }
+        "1080p" => {
+            // Strict: only 1080p and higher
+            video_formats.iter()
+                .filter(|f| {
+                    f.resolution.as_deref() == Some("1920x1080") ||
+                    f.quality.as_deref() == Some("1080p") || 
+                    f.quality.as_deref() == Some("hd1080") ||
+                    // Also accept 2K+ resolutions since they're >= 1080p
+                    (f.resolution.is_some() && {
+                        f.resolution.as_ref()
+                            .and_then(|r| r.split('x').nth(1))
+                            .and_then(|h| h.parse::<u32>().ok())
+                            .map(|h| h >= 1080)
+                            .unwrap_or(false)
+                    })
+                })
+                .max_by_key(|f| {
+                    // Prefer highest resolution available
+                    f.resolution.as_ref()
+                        .and_then(|r| r.split('x').nth(1))
+                        .and_then(|h| h.parse::<u32>().ok())
+                        .unwrap_or(0)
+                })
+                .copied()
+        }
+        "720p" => {
+            // Strict: only 720p (not lower, not higher)
+            video_formats.iter()
+                .filter(|f| {
+                    f.resolution.as_deref() == Some("1280x720") ||
+                    f.quality.as_deref() == Some("720p") || 
+                    f.quality.as_deref() == Some("hd720") ||
+                    // Accept 720p range (600-800 height)
+                    (f.resolution.is_some() && {
+                        let height = f.resolution.as_ref()
+                            .and_then(|r| r.split('x').nth(1))
+                            .and_then(|h| h.parse::<u32>().ok())
+                            .unwrap_or(0);
+                        height >= 600 && height <= 800
+                    })
+                })
+                .max_by_key(|f| {
+                    f.resolution.as_ref()
+                        .and_then(|r| r.split('x').nth(1))
+                        .and_then(|h| h.parse::<u32>().ok())
+                        .unwrap_or(0)
+                })
+                .copied()
+        }
+        "480p" => {
+            // Strict: only 480p and below
+            video_formats.iter()
+                .filter(|f| {
+                    f.resolution.as_deref() == Some("854x480") ||
+                    f.resolution.as_deref() == Some("640x480") ||
+                    f.quality.as_deref() == Some("480p") || 
+                    f.quality.as_deref() == Some("large") ||
+                    // Accept 480p range (360-540 height)
+                    (f.resolution.is_some() && {
+                        let height = f.resolution.as_ref()
+                            .and_then(|r| r.split('x').nth(1))
+                            .and_then(|h| h.parse::<u32>().ok())
+                            .unwrap_or(0);
+                        height >= 360 && height <= 540
+                    })
+                })
+                .max_by_key(|f| {
+                    f.resolution.as_ref()
+                        .and_then(|r| r.split('x').nth(1))
+                        .and_then(|h| h.parse::<u32>().ok())
+                        .unwrap_or(0)
+                })
+                .copied()
+        }
+        "audio" => formats.iter().find(|f| f.format_type.contains("audio")),
+        _ => video_formats.first().copied().or_else(|| formats.first()),
+    }
+}
+
+/// Set current Invidious instance
+pub async fn set_instance(url: String) {
+    let mut instance = CURRENT_INSTANCE.write().await;
+    *instance = url;
+    tracing::info!("🔄 Switched to Invidious instance: {}", instance);
+}
+
+/// Get current instance
+pub async fn get_current_instance() -> String {
+    CURRENT_INSTANCE.read().await.clone()
+}
+
+/// Get list of default instances
+pub fn get_default_instances() -> Vec<String> {
+    DEFAULT_INSTANCES.iter().map(|s| s.to_string()).collect()
+}
+
+/// Get comments for a video using Invidious API.
+///
+/// This parser is intentionally tolerant because public Invidious instances may
+/// differ slightly in response shape.
+pub async fn get_comments(video_id: &str) -> Result<Vec<InvidiousCommentItem>> {
+    let instance = CURRENT_INSTANCE.read().await.clone();
+    let url = format!("{}/api/v1/comments/{}", instance, video_id);
+
+    let client = reqwest::Client::new();
+    let response = client
+        .get(&url)
+        .timeout(std::time::Duration::from_secs(30))
+        .send()
+        .await?;
+
+    if !response.status().is_success() {
+        return Err(anyhow::anyhow!(
+            "Invidious comments API error: {}",
+            response.status()
+        ));
+    }
+
+    let value: Value = response.json().await?;
+
+    let raw_comments = value
+        .get("comments")
+        .and_then(|v| v.as_array())
+        .cloned()
+        .or_else(|| value.as_array().cloned())
+        .unwrap_or_default();
+
+    let comments = raw_comments
+        .into_iter()
+        .map(|comment| {
+            let author = comment
+                .get("author")
+                .and_then(|v| v.as_str())
+                .unwrap_or("Unknown")
+                .to_string();
+
+            let author_id = comment
+                .get("authorId")
+                .or_else(|| comment.get("author_id"))
+                .and_then(|v| v.as_str())
+                .unwrap_or_default()
+                .to_string();
+
+            let author_avatar = comment
+                .get("authorThumbnails")
+                .and_then(|v| v.as_array())
+                .and_then(|arr| arr.first())
+                .and_then(|thumb| thumb.get("url"))
+                .and_then(|v| v.as_str())
+                .unwrap_or_default()
+                .to_string();
+
+            let content = comment
+                .get("content")
+                .or_else(|| comment.get("contentHtml"))
+                .and_then(|v| v.as_str())
+                .unwrap_or_default()
+                .to_string();
+
+            let published_text = comment
+                .get("publishedText")
+                .or_else(|| comment.get("published"))
+                .and_then(|v| v.as_str())
+                .unwrap_or_default()
+                .to_string();
+
+            let like_count = comment
+                .get("likeCount")
+                .or_else(|| comment.get("likes"))
+                .and_then(|v| v.as_i64())
+                .unwrap_or(0);
+
+            InvidiousCommentItem {
+                author,
+                author_id,
+                author_avatar,
+                content,
+                published_text,
+                like_count,
+            }
+        })
+        .collect();
+
+    Ok(comments)
+}
+
 ```
 
 `backend/src/lib.rs`:
@@ -2510,6 +2128,7 @@ pub mod player;
 pub mod yt_dlp;
 pub mod sponsorblock;
 pub mod returnyoutubedislike;
+pub mod invidious;
 
 ```
 
@@ -2530,6 +2149,7 @@ mod player;
 mod yt_dlp;
 mod sponsorblock;
 mod returnyoutubedislike;
+mod invidious;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -2540,12 +2160,23 @@ async fn main() -> anyhow::Result<()> {
     db::init_db().await?;
     let player = player::PlayerHandle::new();
 
+    // Warmup yt-dlp in background to eliminate cold start
+    tokio::spawn(async {
+        if let Err(e) = yt_dlp::warmup().await {
+            tracing::warn!("Background warmup failed: {}", e);
+        }
+    });
+
     // Build router
     let app = Router::new()
         .route("/", get(|| async { "Tubular Backend API" }))
+        .route("/warmup", post(api::warmup))
+        .route("/search-cache/clear", post(api::clear_search_cache))
         .route("/search", get(api::search))
         .route("/video/:id", get(api::get_video_info))
+        .route("/video/details/:id", get(api::get_video_details))
         .route("/stream/:id", get(api::get_stream_url))
+        .route("/stream-proxy/:id", get(api::proxy_stream))
         .route("/player", get(api::get_player_state))
         .route("/player/play", post(api::player_play))
         .route("/player/pause", post(api::player_pause))
@@ -2577,6 +2208,19 @@ async fn main() -> anyhow::Result<()> {
         .route("/settings", get(api::get_all_settings))
         .route("/settings", post(api::set_setting))
         .route("/settings/:key", get(api::get_setting))
+        .route("/invidious/search", get(api::invidious_search))
+        .route("/invidious/video/:id", get(api::invidious_video_info))
+        .route("/invidious/stream/:id", get(api::invidious_stream_url))
+        .route("/invidious/instance", get(api::get_invidious_instance))
+        .route("/invidious/instance", post(api::set_invidious_instance))
+        .route("/invidious/instances", get(api::get_invidious_instances))
+        .route("/playlists", get(api::get_playlists))
+        .route("/playlists", post(api::create_playlist))
+        .route("/playlists/:id", get(api::get_playlist))
+        .route("/playlists/:id", delete(api::delete_playlist))
+        .route("/playlists/:id/videos", get(api::get_playlist_videos))
+        .route("/playlists/:id/videos", post(api::add_video_to_playlist))
+        .route("/playlists/:id/videos/remove", post(api::remove_video_from_playlist))
         .layer(CorsLayer::permissive())
         .with_state(player);
 
@@ -2988,9 +2632,34 @@ fn format_time(seconds: f64) -> String {
 `backend/src/yt_dlp.rs`:
 
 ```rs
-use anyhow::{Context, Result};
+use anyhow::Result;
 use serde::{Deserialize, Serialize};
-use std::process::Command;
+use std::collections::HashMap;
+use std::env;
+use std::path::Path;
+use std::sync::Arc;
+use std::time::Instant;
+use tokio::sync::RwLock;
+use tokio::time::Duration;
+
+/// Search cache entry with TTL (1 hour)
+const SEARCH_CACHE_TTL: Duration = Duration::from_secs(3600);
+
+struct CacheEntry {
+    results: Vec<SearchResult>,
+    created_at: Instant,
+}
+
+impl CacheEntry {
+    fn is_expired(&self) -> bool {
+        self.created_at.elapsed() > SEARCH_CACHE_TTL
+    }
+}
+
+// Global search results cache
+lazy_static::lazy_static! {
+    static ref SEARCH_CACHE: Arc<RwLock<HashMap<String, CacheEntry>>> = Arc::new(RwLock::new(HashMap::new()));
+}
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct VideoInfo {
@@ -3006,7 +2675,7 @@ pub struct VideoInfo {
     pub upload_date: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct SearchResult {
     pub id: String,
     pub title: String,
@@ -3023,262 +2692,493 @@ pub struct StreamUrl {
     pub quality: String,
 }
 
-/// Search for videos using yt-dlp (supports both video search and channel search)
+/// Search for videos using rusty_ytdl
 pub async fn search_videos(query: &str, limit: u32) -> Result<Vec<SearchResult>> {
-    // Strategy 1: Try direct channel URL if it looks like a URL
-    if query.starts_with("http") || query.starts_with("www.") || query.contains("youtube.com") || query.contains("youtu.be") {
-        if let Ok(channel_results) = search_from_url(query, limit).await {
-            if !channel_results.is_empty() {
-                return Ok(channel_results);
+    let cache_key = format!("{}:{}", query, limit);
+    
+    // Check cache first
+    {
+        let cache = SEARCH_CACHE.read().await;
+        if let Some(entry) = cache.get(&cache_key) {
+            if !entry.is_expired() {
+                tracing::info!("📦 Cache hit for query: {}", query);
+                return Ok(entry.results.clone());
             }
         }
     }
     
-    // Strategy 2: Try regular video search
-    let mut results = search_videos_internal(query, limit).await?;
+    // Cache miss or expired - fetch fresh results
+    tracing::info!("🔍 Cache miss for query: {}, fetching fresh results", query);
     
-    // Strategy 3: If we got very few results, also try channel search
-    if results.len() < 5 {
-        if let Ok(channel_results) = search_channel_videos(query, limit).await {
-            for channel_result in channel_results {
-                if !results.iter().any(|r| r.id == channel_result.id) {
-                    results.push(channel_result);
-                }
-            }
-        }
+    let results = search_videos_internal(query, limit).await?;
+
+    // Cache the results before returning
+    {
+        let mut cache = SEARCH_CACHE.write().await;
+        cache.insert(cache_key, CacheEntry {
+            results: results.clone(),
+            created_at: Instant::now(),
+        });
     }
-    
-    // Strategy 4: If still no results, try broader search
-    if results.is_empty() {
-        if let Ok(broad_results) = search_videos_broad(query, limit).await {
-            results = broad_results;
-        }
-    }
-    
+
     Ok(results)
 }
 
-/// Search from a direct URL (channel, playlist, or video)
-async fn search_from_url(url: &str, limit: u32) -> Result<Vec<SearchResult>> {
-    let output = Command::new("yt-dlp")
-        .arg(url)
-        .arg("--flat-playlist")
-        .arg("--dump-json")
-        .arg("--playlist-end")
-        .arg(limit.to_string())
-        .arg("--no-warnings")
-        .arg("--quiet")
-        .arg("--socket-timeout")
-        .arg("20")
-        .output()
-        .context("Failed to execute yt-dlp for URL")?;
-
-    if !output.status.success() {
-        return Ok(Vec::new());
-    }
-
-    parse_search_results(&output.stdout)
+/// Warmup function
+pub async fn warmup() -> Result<()> {
+    tracing::info!("✅ rusty_ytdl ready");
+    Ok(())
 }
 
-/// Broader search with more results
-async fn search_videos_broad(query: &str, limit: u32) -> Result<Vec<SearchResult>> {
-    let search_query = format!("ytsearch{}:{}", limit * 3, query);
-    
-    let output = Command::new("yt-dlp")
-        .arg(&search_query)
-        .arg("--dump-json")
-        .arg("--no-playlist")
-        .arg("--skip-download")
-        .arg("--no-warnings")
-        .arg("--quiet")
-        .arg("--socket-timeout")
-        .arg("20")
-        .output()
-        .context("Failed to execute yt-dlp")?;
-
-    if !output.status.success() {
-        return Ok(Vec::new());
-    }
-
-    let mut results = parse_search_results(&output.stdout)?;
-    results.truncate(limit as usize);
-    Ok(results)
+/// Clear search cache
+pub async fn clear_search_cache() {
+    let mut cache = SEARCH_CACHE.write().await;
+    cache.clear();
+    tracing::info!("🗑️  Search cache cleared");
 }
 
-/// Internal video search
+/// Internal video search using rusty_ytdl
 async fn search_videos_internal(query: &str, limit: u32) -> Result<Vec<SearchResult>> {
-    let search_query = format!("ytsearch{}:{}", limit, query);
+    use rusty_ytdl::search::{YouTube, SearchOptions, SearchType};
     
-    let output = Command::new("yt-dlp")
-        .arg(&search_query)
-        .arg("--dump-json")
-        .arg("--no-playlist")
-        .arg("--skip-download")
-        .arg("--no-warnings")
-        .arg("--quiet")
-        .arg("--no-call-home")
-        .arg("--socket-timeout")
-        .arg("20")
-        .arg("--extractor-retries")
-        .arg("3")
-        .output()
-        .context("Failed to execute yt-dlp")?;
-
-    if !output.status.success() {
-        let error = String::from_utf8_lossy(&output.stderr);
-        anyhow::bail!("yt-dlp search failed: {}", error);
-    }
-
-    parse_search_results(&output.stdout)
-}
-
-/// Search for videos from a specific channel
-async fn search_channel_videos(channel_name: &str, limit: u32) -> Result<Vec<SearchResult>> {
-    // Try multiple search strategies for channels
+    tracing::info!("🔎 Searching YouTube for: {} (limit: {})", query, limit);
     
-    // Strategy 1: Search for channel directly
-    let channel_search = format!("ytsearch{}:{} channel videos", limit, channel_name);
+    let youtube = YouTube::new().map_err(|e| anyhow::anyhow!("Failed to create YouTube client: {:?}", e))?;
     
-    let output = Command::new("yt-dlp")
-        .arg(&channel_search)
-        .arg("--dump-json")
-        .arg("--no-playlist")
-        .arg("--skip-download")
-        .arg("--no-warnings")
-        .arg("--quiet")
-        .arg("--socket-timeout")
-        .arg("20")
-        .output()
-        .context("Failed to execute yt-dlp for channel search")?;
+    let search_options = SearchOptions {
+        limit: limit as u64,
+        search_type: SearchType::Video,
+        safe_search: false,
+    };
 
-    if !output.status.success() {
-        return Ok(Vec::new());
-    }
+    let results = youtube
+        .search(query, Some(&search_options))
+        .await
+        .map_err(|e| anyhow::anyhow!("Search failed: {:?}", e))?;
 
-    let mut results = parse_search_results(&output.stdout)?;
+    let mut search_results = Vec::new();
     
-    // Filter to only include videos from channels matching the query
-    let query_lower = channel_name.to_lowercase();
-    results.retain(|r| {
-        let channel_lower = r.channel.to_lowercase();
-        // Match if channel name contains query or query contains channel name
-        channel_lower.contains(&query_lower) || query_lower.contains(&channel_lower)
-    });
-    
-    // Limit results
-    results.truncate(limit as usize);
-    
-    Ok(results)
-}
-
-/// Parse yt-dlp JSON output into SearchResult vector
-fn parse_search_results(stdout: &[u8]) -> Result<Vec<SearchResult>> {
-    let stdout = String::from_utf8_lossy(stdout);
-    let mut results = Vec::new();
-
-    for line in stdout.lines() {
-        if line.trim().is_empty() {
-            continue;
-        }
-        
-        if let Ok(json) = serde_json::from_str::<serde_json::Value>(line) {
-            results.push(SearchResult {
-                id: json["id"].as_str().unwrap_or("").to_string(),
-                title: json["title"].as_str().unwrap_or("Unknown").to_string(),
-                channel: json["uploader"]
-                    .as_str()
-                    .or(json["channel"].as_str())
-                    .or(json["uploader_id"].as_str())
-                    .unwrap_or("Unknown")
-                    .to_string(),
-                duration: json["duration"].as_u64(),
-                view_count: json["view_count"].as_u64(),
-                thumbnail: json["thumbnail"]
-                    .as_str()
-                    .or(json["thumbnails"].as_array().and_then(|arr| {
-                        arr.last().and_then(|t| t["url"].as_str())
-                    }))
-                    .unwrap_or("")
-                    .to_string(),
-            });
+    for item in results.iter().take(limit as usize) {
+        // rusty_ytdl SearchResult has different fields
+        match item {
+            rusty_ytdl::search::SearchResult::Video(video) => {
+                search_results.push(SearchResult {
+                    id: video.id.clone(),
+                    title: video.title.clone(),
+                    channel: video.channel.name.clone(),
+                    duration: Some(video.duration),
+                    view_count: Some(video.views),
+                    thumbnail: video.thumbnails.first()
+                        .map(|t| t.url.clone())
+                        .unwrap_or_default(),
+                });
+            }
+            _ => continue, // Skip non-video results
         }
     }
 
-    Ok(results)
+    tracing::info!("✅ Found {} results", search_results.len());
+    Ok(search_results)
 }
 
 /// Get detailed video information
 pub async fn get_video_info(video_id: &str) -> Result<VideoInfo> {
+    use rusty_ytdl::{Video, VideoOptions};
+    
+    tracing::info!("📹 Fetching video info for: {}", video_id);
+    
     let url = format!("https://www.youtube.com/watch?v={}", video_id);
     
-    let output = Command::new("yt-dlp")
-        .arg(&url)
-        .arg("--dump-json")
-        .arg("--no-playlist")
-        .arg("--skip-download")
-        .arg("--no-warnings")
-        .arg("--quiet")
-        .arg("--socket-timeout")
-        .arg("10")
-        .output()
-        .context("Failed to execute yt-dlp")?;
+    let video = Video::new_with_options(&url, VideoOptions::default())
+        .map_err(|e| anyhow::anyhow!("Failed to create video: {:?}", e))?;
 
-    if !output.status.success() {
-        let error = String::from_utf8_lossy(&output.stderr);
-        anyhow::bail!("yt-dlp failed: {}", error);
-    }
+    let info = video.get_info().await
+        .map_err(|e| anyhow::anyhow!("Failed to get video info: {:?}", e))?;
 
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let json: serde_json::Value = serde_json::from_str(&stdout)?;
-
+    let details = &info.video_details;
+    
     Ok(VideoInfo {
-        id: json["id"].as_str().unwrap_or("").to_string(),
-        title: json["title"].as_str().unwrap_or("Unknown").to_string(),
-        description: json["description"].as_str().map(|s| s.to_string()),
-        duration: json["duration"].as_u64(),
-        view_count: json["view_count"].as_u64(),
-        like_count: json["like_count"].as_u64(),
-        channel: json["uploader"].as_str().or(json["channel"].as_str()).unwrap_or("Unknown").to_string(),
-        channel_id: json["uploader_id"].as_str().or(json["channel_id"].as_str()).unwrap_or("").to_string(),
-        thumbnail: json["thumbnail"].as_str().unwrap_or("").to_string(),
-        upload_date: json["upload_date"].as_str().map(|s| s.to_string()),
+        id: details.video_id.clone(),
+        title: details.title.clone(),
+        description: Some(details.description.clone()),
+        duration: details.length_seconds.parse::<u64>().ok(),
+        view_count: details.view_count.parse::<u64>().ok(),
+        like_count: None,
+        channel: details.author.as_ref().map(|a| a.name.clone()).unwrap_or_else(|| "Unknown".to_string()),
+        channel_id: details.channel_id.clone(),
+        thumbnail: details.thumbnails.first()
+            .map(|t| t.url.clone())
+            .unwrap_or_default(),
+        upload_date: Some(details.publish_date.clone()),
     })
 }
 
-/// Get stream URL for video playback
+/// Get stream URL with automatic fallback (yt-dlp -> Invidious -> rusty_ytdl)
 pub async fn get_stream_url(video_id: &str, quality: &str) -> Result<StreamUrl> {
-    let url = format!("https://www.youtube.com/watch?v={}", video_id);
-    
-    let format = match quality {
-        "1080p" => "bestvideo[height<=1080]+bestaudio/best[height<=1080]",
-        "720p" => "bestvideo[height<=720]+bestaudio/best[height<=720]",
-        "480p" => "bestvideo[height<=480]+bestaudio/best[height<=480]",
-        "audio" => "bestaudio",
-        _ => "best",
-    };
+    tracing::info!("🎬 Getting stream URL for: {} (quality: {})", video_id, quality);
 
-    let output = Command::new("yt-dlp")
-        .arg(&url)
-        .arg("-f")
-        .arg(format)
-        .arg("-g")
-        .arg("--no-warnings")
-        .arg("--quiet")
-        .arg("--socket-timeout")
-        .arg("10")
-        .output()
-        .context("Failed to execute yt-dlp")?;
-
-    if !output.status.success() {
-        let error = String::from_utf8_lossy(&output.stderr);
-        anyhow::bail!("yt-dlp failed: {}", error);
+    // Try the requested quality first with all available sources
+    match try_stream_url_sources(video_id, quality).await {
+        Ok(stream) => {
+            tracing::info!("✅ Successfully got stream at requested quality: {}", quality);
+            return Ok(stream);
+        }
+        Err(requested_quality_error) => {
+            tracing::warn!(
+                "⚠️  Requested quality '{}' failed for {}: {}",
+                quality,
+                video_id,
+                requested_quality_error
+            );
+        }
     }
 
-    let stream_url = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    // Only fall back to "best" if the requested quality was not "best"
+    if quality != "best" {
+        tracing::warn!(
+            "⚠️  No source available for quality '{}'. Falling back to 'best' quality.",
+            quality
+        );
+
+        match try_stream_url_sources(video_id, "best").await {
+            Ok(stream) => {
+                tracing::warn!(
+                    "⚠️  Note: Using 'best' quality instead of requested '{}' for {}",
+                    quality,
+                    video_id
+                );
+                return Ok(stream);
+            }
+            Err(fallback_error) => {
+                return Err(anyhow::anyhow!(
+                    "Failed to get stream URL for {} (requested '{}', fallback 'best' also failed: {})",
+                    video_id,
+                    quality,
+                    fallback_error
+                ));
+            }
+        }
+    }
+
+    // If we get here, the requested quality was "best" and it failed
+    Err(anyhow::anyhow!(
+        "Failed to get stream URL for {} with quality '{}'",
+        video_id,
+        quality
+    ))
+}
+
+async fn try_stream_url_sources(video_id: &str, quality: &str) -> Result<StreamUrl> {
+    // Try yt-dlp command first (best at bypassing YouTube restrictions)
+    let yt_dlp_error = match get_stream_url_ytdlp_command(video_id, quality).await {
+        Ok(stream) => {
+            tracing::info!("✅ Got stream URL from yt-dlp command");
+            return Ok(stream);
+        }
+        Err(e) => {
+            tracing::warn!("⚠️  yt-dlp command failed: {}", e);
+            e
+        }
+    };
+
+    // Try Invidious second
+    let invidious_error = match get_stream_url_invidious(video_id, quality).await {
+        Ok(url) => {
+            tracing::info!("✅ Got stream URL from Invidious");
+            return Ok(StreamUrl {
+                url,
+                format: "video/mp4".to_string(),
+                quality: quality.to_string(),
+            });
+        }
+        Err(e) => {
+            tracing::warn!("⚠️  Invidious failed: {}", e);
+            e
+        }
+    };
+
+    // Last resort: try rusty_ytdl
+    match get_stream_url_rusty_ytdl(video_id, quality).await {
+        Ok(stream) => {
+            tracing::info!("✅ Got stream URL from rusty_ytdl fallback");
+            Ok(stream)
+        }
+        Err(rusty_ytdl_error) => {
+            tracing::error!(
+                "❌ All methods failed (yt-dlp, Invidious, rusty_ytdl): yt-dlp={}, invidious={}, rusty_ytdl={}",
+                yt_dlp_error,
+                invidious_error,
+                rusty_ytdl_error
+            );
+            Err(anyhow::anyhow!(
+                "Failed to get stream URL from all sources (yt-dlp: {}; invidious: {}; rusty_ytdl: {})",
+                yt_dlp_error,
+                invidious_error,
+                rusty_ytdl_error
+            ))
+        }
+    }
+}
+
+/// Get stream URL using Invidious (secondary method)
+async fn get_stream_url_invidious(video_id: &str, quality: &str) -> Result<String> {
+    use crate::invidious;
+    invidious::get_stream_url(video_id, quality).await
+}
+
+fn ytdlp_format_selector(quality: &str) -> &'static str {
+    match quality {
+        "audio" => "bestaudio[ext=m4a]/bestaudio",
+        // Use strict height constraints - don't fall back to "best" without constraints
+        "1080p" => "best[height<=1080][vcodec!=none][acodec!=none]/best[height<=1080][vcodec!=none]/best[height<=1080]",
+        "720p" => "best[height<=720][vcodec!=none][acodec!=none]/best[height<=720][vcodec!=none]/best[height<=720]",
+        "480p" => "best[height<=480][vcodec!=none][acodec!=none]/best[height<=480][vcodec!=none]/best[height<=480]",
+        _ => "best[vcodec!=none][acodec!=none]/best[vcodec!=none]/best",
+    }
+}
+
+fn ytdlp_user_agent() -> Option<String> {
+    env::var("TUBULAR_YTDLP_USER_AGENT")
+        .ok()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+}
+
+fn ytdlp_cookies_path() -> Option<String> {
+    let path = env::var("TUBULAR_YTDLP_COOKIES")
+        .ok()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())?;
+
+    if Path::new(&path).exists() {
+        Some(path)
+    } else {
+        tracing::warn!("⚠️  TUBULAR_YTDLP_COOKIES path does not exist: {}", path);
+        None
+    }
+}
+
+fn ytdlp_auth_hint(stderr: &str, cookies_path: Option<&str>) -> Option<&'static str> {
+    let lowered = stderr.to_lowercase();
+    if lowered.contains("sign in")
+        || lowered.contains("confirm you're not a bot")
+        || lowered.contains("cookies")
+        || lowered.contains("account required")
+    {
+        return if cookies_path.is_some() {
+            Some("cookies were supplied but yt-dlp still failed; re-export cookies or update yt-dlp")
+        } else {
+            Some("set TUBULAR_YTDLP_COOKIES to a browser cookies.txt export for restricted videos")
+        };
+    }
+
+    if lowered.contains("http error 429") || lowered.contains("too many requests") {
+        return Some("rate limited by YouTube; try again later or use cookies")
+    }
+
+    None
+}
+
+fn parse_stream_url_from_ytdlp_stdout(stdout: &str) -> Option<String> {
+    stdout
+        .lines()
+        .map(str::trim)
+        .find(|line| line.starts_with("http://") || line.starts_with("https://"))
+        .map(ToString::to_string)
+}
+
+/// Get stream URL using yt-dlp command (primary method)
+async fn get_stream_url_ytdlp_command(video_id: &str, quality: &str) -> Result<StreamUrl> {
+    use tokio::process::Command;
+    
+    let url = format!("https://www.youtube.com/watch?v={}", video_id);
+    let format_selector = ytdlp_format_selector(quality);
+    let cookies_path = ytdlp_cookies_path();
+    let user_agent = ytdlp_user_agent();
+    
+    tracing::info!("🎬 Running yt-dlp command for: {}", video_id);
+
+    let mut attempts: Vec<(&str, Vec<&str>)> = vec![
+        ("default", Vec::new()),
+        (
+            "android client",
+            vec!["--extractor-args", "youtube:player_client=android"],
+        ),
+    ];
+
+    if cookies_path.is_none() {
+        attempts.push(("firefox cookies", vec!["--cookies-from-browser", "firefox"]));
+        attempts.push(("chrome cookies", vec!["--cookies-from-browser", "chrome"]));
+    }
+
+    let mut last_error = None;
+
+    for (attempt_name, extra_args) in attempts {
+        let mut cmd = Command::new("yt-dlp");
+        cmd.arg("--no-warnings")
+            .arg("--no-playlist")
+            .arg("--get-url")
+            .arg("-f")
+            .arg(format_selector);
+
+        if let Some(ref ua) = user_agent {
+            cmd.arg("--user-agent").arg(ua);
+        }
+
+        if let Some(ref cookies) = cookies_path {
+            cmd.arg("--cookies").arg(cookies);
+        }
+
+        for arg in extra_args {
+            cmd.arg(arg);
+        }
+
+        cmd.arg(&url);
+
+        let output = match cmd.output().await {
+            Ok(output) => output,
+            Err(e) => {
+                let err = anyhow::anyhow!("{} attempt failed to execute yt-dlp: {}", attempt_name, e);
+                tracing::warn!("⚠️  {}", err);
+                last_error = Some(err);
+                continue;
+            }
+        };
+
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+            let mut details = if stderr.is_empty() {
+                "no stderr output".to_string()
+            } else {
+                stderr
+            };
+
+            if let Some(hint) = ytdlp_auth_hint(&details, cookies_path.as_deref()) {
+                details = format!("{} | hint: {}", details, hint);
+            }
+
+            let err = anyhow::anyhow!(
+                "{} attempt failed (status {}): {}",
+                attempt_name,
+                output.status,
+                details
+            );
+            tracing::warn!("⚠️  {}", err);
+            last_error = Some(err);
+            continue;
+        }
+
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let stream_url = match parse_stream_url_from_ytdlp_stdout(&stdout) {
+            Some(url) => url,
+            None => {
+                let err = anyhow::anyhow!("{} attempt returned no stream URL", attempt_name);
+                tracing::warn!("⚠️  {}", err);
+                last_error = Some(err);
+                continue;
+            }
+        };
+
+        tracing::info!(
+            "✅ Got stream URL from yt-dlp ({}, url length: {})",
+            attempt_name,
+            stream_url.len()
+        );
+
+        return Ok(StreamUrl {
+            url: stream_url,
+            format: if quality == "audio" {
+                "audio/mp4".to_string()
+            } else {
+                "video/mp4".to_string()
+            },
+            quality: quality.to_string(),
+        });
+    }
+
+    Err(last_error.unwrap_or_else(|| anyhow::anyhow!("all yt-dlp attempts failed")))
+}
+
+/// Get stream URL using rusty_ytdl (fallback)
+async fn get_stream_url_rusty_ytdl(video_id: &str, quality: &str) -> Result<StreamUrl> {
+    use rusty_ytdl::{Video, VideoOptions};
+    
+    tracing::info!("🎬 Getting stream URL for: {} (quality: {})", video_id, quality);
+    
+    let url = format!("https://www.youtube.com/watch?v={}", video_id);
+    
+    let video = Video::new_with_options(&url, VideoOptions::default())
+        .map_err(|e| anyhow::anyhow!("Failed to create video: {:?}", e))?;
+
+    let info = video.get_info().await
+        .map_err(|e| anyhow::anyhow!("Failed to get video info: {:?}", e))?;
+
+    // Find best format based on quality
+    // For streaming, prioritize formats with both video and audio
+    let format = match quality {
+        "audio" => {
+            // Get best audio-only format
+            info.formats.iter()
+                .filter(|f| f.has_audio && !f.has_video)
+                .max_by_key(|f| f.audio_bitrate.unwrap_or(0))
+        }
+        "1080p" => {
+            // Try combined format first (video+audio), then video-only
+            info.formats.iter()
+                .filter(|f| f.has_video && f.has_audio && f.height.unwrap_or(0) <= 1080 && f.height.unwrap_or(0) >= 720)
+                .max_by_key(|f| f.height.unwrap_or(0))
+                .or_else(|| {
+                    info.formats.iter()
+                        .filter(|f| f.has_video && f.height.unwrap_or(0) <= 1080)
+                        .max_by_key(|f| f.height.unwrap_or(0))
+                })
+        }
+        "720p" => {
+            info.formats.iter()
+                .filter(|f| f.has_video && f.has_audio && f.height.unwrap_or(0) <= 720 && f.height.unwrap_or(0) >= 480)
+                .max_by_key(|f| f.height.unwrap_or(0))
+                .or_else(|| {
+                    info.formats.iter()
+                        .filter(|f| f.has_video && f.height.unwrap_or(0) <= 720)
+                        .max_by_key(|f| f.height.unwrap_or(0))
+                })
+        }
+        "480p" => {
+            info.formats.iter()
+                .filter(|f| f.has_video && f.has_audio && f.height.unwrap_or(0) <= 480 && f.height.unwrap_or(0) >= 360)
+                .max_by_key(|f| f.height.unwrap_or(0))
+                .or_else(|| {
+                    info.formats.iter()
+                        .filter(|f| f.has_video && f.height.unwrap_or(0) <= 480)
+                        .max_by_key(|f| f.height.unwrap_or(0))
+                })
+        }
+        _ => {
+            // Get best combined format (video + audio)
+            info.formats.iter()
+                .filter(|f| f.has_video && f.has_audio)
+                .max_by_key(|f| (f.height.unwrap_or(0), f.bitrate))
+                .or_else(|| {
+                    // Fallback to any video format
+                    info.formats.iter()
+                        .filter(|f| f.has_video)
+                        .max_by_key(|f| f.height.unwrap_or(0))
+                })
+        }
+    };
+
+    let format = format.ok_or_else(|| anyhow::anyhow!("No suitable format found"))?;
+
+    if format.url.is_empty() {
+        return Err(anyhow::anyhow!("Format URL is empty"));
+    }
+
+    tracing::info!("✅ Found format: height={:?}, has_audio={}, has_video={}, url_len={}", 
+        format.height, format.has_audio, format.has_video, format.url.len());
 
     Ok(StreamUrl {
-        url: stream_url,
-        format: format.to_string(),
+        url: format.url.clone(),
+        format: format!("{:?}", format.mime_type),
         quality: quality.to_string(),
     })
 }
@@ -3290,807 +3190,195 @@ pub async fn download_video(
     quality: &str,
     audio_only: bool,
 ) -> Result<String> {
+    tracing::info!("⬇️  Downloading video: {} to {}", video_id, output_path);
+
+    match download_video_with_ytdlp_command(video_id, output_path, quality, audio_only).await {
+        Ok(path) => Ok(path),
+        Err(ytdlp_error) => {
+            tracing::warn!("⚠️  yt-dlp download failed, falling back to direct fetch: {}", ytdlp_error);
+
+            match download_video_direct(video_id, output_path, quality, audio_only).await {
+                Ok(path) => Ok(path),
+                Err(direct_error) => Err(anyhow::anyhow!(
+                    "yt-dlp download failed: {}; direct download failed: {}",
+                    ytdlp_error,
+                    direct_error
+                )),
+            }
+        }
+    }
+}
+
+async fn download_video_with_ytdlp_command(
+    video_id: &str,
+    output_path: &str,
+    quality: &str,
+    audio_only: bool,
+) -> Result<String> {
+    use tokio::process::Command;
+
     let url = format!("https://www.youtube.com/watch?v={}", video_id);
-    
+    let cookies_path = ytdlp_cookies_path();
+    let user_agent = ytdlp_user_agent();
+
+    if let Some(parent) = Path::new(output_path).parent() {
+        if !parent.as_os_str().is_empty() {
+            tokio::fs::create_dir_all(parent)
+                .await
+                .map_err(|e| anyhow::anyhow!("Failed to create output directory: {}", e))?;
+        }
+    }
+
+    let mut attempts: Vec<(&str, Vec<&str>)> = vec![
+        ("default", Vec::new()),
+        (
+            "android client",
+            vec!["--extractor-args", "youtube:player_client=android"],
+        ),
+    ];
+
+    if cookies_path.is_none() {
+        attempts.push(("firefox cookies", vec!["--cookies-from-browser", "firefox"]));
+        attempts.push(("chrome cookies", vec!["--cookies-from-browser", "chrome"]));
+    }
+
+    let mut last_error = None;
+
+    for (attempt_name, extra_args) in attempts {
+        let mut cmd = Command::new("yt-dlp");
+        cmd.arg("--no-warnings")
+            .arg("--no-playlist")
+            .arg("--newline")
+            .arg("-o")
+            .arg(output_path);
+
+        if let Some(ref ua) = user_agent {
+            cmd.arg("--user-agent").arg(ua);
+        }
+
+        if let Some(ref cookies) = cookies_path {
+            cmd.arg("--cookies").arg(cookies);
+        }
+
+        if audio_only {
+            cmd.arg("-x").arg("--audio-format").arg("m4a");
+        } else {
+            cmd.arg("--merge-output-format")
+                .arg("mp4")
+                .arg("-f")
+                .arg(ytdlp_format_selector(quality));
+        }
+
+        for arg in extra_args {
+            cmd.arg(arg);
+        }
+
+        cmd.arg(&url);
+
+        let output = match cmd.output().await {
+            Ok(output) => output,
+            Err(e) => {
+                let err = anyhow::anyhow!("{} attempt failed to execute yt-dlp: {}", attempt_name, e);
+                tracing::warn!("⚠️  {}", err);
+                last_error = Some(err);
+                continue;
+            }
+        };
+
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+            let mut details = if stderr.is_empty() {
+                "no stderr output".to_string()
+            } else {
+                stderr
+            };
+
+            if let Some(hint) = ytdlp_auth_hint(&details, cookies_path.as_deref()) {
+                details = format!("{} | hint: {}", details, hint);
+            }
+
+            let err = anyhow::anyhow!("{} attempt failed (status {}): {}", attempt_name, output.status, details);
+            tracing::warn!("⚠️  {}", err);
+            last_error = Some(err);
+            continue;
+        }
+
+        tracing::info!("✅ yt-dlp download complete: {}", output_path);
+        return Ok(output_path.to_string());
+    }
+
+    Err(last_error.unwrap_or_else(|| anyhow::anyhow!("all yt-dlp attempts failed")))
+}
+
+async fn download_video_direct(
+    video_id: &str,
+    output_path: &str,
+    quality: &str,
+    audio_only: bool,
+) -> Result<String> {
+    use rusty_ytdl::{Video, VideoOptions};
+
+    let url = format!("https://www.youtube.com/watch?v={}", video_id);
+
+    let video = Video::new_with_options(&url, VideoOptions::default())
+        .map_err(|e| anyhow::anyhow!("Failed to create video: {:?}", e))?;
+
+    let info = video
+        .get_info()
+        .await
+        .map_err(|e| anyhow::anyhow!("Failed to get video info: {:?}", e))?;
+
     let format = if audio_only {
-        "bestaudio"
+        info.formats
+            .iter()
+            .filter(|f| f.has_audio && !f.has_video)
+            .max_by_key(|f| f.audio_bitrate.unwrap_or(0))
     } else {
         match quality {
-            "1080p" => "bestvideo[height<=1080]+bestaudio/best[height<=1080]",
-            "720p" => "bestvideo[height<=720]+bestaudio/best[height<=720]",
-            "480p" => "bestvideo[height<=480]+bestaudio/best[height<=480]",
-            _ => "best",
+            "1080p" => info
+                .formats
+                .iter()
+                .filter(|f| f.has_video && f.height.unwrap_or(0) <= 1080)
+                .max_by_key(|f| f.height.unwrap_or(0)),
+            "720p" => info
+                .formats
+                .iter()
+                .filter(|f| f.has_video && f.height.unwrap_or(0) <= 720)
+                .max_by_key(|f| f.height.unwrap_or(0)),
+            "480p" => info
+                .formats
+                .iter()
+                .filter(|f| f.has_video && f.height.unwrap_or(0) <= 480)
+                .max_by_key(|f| f.height.unwrap_or(0)),
+            _ => info
+                .formats
+                .iter()
+                .filter(|f| f.has_video)
+                .max_by_key(|f| f.height.unwrap_or(0)),
         }
     };
 
-    let output = Command::new("yt-dlp")
-        .arg(&url)
-        .arg("-f")
-        .arg(format)
-        .arg("-o")
-        .arg(output_path)
-        .output()
-        .context("Failed to execute yt-dlp")?;
+    let format = format.ok_or_else(|| anyhow::anyhow!("No suitable format found"))?;
 
-    if !output.status.success() {
-        let error = String::from_utf8_lossy(&output.stderr);
-        anyhow::bail!("Download failed: {}", error);
-    }
+    let client = reqwest::Client::new();
+    let response = client
+        .get(&format.url)
+        .send()
+        .await
+        .map_err(|e| anyhow::anyhow!("Failed to download: {}", e))?;
 
+    let bytes = response
+        .bytes()
+        .await
+        .map_err(|e| anyhow::anyhow!("Failed to read response: {}", e))?;
+
+    tokio::fs::write(output_path, bytes)
+        .await
+        .map_err(|e| anyhow::anyhow!("Failed to write file: {}", e))?;
+
+    tracing::info!("✅ Direct download complete: {}", output_path);
     Ok(output_path.to_string())
 }
-
-```
-
-`features.md`:
-
-```md
-# 🔴 MISSING FEATURES - Tubular PC
-
-> **Based on your current project status** | All features NOT yet implemented in Tubular-PC
-
----
-
-## 📊 IMPLEMENTATION STATUS BREAKDOWN
-
-### ✅ CURRENTLY IMPLEMENTED (MVP Phase)
-```
-✓ Backend API server (Rust)
-✓ Frontend UI (Flutter)
-✓ Video search functionality
-✓ Video playback (mpv integration)
-✓ Download functionality (basic)
-✓ Subscriptions management (backend)
-✓ Watch history tracking (backend)
-✓ SQLite database
-✓ REST API endpoints
-✓ Video card widget
-✓ Player screen (basic)
-✓ Home screen with search
-```
-
-### 🟡 IN PROGRESS
-```
-🔄 Download progress tracking UI
-🔄 Subscriptions screen UI
-🔄 History screen UI
-🔄 Settings page
-```
-
----
-
-## 🔴 MISSING FEATURES (PRIORITY ORDER)
-
----
-
-## TIER 1: CRITICAL FEATURES (UI/UX Screens)
-
-### 1. **Subscriptions Screen** (UI Not Implemented)
-- **Status**: Backend exists, **Frontend missing**
-- **What's needed**:
-  - Display list of subscribed channels
-  - Show latest uploads from subscribed channels
-  - Subscribe/unsubscribe buttons
-  - Manage channel groups
-  - Bulk subscription operations
-  - Sort/filter subscriptions (by upload date, name, etc.)
-  - Notification badges for new uploads
-  - Channel info cards (thumbnail, subscriber count, description)
-  - Quick access to channel page
-
----
-
-### 2. **History Screen** (UI Not Implemented)
-- **Status**: Backend exists, **Frontend missing**
-- **What's needed**:
-  - Display watch history timeline
-  - Clear history options (all/selected/date range)
-  - Continue watching (resume from last timestamp)
-  - Search/filter history
-  - Group by date
-  - Remove individual history entries
-  - Hide/show videos in history
-  - Export history
-  - History statistics (most watched, time spent, etc.)
-
----
-
-### 3. **Downloads Screen** (Partial - UI missing features)
-- **Status**: Basic download exists, **Enhanced UI missing**
-- **What's needed**:
-  - Download queue management UI
-  - **Pause/Resume downloads**
-  - **Cancel downloads**
-  - Download progress indicators (per file)
-  - File size estimates
-  - Download location selector
-  - Format selection before download (audio/video quality)
-  - Batch download operations
-  - Downloaded video organization (by date, channel, playlist)
-  - Delete downloaded files
-  - Search downloaded videos
-  - Sort downloads (date added, size, duration)
-  - Mark favorites from downloads
-  - Move/rename downloaded files
-
----
-
-### 4. **Settings/Preferences Screen** (MISSING)
-- **Status**: Backend may have partial support, **UI completely missing**
-- **What's needed**:
-
-  **Playback Settings**:
-  - Default video quality (360p, 480p, 720p, 1080p, 4K)
-  - Playback speed presets
-  - Subtitle preferences (font size, color, language)
-  - Caption auto-enable
-  - Continue playing after screen off
-  - Player controls customization
-  - Remember playback position
-  - Skip intro/outro automatically
-
-  **Download Settings**:
-  - Default download path/location
-  - Default download quality
-  - Download naming pattern
-  - Max concurrent downloads
-  - Auto-download new uploads from favorite channels
-  - Subtitles download preference
-
-  **Privacy & Content**:
-  - Search history on/off
-  - Watch history on/off
-  - Restricted mode (hide mature content)
-  - Regional content preferences
-  - Cookie/authentication storage
-
-  **UI Customization**:
-  - Theme selection (light/dark/AMOLED black)
-  - Accent color selection
-  - Font size adjustment
-  - Layout options (compact/comfortable)
-  - Language selection
-  - Sidebar position
-  - Always show player controls
-
-  **SponsorBlock Settings** (when implemented):
-  - Enable/disable SponsorBlock
-  - Skip categories (sponsors, intros, outros, etc.)
-  - Auto-skip or notify
-  - Show skipped segments counter
-  - Report segments permission
-
-  **Return YouTube Dislike Settings**:
-  - Enable/disable dislikes display
-  - Show as percentage vs. count
-  - Hide if below threshold
-
-  **Application**:
-  - Notification settings
-  - Update checks
-  - Debug mode
-  - App cache clearing
-  - Database export/import
-  - About/version info
-
----
-
-## TIER 2: CORE INTEGRATIONS (Not Implemented)
-
-### 5. **SponsorBlock Integration** (PLANNED)
-- **Status**: Rust backend module exists, **NOT integrated with player**
-- **What's needed**:
-  - API calls to SponsorBlock database
-  - Extract video ID from URL
-  - Get skip segments for video
-  - **Automatic segment skipping in mpv** (critical)
-  - **Show skip notifications** ("Sponsor skipped - 2:34 saved")
-  - **Cumulative time saved counter**
-  - Manual skip controls
-  - Report incorrect segments
-  - Whitelist channels
-  - Choose categories to skip (sponsor, intro, outro, interaction, etc.)
-  - Skip timing adjustments
-  - Visual indicator of sponsor segments on timeline
-  - Cache skip data locally
-
----
-
-### 6. **ReturnYouTubeDislike Integration** (PLANNED)
-- **Status**: Rust backend module exists, **NOT integrated with UI**
-- **What's needed**:
-  - API calls to RYD database
-  - Fetch dislike counts for video
-  - **Display on video cards** (before opening video)
-  - **Display on player screen** (like/dislike ratio)
-  - **Show as bar graph** (visual representation)
-  - Show count as text
-  - Like/dislike percentage
-  - Aggregate rating (thumbs up/down)
-  - Cache dislike data locally
-  - Update on demand
-
----
-
-## TIER 3: ADVANCED FEATURES (Not Implemented)
-
-### 7. **Playlists System** (MISSING)
-- **Status**: No implementation at all
-- **What's needed**:
-  - Create custom playlists
-  - Add videos to playlists
-  - Remove videos from playlists
-  - Reorder videos in playlists
-  - Delete playlists
-  - Rename playlists
-  - Playlist UI (dedicated screen)
-  - Playlist descriptions
-  - Share playlists
-  - Import playlists
-  - Export playlists (JSON/CSV)
-  - YouTube playlist support (fetch/play YouTube playlists)
-  - Save channel favorites to playlist
-  - Auto-playlist for channels (latest uploads)
-
----
-
-### 8. **Channel/Creator Pages** (MISSING)
-- **Status**: No implementation at all
-- **What's needed**:
-  - Channel info display (banner, profile pic, subscriber count, description)
-  - Channel uploads list
-  - Channel playlists
-  - Channel featured videos
-  - Channel tabs (uploads, playlists, featured, community)
-  - Subscribe/unsubscribe button
-  - All videos/videos/shorts sorting
-  - Search within channel
-  - Channel statistics
-  - Channel notifications
-  - Channel pinned video indicator
-  - Channel community posts (if available)
-
----
-
-### 9. **Comments Section** (PLANNED in UI)
-- **Status**: UI widget exists, **NOT functional**
-- **What's needed**:
-  - Fetch comments from yt-dlp/YouTube
-  - Display comment threads
-  - Load more comments (pagination)
-  - Nested replies support
-  - Sort comments (top/newest)
-  - Like/unlike comments
-  - Timestamp links in comments
-  - User avatars in comments
-  - Comment author badges
-  - Pinned comments
-  - Video author replies highlight
-  - Reply to comments
-  - Delete own comments
-  - Report comments
-  - Search comments
-
----
-
-### 10. **Trending/Discovery** (MISSING)
-- **Status**: No implementation
-- **What's needed**:
-  - Trending videos feed
-  - Category-based trending (music, gaming, news, etc.)
-  - Regional trending support
-  - Trending by time period (today/this week/this month)
-  - Recommendations based on watch history
-  - Similar videos (when viewing video)
-  - "Recommended for you" feed
-  - Explore/discovery page
-  - Random video suggestion
-  - Category exploration
-
----
-
-### 11. **Multi-Language & Localization** (MISSING)
-- **Status**: No implementation
-- **What's needed**:
-  - App UI translation (all screens)
-  - Settings for language selection
-  - Support for multiple language packs
-  - Subtitle language preferences
-  - Searchable content in different languages
-  - Regional video content support
-  - RTL language support (Arabic, Hebrew)
-  - Currency support (for regional pricing if applicable)
-  - Date/time format localization
-
----
-
-## TIER 4: PLAYER ENHANCEMENTS (Partial Implementation)
-
-### 12. **Advanced Player Controls** (Partially missing)
-- **Status**: Basic mpv integration exists
-- **What's needed**:
-  - **Video quality selector UI** (select before/during playback)
-  - **Playback speed control UI** (0.25x - 2x)
-  - **Subtitle selection & customization**
-    - Font size
-    - Font color
-    - Background opacity
-    - Subtitle language selection
-  - **Audio track selection** (for multilingual videos)
-  - **Aspect ratio controls** (fit/fill/zoom)
-  - **Theater mode** (wider player)
-  - **Picture-in-Picture mode**
-  - **Fullscreen mode** (proper implementation)
-  - **Keyboard shortcuts** (documented & customizable)
-  - **Mouse wheel volume control**
-  - **Click-to-pause/play**
-  - **Gesture controls** (swipe for seeking, volume)
-  - **Hardware acceleration** settings
-
----
-
-### 13. **Background Playback** (PLANNED)
-- **Status**: No implementation
-- **What's needed**:
-  - Continue playback when app minimized
-  - Audio-only playback (extract audio)
-  - Lock screen controls
-  - System media controls integration
-  - Notification controls
-  - Pause when other app plays audio
-  - Resume when other audio stops
-
----
-
-### 14. **Video Timeline/Chapters** (MISSING)
-- **Status**: No implementation
-- **What's needed**:
-  - Display chapter markers on timeline
-  - Jump to chapters
-  - Show chapter names on hover
-  - Auto-generated chapters (if YouTube provides)
-  - Custom chapter creation
-  - Timeline preview/thumbnails on hover
-  - Timestamp links in descriptions
-  - Keyframe seeking (faster scrubbing)
-
----
-
-## TIER 5: BACKEND/CORE SYSTEMS (Missing/Incomplete)
-
-### 15. **Robust Error Handling** (Incomplete)
-- **Status**: Minimal implementation
-- **What's needed**:
-  - Network error recovery
-  - Timeout handling
-  - Rate limiting handling
-  - Graceful degradation
-  - User-friendly error messages
-  - Error logging system
-  - Error reporting (optional)
-  - Offline mode support
-  - Retry mechanisms with exponential backoff
-  - Connection status indicator
-
----
-
-### 16. **Caching System** (Missing)
-- **Status**: No implementation
-- **What's needed**:
-  - Thumbnail caching
-  - Search results caching
-  - Video metadata caching
-  - Comments caching
-  - Channel info caching
-  - Cache invalidation strategy
-  - Cache size management
-  - Clear cache option
-  - Cache expiration settings
-
----
-
-### 17. **Search Enhancements** (Basic only)
-- **Status**: Only basic text search implemented
-- **What's needed**:
-  - Search filters (date, duration, upload date, etc.)
-  - Filter by channel
-  - Filter by video type (video/music/shorts)
-  - Search within results
-  - Search history
-  - Saved searches
-  - Advanced search syntax
-  - Autocomplete suggestions
-  - Search by URL/video ID
-  - Fuzzy search support
-
----
-
-### 18. **Update System** (Missing)
-- **Status**: No implementation
-- **What's needed**:
-  - Check for app updates
-  - Auto-update mechanism
-  - yt-dlp auto-update (critical)
-  - Update progress indicator
-  - Changelog display
-  - Rollback option
-  - Update notifications
-
----
-
-## TIER 6: DATA MANAGEMENT (Partial)
-
-### 19. **Database Features** (Incomplete)
-- **Status**: Basic SQLite schema, **many features missing**
-- **What's needed**:
-  - **Database schema migrations**
-  - **Data integrity checks**
-  - **Backup/restore system**
-  - **Database cleanup/optimization**
-  - **Statistics dashboard** (total watch time, videos downloaded, etc.)
-  - **Data export options** (JSON/CSV for subscriptions, history)
-  - **Database encryption** (for privacy)
-  - **Sync across devices** (cloud optional)
-  - **Data size management**
-
----
-
-### 20. **Auto-Download/Sync** (PLANNED)
-- **Status**: No implementation
-- **What's needed**:
-  - Auto-download latest uploads from channels
-  - Scheduling for auto-downloads
-  - Smart download (avoid duplicates)
-  - Queue management
-  - Bandwidth limiting
-  - Storage quota management
-  - Smart delete (remove old downloads)
-
----
-
-## TIER 7: ADVANCED UI/UX (Missing)
-
-### 21. **Notifications** (Missing)
-- **Status**: No implementation
-- **What's needed**:
-  - New upload notifications (subscribed channels)
-  - Download complete notifications
-  - App update notifications
-  - SponsorBlock skip notifications
-  - Custom notification preferences
-  - Notification history
-  - Do not disturb mode
-  - Sound/vibration settings
-
----
-
-### 22. **Search UI Enhancement** (Basic only)
-- **Status**: Basic search box only
-- **What's needed**:
-  - Search suggestions dropdown
-  - Recent searches
-  - Trending searches
-  - Saved searches
-  - Search categories sidebar
-  - Search results filters UI
-  - Search results sorting
-  - Search result view options (grid/list)
-
----
-
-### 23. **Keyboard Shortcuts** (Missing)
-- **Status**: No implementation
-- **What's needed**:
-  - Spacebar to play/pause
-  - Arrow keys for seeking
-  - Volume control (+ / -)
-  - Fullscreen (F)
-  - Mute (M)
-  - Numbers for seeking (0-9)
-  - > / < for playback speed
-  - L for like/dislike
-  - S for settings
-  - Customizable shortcuts
-  - Shortcut help dialog (?)
-
----
-
-### 24. **Accessibility Features** (Missing)
-- **Status**: No implementation
-- **What's needed**:
-  - Screen reader support
-  - High contrast mode
-  - Font size adjustment
-  - Keyboard-only navigation
-  - Focus indicators
-  - Alt text for images
-  - Audio descriptions
-  - Captions/subtitles support
-  - Color blind modes
-  - Dyslexia-friendly font option
-
----
-
-## TIER 8: CROSS-PLATFORM (Incomplete)
-
-### 25. **Multi-Platform Support** (Partial)
-- **Status**: Linux support mostly done, **Windows/macOS need work**
-- **What's needed**:
-  - **Windows native packaging** (.exe installer)
-  - **macOS support** (build & package)
-  - **macOS .dmg distribution**
-  - **Linux AppImage** packaging
-  - **Linux Flatpak** support
-  - **Linux Snap** support
-  - **Auto-update mechanism** per platform
-  - **System tray icon** (minimize to tray)
-  - **Launch on startup** option
-  - Platform-specific shortcuts
-  - Native file dialogs per OS
-  - Drag & drop file support
-
----
-
-### 26. **Platform-Specific Features** (Missing)
-- **Status**: No implementation
-- **What's needed**:
-  - Windows:
-    - System media controls (multimedia keys)
-    - Windows Notification API
-    - Registry integration
-  - Linux:
-    - D-Bus integration
-    - MPRIS protocol (media control)
-    - Desktop file integration
-  - macOS:
-    - TouchBar support
-    - Spotlight search integration
-    - Handoff support (if cloud sync)
-
----
-
-## TIER 9: TESTING & QA (Missing)
-
-### 27. **Testing Coverage** (Minimal)
-- **Status**: Basic widget test only
-- **What's needed**:
-  - Unit tests (backend & frontend)
-  - Integration tests
-  - API endpoint tests
-  - Database tests
-  - Player integration tests
-  - Download tests
-  - Search functionality tests
-  - Performance tests
-  - Stress tests
-  - End-to-end UI tests
-
----
-
-### 28. **Documentation** (Incomplete)
-- **Status**: Basic READMEs exist, **detailed docs missing**
-- **What's needed**:
-  - API documentation (OpenAPI/Swagger)
-  - Installation guides per OS
-  - Configuration guide
-  - Troubleshooting guide
-  - Developer setup guide
-  - Architecture documentation
-  - Code comments/doc strings
-  - User manual
-  - Video tutorial
-  - Keyboard shortcuts documentation
-  - FAQ page
-  - Contributing guidelines (exists but incomplete)
-
----
-
-## TIER 10: PERFORMANCE & OPTIMIZATION (Missing)
-
-### 29. **Performance Optimization** (Not done)
-- **Status**: No optimization phase yet
-- **What's needed**:
-  - Lazy loading for lists
-  - Virtual scrolling for large lists
-  - Image optimization (compression, resizing)
-  - Streaming optimization
-  - Database query optimization
-  - Memory profiling & leaks fixes
-  - Startup time optimization
-  - UI render optimization
-  - Network request batching
-  - Connection pooling
-
----
-
-### 30. **Resource Management** (Missing)
-- **Status**: Basic implementation only
-- **What's needed**:
-  - Memory usage limits
-  - CPU usage optimization
-  - Bandwidth limiting
-  - Storage quota management
-  - Download pause on low battery
-  - Download pause on mobile data (desktop not applicable but conceptually)
-  - Cleanup old cache automatically
-
----
-
-## TIER 11: SECURITY & PRIVACY (Missing)
-
-### 31. **Security Features** (Missing)
-- **Status**: No security implementation
-- **What's needed**:
-  - HTTPS enforcement
-  - Certificate pinning
-  - Input validation/sanitization
-  - XSS/CSRF protection
-  - Rate limiting
-  - DDoS protection
-  - Secure credential storage
-  - API key management
-  - OAuth support (future)
-  - Security audit
-
----
-
-### 32. **Privacy Features** (Partial)
-- **Status**: Basic, needs enhancement
-- **What's needed**:
-  - No telemetry/tracking
-  - Data privacy policy
-  - Cookie management
-  - Do-not-track header
-  - Anonymous search support
-  - Encrypted local storage (optional)
-  - Clear all data option
-  - Data deletion on uninstall
-  - GDPR compliance
-  - Privacy audit
-
----
-
-## TIER 12: NICE-TO-HAVE FEATURES (Bonus)
-
-### 33. **Community/Social** (Not planned)
-- **Status**: No implementation
-- **What's needed**:
-  - Share videos with link
-  - Share timestamp links
-  - Playlist sharing
-  - Social media integration
-  - Discord rich presence
-  - Watch party (future)
-  - Comments/reviews (future)
-
----
-
-### 34. **Plugins/Extensions** (Not planned)
-- **Status**: No implementation
-- **What's needed**:
-  - Plugin system
-  - Custom theme support
-  - Custom codec support
-  - API for third-party tools
-
----
-
-### 35. **Analytics/Stats** (Missing)
-- **Status**: No implementation
-- **What's needed**:
-  - Total watch time
-  - Most watched channels
-  - Most watched videos
-  - Watch time by date
-  - Download statistics
-  - Playback statistics
-  - Data visualization (charts)
-
----
-
-## 📋 SUMMARY TABLE
-
-| Feature | Status | Priority | Difficulty |
-|---------|--------|----------|------------|
-| Subscriptions UI | 🔴 Missing | P0 | Medium |
-| History UI | 🔴 Missing | P0 | Medium |
-| Downloads UI (Enhanced) | 🟡 Partial | P0 | Medium |
-| Settings Screen | 🔴 Missing | P0 | Hard |
-| SponsorBlock Integration | 🟡 Partial | P1 | Medium |
-| ReturnYouTubeDislike Integration | 🟡 Partial | P1 | Easy |
-| Playlists System | 🔴 Missing | P1 | Hard |
-| Channel Pages | 🔴 Missing | P1 | Hard |
-| Comments Section | 🟡 Partial | P1 | Medium |
-| Trending/Discovery | 🔴 Missing | P2 | Hard |
-| Multi-Language | 🔴 Missing | P2 | Medium |
-| Background Playback | 🔴 Missing | P1 | Medium |
-| Video Quality Selector | 🔴 Missing | P1 | Easy |
-| Subtitle Customization | 🔴 Missing | P1 | Medium |
-| Search Enhancements | 🟡 Partial | P1 | Medium |
-| Database Features | 🟡 Partial | P2 | Hard |
-| Auto-Download/Sync | 🔴 Missing | P2 | Hard |
-| Notifications | 🔴 Missing | P1 | Medium |
-| Keyboard Shortcuts | 🔴 Missing | P2 | Easy |
-| Accessibility | 🔴 Missing | P3 | Hard |
-| Error Handling | 🟡 Partial | P1 | Medium |
-| Caching System | 🔴 Missing | P2 | Hard |
-| Update System | 🔴 Missing | P2 | Medium |
-| Cross-Platform Packaging | 🟡 Partial | P1 | Hard |
-| Testing | 🟡 Minimal | P3 | Hard |
-| Documentation | 🟡 Partial | P2 | Medium |
-| Performance Optimization | 🔴 Missing | P3 | Hard |
-
----
-
-## 🎯 RECOMMENDED IMPLEMENTATION ORDER
-
-### **Phase 1 (MVP Completion)** - Next 2-3 weeks
-1. **Subscriptions UI Screen**
-2. **Settings Screen** (basic)
-3. **History UI Screen**
-4. **SponsorBlock automatic skipping**
-5. **ReturnYouTubeDislike display**
-6. **Video quality selector**
-
-### **Phase 2 (Core Features)** - Weeks 4-6
-1. **Playlists system**
-2. **Channel pages**
-3. **Comments section** (functional)
-4. **Enhanced downloads UI**
-5. **Search enhancements**
-6. **Background playback**
-
-### **Phase 3 (Polish)** - Weeks 7-9
-1. **Keyboard shortcuts**
-2. **Notifications system**
-3. **Multi-language support**
-4. **Performance optimization**
-5. **Error handling improvements**
-6. **Caching system**
-
-### **Phase 4 (Advanced)** - Weeks 10+
-1. **Trending/Discovery**
-2. **Accessibility features**
-3. **Cross-platform packaging**
-4. **Comprehensive testing**
-5. **Documentation**
-
----
-
-## 🔗 NOTES
-
-- **Total Missing Features**: ~35 major feature areas
-- **Estimated Completion Time**: 3-6 months (with dedicated team)
-- **Most Critical**: Settings, Subscriptions UI, History UI, SponsorBlock integration
-- **Highest Impact**: Playlists, Channel pages, Background playback
-- **Quick Wins**: Keyboard shortcuts, Notifications, Quality selector
-
----
-
-*Generated for Pragadeesh | Tubular PC Project | 2026*
-
-```
-
-`frontend/README.md`:
-
-```md
-# tubular_pc
-
-A new Flutter project.
-
-## Getting Started
-
-This project is a starting point for a Flutter application.
-
-A few resources to get you started if this is your first Flutter project:
-
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
-
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
 
 ```
 
@@ -4114,15 +3402,16 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/video.dart';
+import '../providers.dart';
 import '../services/api_service.dart';
 import '../services/player_service.dart';
 
 enum PlaybackStatus { idle, loading, playing, paused, stopped, error }
 
-enum PlayerSurface { hidden, fullscreen, mini }
+enum PlayerSurface { hidden, fullscreen, mini, popup }
 
-class PlayerState {
-  const PlayerState({
+class TubularPlayerState {
+  const TubularPlayerState({
     this.video,
     this.streamUrl,
     this.quality = 'best',
@@ -4149,7 +3438,7 @@ class PlayerState {
   bool get isLoading => status == PlaybackStatus.loading;
   bool get isVisible => hasVideo && surface != PlayerSurface.hidden;
 
-  PlayerState copyWith({
+  TubularPlayerState copyWith({
     Video? video,
     String? streamUrl,
     String? quality,
@@ -4162,7 +3451,7 @@ class PlayerState {
     bool clearStreamUrl = false,
     bool clearError = false,
   }) {
-    return PlayerState(
+    return TubularPlayerState(
       video: video ?? this.video,
       streamUrl: clearStreamUrl ? null : streamUrl ?? this.streamUrl,
       quality: quality ?? this.quality,
@@ -4175,19 +3464,19 @@ class PlayerState {
     );
   }
 
-  static const initial = PlayerState();
+  static const initial = TubularPlayerState();
 }
 
 final playerControllerProvider =
-    StateNotifierProvider<PlayerController, PlayerState>((ref) {
+    StateNotifierProvider<PlayerController, TubularPlayerState>((ref) {
       final apiService = ref.watch(apiServiceProvider);
       final playerService = ref.watch(playerServiceProvider);
       return PlayerController(apiService, playerService);
     });
 
-class PlayerController extends StateNotifier<PlayerState> {
+class PlayerController extends StateNotifier<TubularPlayerState> {
   PlayerController(this._apiService, this._playerService)
-    : super(PlayerState.initial);
+    : super(TubularPlayerState.initial);
 
   final ApiService _apiService;
   final PlayerService _playerService;
@@ -4200,6 +3489,9 @@ class PlayerController extends StateNotifier<PlayerState> {
   }) async {
     final requestSerial = ++_playRequestSerial;
 
+    print('🎬 playVideo called: ${video.title}');
+    print('   quality: $quality');
+    
     state = state.copyWith(
       video: video,
       quality: quality,
@@ -4214,33 +3506,29 @@ class PlayerController extends StateNotifier<PlayerState> {
     unawaited(_recordHistory(video));
 
     try {
+      print('📡 Fetching stream URL...');
       final streamUrl = await _apiService.getStreamUrl(
         video.id,
         quality: quality,
       );
+      print('✅ Got stream URL: $streamUrl');
+      
       if (requestSerial != _playRequestSerial || state.video?.id != video.id) {
+        print('⚠️  Request cancelled or video changed');
         return;
       }
 
-      final backendState = await _playerService.play(
-        videoId: video.id,
-        streamUrl: streamUrl,
-        duration: video.duration,
-        backgroundAudio: state.backgroundAudio,
-      );
-      if (requestSerial != _playRequestSerial || state.video?.id != video.id) {
-        return;
-      }
-
+      // Set stream URL and status to playing
+      // The media_kit player in the widget will handle the actual playback
+      print('🎥 Setting stream URL and status to playing');
       state = state.copyWith(
-        streamUrl: backendState.streamUrl ?? streamUrl,
-        status: _statusFromBackend(backendState.status),
-        position: backendState.position,
-        duration: backendState.duration ?? video.duration,
-        backgroundAudio: backendState.backgroundAudio,
+        streamUrl: streamUrl,
+        status: PlaybackStatus.playing,
         clearError: true,
       );
+      print('✅ State updated, player should start');
     } catch (error) {
+      print('❌ Error getting stream URL: $error');
       if (requestSerial != _playRequestSerial || state.video?.id != video.id) {
         return;
       }
@@ -4280,26 +3568,14 @@ class PlayerController extends StateNotifier<PlayerState> {
     if (state.status != PlaybackStatus.playing) {
       return;
     }
-
-    final previousState = state;
     state = state.copyWith(status: PlaybackStatus.paused);
-    await _syncCommand(
-      previousState: previousState,
-      command: _playerService.pause,
-    );
   }
 
   Future<void> resume() async {
     if (state.status != PlaybackStatus.paused) {
       return;
     }
-
-    final previousState = state;
     state = state.copyWith(status: PlaybackStatus.playing);
-    await _syncCommand(
-      previousState: previousState,
-      command: _playerService.resume,
-    );
   }
 
   Future<void> togglePlayPause() async {
@@ -4323,13 +3599,8 @@ class PlayerController extends StateNotifier<PlayerState> {
   }
 
   Future<void> seek(Duration position) async {
-    final previousState = state;
     previewSeek(position);
-
-    await _syncCommand(
-      previousState: previousState,
-      command: () => _playerService.seek(state.position),
-    );
+    // The media_kit player widget will handle the actual seek
   }
 
   void showFullscreen() {
@@ -4348,30 +3619,36 @@ class PlayerController extends StateNotifier<PlayerState> {
     state = state.copyWith(surface: PlayerSurface.mini);
   }
 
+  void showPopupPlayer() {
+    if (!state.hasVideo) {
+      return;
+    }
+
+    state = state.copyWith(surface: PlayerSurface.popup);
+  }
+
   Future<void> toggleBackgroundAudio() async {
-    final previousState = state;
     final enabled = !state.backgroundAudio;
     state = state.copyWith(backgroundAudio: enabled);
+  }
 
-    await _syncCommand(
-      previousState: previousState,
-      command: () => _playerService.setBackgroundAudio(enabled),
-    );
+  Future<void> toggleAudioOnlyStream({String fallbackQuality = 'best'}) async {
+    if (!state.hasVideo) {
+      return;
+    }
+
+    if (state.quality == 'audio') {
+      final nextQuality = fallbackQuality == 'audio' ? 'best' : fallbackQuality;
+      await setQuality(nextQuality);
+      return;
+    }
+
+    await setQuality('audio');
   }
 
   Future<void> stop() async {
     _playRequestSerial++;
-    final previousState = state;
-    state = PlayerState.initial.copyWith(status: PlaybackStatus.stopped);
-
-    try {
-      await _playerService.stop();
-    } catch (error) {
-      state = previousState.copyWith(
-        status: PlaybackStatus.error,
-        errorMessage: error.toString(),
-      );
-    }
+    state = TubularPlayerState.initial.copyWith(status: PlaybackStatus.stopped);
   }
 
   Future<void> _recordHistory(Video video) async {
@@ -4391,74 +3668,43 @@ class PlayerController extends StateNotifier<PlayerState> {
     if (max == Duration.zero) {
       return Duration.zero;
     }
-
     if (value < min) {
       return min;
     }
-
     if (value > max) {
       return max;
     }
-
     return value;
   }
 
-  Future<void> _syncCommand({
-    required PlayerState previousState,
-    required Future<BackendPlayerSnapshot> Function() command,
-  }) async {
-    final currentVideoId = state.video?.id;
+  // Methods for media_kit player to update state
+  void updatePosition(Duration position) {
+    if (state.video != null) {
+      state = state.copyWith(position: position);
+    }
+  }
 
-    try {
-      final backendState = await command();
-      if (currentVideoId != state.video?.id) {
-        return;
+  void updateDuration(Duration duration) {
+    if (state.video != null && duration != Duration.zero) {
+      state = state.copyWith(duration: duration);
+    }
+  }
+
+  void updatePlayingState(bool isPlaying) {
+    if (state.video != null) {
+      final newStatus = isPlaying ? PlaybackStatus.playing : PlaybackStatus.paused;
+      if (state.status != newStatus && state.status != PlaybackStatus.loading) {
+        state = state.copyWith(status: newStatus);
       }
+    }
+  }
 
-      _applyBackendState(backendState);
-    } catch (error) {
-      if (currentVideoId != state.video?.id) {
-        return;
-      }
-
-      state = previousState.copyWith(
+  void setError(String error) {
+    if (state.video != null) {
+      state = state.copyWith(
         status: PlaybackStatus.error,
-        errorMessage: error.toString(),
+        errorMessage: error,
       );
-    }
-  }
-
-  void _applyBackendState(BackendPlayerSnapshot backendState) {
-    final backendVideoId = backendState.videoId;
-    if (backendVideoId != null && backendVideoId != state.video?.id) {
-      return;
-    }
-
-    state = state.copyWith(
-      streamUrl: backendState.streamUrl,
-      status: _statusFromBackend(backendState.status),
-      position: backendState.position,
-      duration: backendState.duration,
-      backgroundAudio: backendState.backgroundAudio,
-      errorMessage: backendState.error,
-      clearError: backendState.error == null,
-    );
-  }
-
-  PlaybackStatus _statusFromBackend(String status) {
-    switch (status) {
-      case 'playing':
-        return PlaybackStatus.playing;
-      case 'paused':
-        return PlaybackStatus.paused;
-      case 'stopped':
-        return PlaybackStatus.stopped;
-      case 'error':
-        return PlaybackStatus.error;
-      case 'idle':
-        return PlaybackStatus.idle;
-      default:
-        return state.status;
     }
   }
 }
@@ -4470,6 +3716,8 @@ class PlayerController extends StateNotifier<PlayerState> {
 ```dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:media_kit/media_kit.dart';
+import 'providers.dart';
 import 'screens/home_screen.dart';
 import 'screens/subscriptions_screen.dart';
 import 'screens/history_screen.dart';
@@ -4480,14 +3728,103 @@ import 'widgets/player_shell.dart';
 final navigationIndexProvider = StateProvider<int>((ref) => 0);
 
 void main() {
+  WidgetsFlutterBinding.ensureInitialized();
+  MediaKit.ensureInitialized();
   runApp(const ProviderScope(child: TubularApp()));
 }
 
-class TubularApp extends StatelessWidget {
+class TubularApp extends ConsumerStatefulWidget {
   const TubularApp({super.key});
 
   @override
+  ConsumerState<TubularApp> createState() => _TubularAppState();
+}
+
+class _TubularAppState extends ConsumerState<TubularApp> {
+  @override
+  void initState() {
+    super.initState();
+    // Load settings after first frame so providers are available
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadSettings();
+    });
+  }
+
+  Future<void> _loadSettings() async {
+    final api = ref.read(apiServiceProvider);
+    try {
+      final settings = await api.getAllSettings();
+      print('DEBUG: Loaded ${settings.length} settings: $settings');
+
+      if (settings.containsKey('theme')) {
+        final t = settings['theme'];
+        ref.read(themeModeProvider.notifier).state =
+            t == 'light' ? ThemeMode.light : (t == 'system' ? ThemeMode.system : ThemeMode.dark);
+        print('DEBUG: Set theme to $t');
+      }
+      if (settings.containsKey('amoled_dark')) {
+        ref.read(amoledDarkProvider.notifier).state = settings['amoled_dark'] == 'true';
+      }
+
+      if (settings.containsKey('preferred_quality')) {
+        ref.read(preferredQualityProvider.notifier).state = settings['preferred_quality']!;
+        print('DEBUG: Set preferred_quality to ${settings['preferred_quality']}');
+      }
+
+      if (settings.containsKey('preferred_format')) {
+        ref.read(preferredFormatProvider.notifier).state = settings['preferred_format']!;
+      }
+
+      if (settings.containsKey('audio_only_mode')) {
+        ref.read(audioOnlyModeProvider.notifier).state = settings['audio_only_mode'] == 'true';
+      }
+
+      if (settings.containsKey('auto_play')) {
+        ref.read(autoPlayProvider.notifier).state = settings['auto_play'] == 'true';
+      }
+
+      if (settings.containsKey('subtitle_font_size')) {
+        final v = double.tryParse(settings['subtitle_font_size'] ?? '14.0') ?? 14.0;
+        ref.read(subtitleFontSizeProvider.notifier).state = v;
+      }
+
+      if (settings.containsKey('download_folder')) {
+        ref.read(downloadFolderProvider.notifier).state = settings['download_folder']!;
+      }
+
+      if (settings.containsKey('enable_sponsorblock')) {
+        ref.read(enableSponsorBlockProvider.notifier).state = settings['enable_sponsorblock'] == 'true';
+      }
+
+      if (settings.containsKey('enable_dislike_counts')) {
+        ref.read(enableDislikeCountsProvider.notifier).state = settings['enable_dislike_counts'] == 'true';
+      }
+
+      if (settings.containsKey('enable_subtitles')) {
+        ref.read(enableSubtitlesProvider.notifier).state = settings['enable_subtitles'] == 'true';
+      }
+
+      if (settings.containsKey('enable_notifications')) {
+        ref.read(enableNotificationsProvider.notifier).state = settings['enable_notifications'] == 'true';
+      }
+      if (settings.containsKey('playback_speed')) {
+        final v = double.tryParse(settings['playback_speed'] ?? '1.0') ?? 1.0;
+        ref.read(playbackSpeedProvider.notifier).state = v;
+        print('DEBUG: Set playback_speed to $v');
+      }
+    } catch (e) {
+      print('DEBUG: Failed to load settings: $e');
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final amoledDark = ref.watch(amoledDarkProvider);
+
+    final darkScaffold = amoledDark ? Colors.black : Colors.grey[900];
+    final darkSurface = amoledDark ? const Color(0xFF000000) : const Color(0xFF1E1E1E);
+    final darkCard = amoledDark ? const Color(0xFF0A0A0A) : const Color(0xFF222222);
+
     return MaterialApp(
       title: 'Tubular PC',
       debugShowCheckedModeBanner: false,
@@ -4505,12 +3842,19 @@ class TubularApp extends StatelessWidget {
         primarySwatch: Colors.red,
         useMaterial3: true,
         brightness: Brightness.dark,
-        scaffoldBackgroundColor: Colors.grey[900],
+        scaffoldBackgroundColor: darkScaffold,
+        colorScheme: ColorScheme.dark(
+          primary: Colors.red[700]!,
+          secondary: Colors.red[400]!,
+          surface: darkSurface,
+        ),
         cardTheme: CardThemeData(
           elevation: 2,
+          color: darkCard,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         ),
       ),
+      themeMode: ref.watch(themeModeProvider),
       home: const PlayerShell(child: MainNavigation()),
     );
   }
@@ -4540,7 +3884,7 @@ class MainNavigation extends ConsumerWidget {
               ref.read(navigationIndexProvider.notifier).state = index;
             },
             labelType: NavigationRailLabelType.all,
-            backgroundColor: Colors.grey[900],
+            backgroundColor: Theme.of(context).colorScheme.surface,
             selectedIconTheme: IconThemeData(color: Colors.red[700]),
             selectedLabelTextStyle: TextStyle(color: Colors.red[700]),
             destinations: const [
@@ -4567,9 +3911,11 @@ class MainNavigation extends ConsumerWidget {
                 child: NavigationRail(
                   selectedIndex: 0,
                   onDestinationSelected: (_) {
-                    // Navigate to settings
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Settings coming soon')),
+                    // Navigate to settings screen
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const SettingsScreen(),
+                      ),
                     );
                   },
                   labelType: NavigationRailLabelType.all,
@@ -5227,15 +4573,168 @@ Map<String, dynamic> _$VideoToJson(Video instance) => <String, dynamic>{
 
 ```
 
+`frontend/lib/models/video_details.dart`:
+
+```dart
+class Comment {
+  Comment({
+    required this.userId,
+    required this.username,
+    required this.avatarUrl,
+    required this.text,
+    required this.timestamp,
+    required this.publishedText,
+    required this.likeCount,
+  });
+
+  final String userId;
+  final String username;
+  final String avatarUrl;
+  final String text;
+  final DateTime timestamp;
+  final String publishedText;
+  final int likeCount;
+
+  factory Comment.fromJson(Map<String, dynamic> json) => Comment(
+        userId: json['user_id']?.toString() ?? '',
+        username: json['username']?.toString() ?? '',
+        avatarUrl: json['avatar_url']?.toString() ?? '',
+        text: json['text']?.toString() ?? '',
+        timestamp: DateTime.tryParse(json['timestamp']?.toString() ?? '') ?? DateTime.now(),
+        publishedText: json['published_text']?.toString() ?? '',
+        likeCount: (json['like_count'] is int) ? json['like_count'] as int : int.tryParse(json['like_count']?.toString() ?? '0') ?? 0,
+      );
+
+  Map<String, dynamic> toJson() => {
+        'user_id': userId,
+        'username': username,
+        'avatar_url': avatarUrl,
+        'text': text,
+        'timestamp': timestamp.toIso8601String(),
+        'published_text': publishedText,
+        'like_count': likeCount,
+      };
+}
+
+class VideoDetails {
+  VideoDetails({
+    required this.id,
+    required this.title,
+    required this.channelName,
+    required this.channelId,
+    required this.subscriberCount,
+    required this.viewCount,
+    required this.uploadDate,
+    required this.duration,
+    required this.thumbnailUrl,
+    required this.likeCount,
+    required this.dislikeCount,
+    required this.comments,
+  });
+
+  final String id;
+  final String title;
+  final String channelName;
+  final String channelId;
+  final int subscriberCount;
+  final int viewCount;
+  final String uploadDate;
+  final Duration duration;
+  final String thumbnailUrl;
+  final int likeCount;
+  final int dislikeCount;
+  final List<Comment> comments;
+
+  factory VideoDetails.fromJson(Map<String, dynamic> json) => VideoDetails(
+        id: json['id']?.toString() ?? '',
+        title: json['title']?.toString() ?? '',
+        channelName: json['channel_name']?.toString() ?? '',
+        channelId: json['channel_id']?.toString() ?? '',
+        subscriberCount: (json['subscriber_count'] is int) ? json['subscriber_count'] as int : int.tryParse(json['subscriber_count']?.toString() ?? '0') ?? 0,
+        viewCount: (json['view_count'] is int) ? json['view_count'] as int : int.tryParse(json['view_count']?.toString() ?? '0') ?? 0,
+        uploadDate: json['upload_date']?.toString() ?? '',
+        duration: Duration(milliseconds: ((json['duration_seconds'] is num) ? ((json['duration_seconds'] as num).toDouble() * 1000).round() : ((double.tryParse(json['duration_seconds']?.toString() ?? '0') ?? 0) * 1000).round())),
+        thumbnailUrl: json['thumbnail_url']?.toString() ?? '',
+        likeCount: (json['like_count'] is int) ? json['like_count'] as int : int.tryParse(json['like_count']?.toString() ?? '0') ?? 0,
+        dislikeCount: (json['dislike_count'] is int) ? json['dislike_count'] as int : int.tryParse(json['dislike_count']?.toString() ?? '0') ?? 0,
+        comments: (json['comments'] is List) ? List<Map<String, dynamic>>.from(json['comments']).map((c) => Comment.fromJson(Map<String, dynamic>.from(c))).toList() : <Comment>[],
+      );
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'title': title,
+        'channel_name': channelName,
+        'channel_id': channelId,
+        'subscriber_count': subscriberCount,
+        'view_count': viewCount,
+        'upload_date': uploadDate,
+        'duration_seconds': duration.inMilliseconds / 1000,
+        'thumbnail_url': thumbnailUrl,
+        'like_count': likeCount,
+        'dislike_count': dislikeCount,
+        'comments': comments.map((c) => c.toJson()).toList(),
+      };
+}
+
+```
+
+`frontend/lib/providers.dart`:
+
+```dart
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'services/api_service.dart';
+
+// API Service provider - single source of truth
+final apiServiceProvider = Provider((ref) => ApiService());
+
+// Theme mode provider
+final themeModeProvider = StateProvider<ThemeMode>((ref) => ThemeMode.dark);
+final amoledDarkProvider = StateProvider<bool>((ref) => true);
+
+// Quality preference provider
+final preferredQualityProvider = StateProvider<String>((ref) => '720p');
+
+// Format preference provider (video, audio, both)
+final preferredFormatProvider = StateProvider<String>((ref) => 'video');
+
+// Audio-only mode provider
+final audioOnlyModeProvider = StateProvider<bool>((ref) => false);
+
+// Auto-play provider
+final autoPlayProvider = StateProvider<bool>((ref) => true);
+
+// Download folder provider
+final downloadFolderProvider = StateProvider<String>((ref) => '~/Downloads/Tubular');
+
+// Subtitle font size provider
+final subtitleFontSizeProvider = StateProvider<double>((ref) => 14.0);
+
+// Additional settings
+final enableSponsorBlockProvider = StateProvider<bool>((ref) => true);
+final enableDislikeCountsProvider = StateProvider<bool>((ref) => true);
+final enableSubtitlesProvider = StateProvider<bool>((ref) => true);
+final enableNotificationsProvider = StateProvider<bool>((ref) => false);
+
+// Playback speed provider (1.0 = normal)
+final playbackSpeedProvider = StateProvider<double>((ref) => 1.0);
+
+// Video details provider (fetches details for a given video id)
+final videoDetailsProvider = FutureProvider.family((ref, String videoId) async {
+	final api = ref.watch(apiServiceProvider);
+	final details = await api.getVideoDetails(videoId);
+	return details;
+});
+
+```
+
 `frontend/lib/screens/downloads_screen.dart`:
 
 ```dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/download.dart';
-import '../services/api_service.dart';
-
-final apiServiceProvider = Provider((ref) => ApiService());
+import '../providers.dart';
 
 // Sort options
 final downloadsSortProvider = StateProvider<String>((ref) => 'date_desc');
@@ -5950,13 +5449,13 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen>
 `frontend/lib/screens/history_screen.dart`:
 
 ```dart
+import 'dart:io';
+import 'package:csv/csv.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/history_entry.dart';
-import '../services/api_service.dart';
+import '../providers.dart';
 import 'player_screen.dart';
-
-final apiServiceProvider = Provider((ref) => ApiService());
 
 final historySearchProvider = StateProvider<String>((ref) => '');
 final historyFilterProvider = StateProvider<String>((ref) => 'all'); // all, today, week, month
@@ -6039,6 +5538,11 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
         foregroundColor: Colors.white,
         elevation: 0,
         actions: [
+          IconButton(
+            icon: const Icon(Icons.download),
+            tooltip: 'Export History as CSV',
+            onPressed: _exportHistoryAsCsv,
+          ),
           PopupMenuButton(
             icon: const Icon(Icons.more_vert),
             itemBuilder: (context) => [
@@ -6225,6 +5729,115 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
     );
   }
 
+  Future<void> _exportHistoryAsCsv() async {
+    final historyAsync = ref.watch(historyProvider);
+    
+    historyAsync.when(
+      data: (history) async {
+        if (history.isEmpty) {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('No history to export')),
+          );
+          return;
+        }
+
+        final apiService = ref.read(apiServiceProvider);
+        try {
+          // Prepare CSV data
+          List<List<dynamic>> rows = [
+            ['Video ID', 'Title', 'Channel', 'Thumbnail URL', 'Watched At', 'Progress']
+          ];
+          
+          for (final entry in history) {
+            rows.add([
+              entry.videoId,
+              entry.title,
+              entry.channel,
+              entry.thumbnail,
+              entry.watchedAt,
+              entry.progress?.toString() ?? '0.0',
+            ]);
+          }
+
+          String csv = const ListToCsvConverter().convert(rows);
+
+          // Prompt for save location
+          final home = Platform.environment['HOME'];
+          final base = home == null || home.isEmpty ? '.' : '$home/Downloads';
+          final now = DateTime.now();
+          final y = now.year.toString().padLeft(4, '0');
+          final m = now.month.toString().padLeft(2, '0');
+          final d = now.day.toString().padLeft(2, '0');
+          final suggestedPath = '$base/tubular-history-$y$m$d.csv';
+
+          final controller = TextEditingController(text: suggestedPath);
+          final value = await showDialog<String>(
+            context: context,
+            builder: (context) {
+              return AlertDialog(
+                title: const Text('Export History as CSV'),
+                content: TextField(
+                  controller: controller,
+                  decoration: InputDecoration(
+                    hintText: 'Enter file path',
+                    border: const OutlineInputBorder(),
+                  ),
+                  autofocus: true,
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: const Text('Cancel'),
+                  ),
+                  ElevatedButton(
+                    onPressed: () => Navigator.of(context).pop(controller.text.trim()),
+                    child: const Text('Export'),
+                  ),
+                ],
+              );
+            },
+          );
+          controller.dispose();
+
+          if (value == null || value.trim().isEmpty) return;
+
+          var finalPath = value.trim();
+          if (!finalPath.endsWith('.csv')) {
+            finalPath = '$finalPath.csv';
+          }
+
+          final outputFile = File(finalPath);
+          await outputFile.parent.create(recursive: true);
+          await outputFile.writeAsString(csv);
+
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('History exported: $finalPath')),
+          );
+        } catch (e) {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Failed to export history: $e'),
+              backgroundColor: Colors.red[700],
+            ),
+          );
+        }
+      },
+      loading: () => {},
+      error: (error, stack) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error loading history: $error'),
+            backgroundColor: Colors.red[700],
+          ),
+        );
+      },
+    );
+  }
+
   Widget _buildHistoryTile(BuildContext context, HistoryEntry entry) {
     return Card(
       margin: const EdgeInsets.symmetric(vertical: 6),
@@ -6363,16 +5976,37 @@ import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 import '../controllers/player_controller.dart';
 import '../models/video.dart';
 import '../services/api_service.dart';
+import '../providers.dart';
 import '../widgets/video_card.dart';
+import 'video_details_screen.dart';
+import '../widgets/error_widget.dart';
 
 final searchQueryProvider = StateProvider<String>((ref) => '');
 
-final searchResultsProvider = FutureProvider.autoDispose<List<Video>>((
+/// Track if backend is warmed up (yt-dlp cache initialized)
+final backendWarmupProvider = FutureProvider<bool>((ref) async {
+  final apiService = ref.watch(apiServiceProvider);
+  try {
+    // Call warmup endpoint to initialize yt-dlp cache
+    await apiService.warmupBackend();
+    return true;
+  } catch (e) {
+    // Warmup is optional - app works without it, just slower on first search
+    return false;
+  }
+});
+
+final searchResultsProvider = FutureProvider.autoDispose<ApiResult<List<Video>>>((
   ref,
 ) async {
   final query = ref.watch(searchQueryProvider);
   if (query.isEmpty) {
-    return [];
+    return (
+      success: true,
+      data: <Video>[],
+      error: null,
+      details: null,
+    );
   }
 
   final apiService = ref.watch(apiServiceProvider);
@@ -6389,6 +6023,15 @@ class HomeScreen extends ConsumerStatefulWidget {
 class _HomeScreenState extends ConsumerState<HomeScreen> {
   final TextEditingController _searchController = TextEditingController();
   String _lastSearchQuery = '';
+
+  @override
+  void initState() {
+    super.initState();
+    // Warmup backend in the background on app startup
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(backendWarmupProvider);
+    });
+  }
 
   @override
   void dispose() {
@@ -6411,7 +6054,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   void _openVideo(Video video) {
-    ref.read(playerControllerProvider.notifier).playVideo(video);
+    // Navigate to the details screen first (intermediate screen)
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => VideoDetailsScreen(video: video)),
+    );
   }
 
   void _subscribeToChannel(BuildContext context, Video video) async {
@@ -6500,7 +6147,18 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         ),
       ),
       body: searchResults.when(
-        data: (videos) {
+        data: (result) {
+          // Handle error state
+          if (!result.success) {
+            return ErrorDisplay(
+              message: result.error ?? 'Unknown error',
+              details: result.details,
+              onRetry: () => ref.refresh(searchResultsProvider),
+            );
+          }
+
+          final videos = result.data ?? [];
+
           if (videos.isEmpty && ref.read(searchQueryProvider).isEmpty) {
             // Show featured videos on initial load
             return _buildFeaturedVideos();
@@ -6524,48 +6182,139 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             },
           );
         },
-        loading: () => Center(
+        loading: () => _buildLoadingState(ref),
+        error: (error, stack) => ErrorDisplay(
+          message: 'Search error',
+          details: error.toString(),
+          onRetry: () => ref.refresh(searchResultsProvider),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLoadingState(WidgetRef ref) {
+    final warmupState = ref.watch(backendWarmupProvider);
+    
+    String subtitle = 'Loading...';
+    String details = '';
+    
+    return warmupState.when(
+      data: (isWarmedUp) {
+        if (isWarmedUp) {
+          subtitle = 'Searching YouTube...';
+          details = 'Backend is ready. First search: 10-30s, cached searches: <1s';
+        } else {
+          subtitle = 'Initializing backend...';
+          details = 'First search may take 10-30 seconds';
+        }
+        
+        return Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               const CircularProgressIndicator(),
               const SizedBox(height: 16),
               Text(
-                'Searching YouTube...',
+                subtitle,
                 style: TextStyle(
                   fontSize: 16,
                   color: Colors.grey[600],
+                  fontWeight: FontWeight.w500,
                 ),
               ),
               const SizedBox(height: 8),
-              Text(
-                'This may take 10-30 seconds on first search',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Colors.grey[500],
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 32),
+                child: Text(
+                  details,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey[500],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.grey[850],
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Column(
+                  children: [
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          isWarmedUp ? Icons.check_circle : Icons.hourglass_empty,
+                          size: 16,
+                          color: isWarmedUp ? Colors.green[400] : Colors.orange[400],
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          isWarmedUp ? '✓ Backend ready' : '⏳ Warming up...',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: isWarmedUp ? Colors.green[300] : Colors.orange[300],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
               ),
             ],
           ),
+        );
+      },
+      loading: () => Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const CircularProgressIndicator(),
+            const SizedBox(height: 16),
+            Text(
+              'Initializing backend...',
+              style: TextStyle(
+                fontSize: 16,
+                color: Colors.grey[600],
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Please wait...',
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.grey[500],
+              ),
+            ),
+          ],
         ),
-        error: (error, stack) => Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.error_outline, size: 64, color: Colors.red),
-              const SizedBox(height: 16),
-              Text(
-                'Error: $error',
-                textAlign: TextAlign.center,
-                style: const TextStyle(color: Colors.red),
+      ),
+      error: (_, __) => Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const CircularProgressIndicator(),
+            const SizedBox(height: 16),
+            Text(
+              'Searching YouTube...',
+              style: TextStyle(
+                fontSize: 16,
+                color: Colors.grey[600],
               ),
-              const SizedBox(height: 16),
-              ElevatedButton(
-                onPressed: () => ref.refresh(searchResultsProvider),
-                child: const Text('Retry'),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'First search: 10-30s, cached searches: <1s',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.grey[500],
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
@@ -6725,9 +6474,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/video.dart';
 import '../models/sponsorblock.dart';
 import '../models/dislike.dart';
-import '../services/api_service.dart';
-
-final apiServiceProvider = Provider((ref) => ApiService());
+import '../providers.dart';
 
 final sponsorBlockProvider = FutureProvider.family<List<SponsorBlockSegment>, String>((ref, videoId) async {
   final apiService = ref.watch(apiServiceProvider);
@@ -7199,38 +6946,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 `frontend/lib/screens/settings_screen.dart`:
 
 ```dart
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../services/api_service.dart';
-
-final apiServiceProvider = Provider((ref) => ApiService());
-
-// Theme mode provider
-final themeModeProvider = StateProvider<ThemeMode>((ref) => ThemeMode.dark);
-
-// Quality preference provider
-final preferredQualityProvider = StateProvider<String>((ref) => '720p');
-
-// Format preference provider (video, audio, both)
-final preferredFormatProvider = StateProvider<String>((ref) => 'video');
-
-// Audio-only mode provider
-final audioOnlyModeProvider = StateProvider<bool>((ref) => false);
-
-// Auto-play provider
-final autoPlayProvider = StateProvider<bool>((ref) => true);
-
-// Download folder provider
-final downloadFolderProvider = StateProvider<String>((ref) => '~/Downloads/Tubular');
-
-// Subtitle font size provider
-final subtitleFontSizeProvider = StateProvider<double>((ref) => 14.0);
-
-// Additional settings
-final enableSponsorBlockProvider = StateProvider<bool>((ref) => true);
-final enableDislikeCountsProvider = StateProvider<bool>((ref) => true);
-final enableSubtitlesProvider = StateProvider<bool>((ref) => true);
-final enableNotificationsProvider = StateProvider<bool>((ref) => false);
+import '../providers.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({Key? key}) : super(key: key);
@@ -7240,11 +6961,16 @@ class SettingsScreen extends ConsumerStatefulWidget {
 }
 
 class _SettingsScreenState extends ConsumerState<SettingsScreen> {
+  static const String _tubularConfigFormat = 'tubular-settings';
+  static const int _tubularConfigVersion = 1;
+
   void _saveSetting(String key, String value) {
     final apiService = ref.read(apiServiceProvider);
+    print('DEBUG: Saving setting $key = $value');
     apiService.setSetting(key, value).then((_) {
-      // Silent success
+      print('DEBUG: Successfully saved setting $key');
     }).catchError((e) {
+      print('DEBUG: Failed to save setting $key: $e');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Failed to save setting: $e'),
@@ -7254,15 +6980,221 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     });
   }
 
+  Future<void> _exportSettingsConfig() async {
+    final apiService = ref.read(apiServiceProvider);
+    try {
+      final settings = await apiService.getAllSettings();
+      final payload = {
+        'format': _tubularConfigFormat,
+        'version': _tubularConfigVersion,
+        'exported_at': DateTime.now().toIso8601String(),
+        'settings': settings,
+      };
+
+      final suggestedPath = _defaultExportPath();
+      final targetPath = await _promptForPath(
+        title: 'Export Settings',
+        hintText: '/home/user/Downloads/tubular-settings.tubular',
+        initialValue: suggestedPath,
+        confirmText: 'Export',
+      );
+      if (targetPath == null || targetPath.trim().isEmpty) return;
+
+      var finalPath = targetPath.trim();
+      if (!finalPath.endsWith('.tubular')) {
+        finalPath = '$finalPath.tubular';
+      }
+
+      final outputFile = File(finalPath);
+      await outputFile.parent.create(recursive: true);
+      await outputFile.writeAsString(
+        const JsonEncoder.withIndent('  ').convert(payload),
+      );
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Settings exported: $finalPath')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to export settings: $e'),
+          backgroundColor: Colors.red[700],
+        ),
+      );
+    }
+  }
+
+  Future<void> _importSettingsConfig() async {
+    final apiService = ref.read(apiServiceProvider);
+    final sourcePath = await _promptForPath(
+      title: 'Import Settings',
+      hintText: '/home/user/Downloads/tubular-settings.tubular',
+      initialValue: _defaultImportPath(),
+      confirmText: 'Import',
+    );
+    if (sourcePath == null || sourcePath.trim().isEmpty) return;
+
+    try {
+      final file = File(sourcePath.trim());
+      if (!await file.exists()) {
+        throw Exception('File not found: ${file.path}');
+      }
+
+      final raw = await file.readAsString();
+      final decoded = jsonDecode(raw);
+      if (decoded is! Map<String, dynamic>) {
+        throw Exception('Invalid config file structure');
+      }
+
+      final format = decoded['format']?.toString();
+      if (format != _tubularConfigFormat) {
+        throw Exception('Unsupported format: $format');
+      }
+
+      final settingsNode = decoded['settings'];
+      if (settingsNode is! Map) {
+        throw Exception('Missing settings block in config');
+      }
+
+      final imported = <String, String>{};
+      settingsNode.forEach((key, value) {
+        if (key != null && value != null) {
+          imported[key.toString()] = value.toString();
+        }
+      });
+
+      for (final entry in imported.entries) {
+        await apiService.setSetting(entry.key, entry.value);
+      }
+      _applyImportedSettings(imported);
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Settings imported (${imported.length} entries)')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to import settings: $e'),
+          backgroundColor: Colors.red[700],
+        ),
+      );
+    }
+  }
+
+  void _applyImportedSettings(Map<String, String> settings) {
+    if (settings.containsKey('theme')) {
+      final t = settings['theme'];
+      ref.read(themeModeProvider.notifier).state =
+          t == 'light' ? ThemeMode.light : (t == 'system' ? ThemeMode.system : ThemeMode.dark);
+    }
+    if (settings.containsKey('amoled_dark')) {
+      ref.read(amoledDarkProvider.notifier).state = settings['amoled_dark'] == 'true';
+    }
+    if (settings.containsKey('preferred_quality')) {
+      ref.read(preferredQualityProvider.notifier).state = settings['preferred_quality']!;
+    }
+    if (settings.containsKey('preferred_format')) {
+      ref.read(preferredFormatProvider.notifier).state = settings['preferred_format']!;
+    }
+    if (settings.containsKey('audio_only_mode')) {
+      ref.read(audioOnlyModeProvider.notifier).state = settings['audio_only_mode'] == 'true';
+    }
+    if (settings.containsKey('auto_play')) {
+      ref.read(autoPlayProvider.notifier).state = settings['auto_play'] == 'true';
+    }
+    if (settings.containsKey('subtitle_font_size')) {
+      final v = double.tryParse(settings['subtitle_font_size'] ?? '14.0') ?? 14.0;
+      ref.read(subtitleFontSizeProvider.notifier).state = v;
+    }
+    if (settings.containsKey('download_folder')) {
+      ref.read(downloadFolderProvider.notifier).state = settings['download_folder']!;
+    }
+    if (settings.containsKey('enable_sponsorblock')) {
+      ref.read(enableSponsorBlockProvider.notifier).state = settings['enable_sponsorblock'] == 'true';
+    }
+    if (settings.containsKey('enable_dislike_counts')) {
+      ref.read(enableDislikeCountsProvider.notifier).state = settings['enable_dislike_counts'] == 'true';
+    }
+    if (settings.containsKey('enable_subtitles')) {
+      ref.read(enableSubtitlesProvider.notifier).state = settings['enable_subtitles'] == 'true';
+    }
+    if (settings.containsKey('enable_notifications')) {
+      ref.read(enableNotificationsProvider.notifier).state = settings['enable_notifications'] == 'true';
+    }
+    if (settings.containsKey('playback_speed')) {
+      final v = double.tryParse(settings['playback_speed'] ?? '1.0') ?? 1.0;
+      ref.read(playbackSpeedProvider.notifier).state = v;
+    }
+  }
+
+  Future<String?> _promptForPath({
+    required String title,
+    required String hintText,
+    required String initialValue,
+    required String confirmText,
+  }) async {
+    final controller = TextEditingController(text: initialValue);
+    final value = await showDialog<String>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text(title),
+          content: TextField(
+            controller: controller,
+            decoration: InputDecoration(
+              hintText: hintText,
+              border: const OutlineInputBorder(),
+            ),
+            autofocus: true,
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.of(context).pop(controller.text.trim()),
+              child: Text(confirmText),
+            ),
+          ],
+        );
+      },
+    );
+    controller.dispose();
+    return value;
+  }
+
+  String _defaultExportPath() {
+    final home = Platform.environment['HOME'];
+    final base = home == null || home.isEmpty ? '.' : '$home/Downloads';
+    final now = DateTime.now();
+    final y = now.year.toString().padLeft(4, '0');
+    final m = now.month.toString().padLeft(2, '0');
+    final d = now.day.toString().padLeft(2, '0');
+    return '$base/tubular-settings-$y$m$d.tubular';
+  }
+
+  String _defaultImportPath() {
+    final home = Platform.environment['HOME'];
+    final base = home == null || home.isEmpty ? '.' : '$home/Downloads';
+    return '$base/tubular-settings.tubular';
+  }
+
   @override
   Widget build(BuildContext context) {
     final themeMode = ref.watch(themeModeProvider);
+    final amoledDark = ref.watch(amoledDarkProvider);
     final preferredQuality = ref.watch(preferredQualityProvider);
     final preferredFormat = ref.watch(preferredFormatProvider);
     final audioOnly = ref.watch(audioOnlyModeProvider);
     final autoPlay = ref.watch(autoPlayProvider);
     final downloadFolder = ref.watch(downloadFolderProvider);
     final subtitleSize = ref.watch(subtitleFontSizeProvider);
+    final playbackSpeed = ref.watch(playbackSpeedProvider);
     final sponsorBlock = ref.watch(enableSponsorBlockProvider);
     final dislikeCounts = ref.watch(enableDislikeCountsProvider);
     final subtitles = ref.watch(enableSubtitlesProvider);
@@ -7284,7 +7216,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               _buildDropdownTile(
                 context,
                 'Theme',
-                themeMode == ThemeMode.dark ? 'Dark' : 'Light',
+                themeMode,
+                themeMode == ThemeMode.dark
+                    ? 'Dark'
+                    : (themeMode == ThemeMode.light ? 'Light' : 'System'),
                 items: const [
                   DropdownMenuItem(value: ThemeMode.light, child: Text('Light')),
                   DropdownMenuItem(value: ThemeMode.dark, child: Text('Dark')),
@@ -7296,6 +7231,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     String themeValue = value == ThemeMode.dark ? 'dark' : (value == ThemeMode.light ? 'light' : 'system');
                     _saveSetting('theme', themeValue);
                   }
+                },
+              ),
+              const Divider(height: 1),
+              _buildSwitchTile(
+                'AMOLED Dark',
+                'Use pure black surfaces in dark theme',
+                amoledDark,
+                (value) {
+                  ref.read(amoledDarkProvider.notifier).state = value;
+                  _saveSetting('amoled_dark', value.toString());
                 },
               ),
               const Divider(height: 1),
@@ -7321,7 +7266,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 context,
                 'Preferred Quality',
                 preferredQuality,
+                preferredQuality,
                 items: const [
+                  DropdownMenuItem(value: 'audio', child: Text('Audio Only')),
                   DropdownMenuItem(value: '360p', child: Text('360p')),
                   DropdownMenuItem(value: '480p', child: Text('480p')),
                   DropdownMenuItem(value: '720p', child: Text('720p')),
@@ -7339,7 +7286,37 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               const Divider(height: 1),
               _buildDropdownTile(
                 context,
+                'Playback Speed',
+                playbackSpeed.toString(),
+                playbackSpeed.toString(),
+                items: const [
+                  DropdownMenuItem(value: '0.5', child: Text('0.5x')),
+                  DropdownMenuItem(value: '0.75', child: Text('0.75x')),
+                  DropdownMenuItem(value: '1.0', child: Text('1.0x')),
+                  DropdownMenuItem(value: '1.25', child: Text('1.25x')),
+                  DropdownMenuItem(value: '1.5', child: Text('1.5x')),
+                  DropdownMenuItem(value: '2.0', child: Text('2.0x')),
+                  DropdownMenuItem(value: '2.25', child: Text('2.25x')),
+                  DropdownMenuItem(value: '2.5', child: Text('2.5x')),
+                  DropdownMenuItem(value: '2.75', child: Text('2.75x')),
+                  DropdownMenuItem(value: '3.0', child: Text('3.0x')),
+                  DropdownMenuItem(value: '3.25', child: Text('3.25x')),
+                  DropdownMenuItem(value: '3.5', child: Text('3.5x')),
+                  DropdownMenuItem(value: '3.75', child: Text('3.75x')),
+                  DropdownMenuItem(value: '4.0', child: Text('4.0x')),
+                ],
+                onChanged: (value) {
+                  if (value != null) {
+                    final v = double.tryParse(value) ?? 1.0;
+                    ref.read(playbackSpeedProvider.notifier).state = v;
+                    _saveSetting('playback_speed', v.toString());
+                  }
+                },
+              ),
+              _buildDropdownTile(
+                context,
                 'Preferred Format',
+                preferredFormat,
                 preferredFormat,
                 items: const [
                   DropdownMenuItem(value: 'video', child: Text('Video')),
@@ -7410,6 +7387,27 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                    _saveSetting('enable_dislike_counts', value.toString());
                  },
                ),
+            ],
+          ),
+          const SizedBox(height: 12),
+
+          // =========== SETTINGS CONFIG ===========
+          _buildSectionHeader(context, 'Settings Config', Icons.import_export),
+          _buildSectionCard(
+            children: [
+              ListTile(
+                title: const Text('Export Settings'),
+                subtitle: const Text('Export to .tubular config file'),
+                trailing: const Icon(Icons.upload_file),
+                onTap: _exportSettingsConfig,
+              ),
+              const Divider(height: 1),
+              ListTile(
+                title: const Text('Import Settings'),
+                subtitle: const Text('Import from .tubular config file'),
+                trailing: const Icon(Icons.download_for_offline),
+                onTap: _importSettingsConfig,
+              ),
             ],
           ),
           const SizedBox(height: 12),
@@ -7549,15 +7547,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   Widget _buildDropdownTile(
     BuildContext context,
     String title,
-    String currentValue, {
+    dynamic selectedValue,
+    String subtitleText, {
     required List<DropdownMenuItem<dynamic>> items,
     required ValueChanged<dynamic> onChanged,
   }) {
     return ListTile(
       title: Text(title),
-      subtitle: Text(currentValue),
+      subtitle: Text(subtitleText),
       trailing: DropdownButton(
-        value: currentValue,
+        value: selectedValue,
         items: items,
         onChanged: onChanged,
         underline: const SizedBox(),
@@ -7611,11 +7610,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/subscription.dart';
 import '../models/video.dart';
-import '../services/api_service.dart';
+import '../providers.dart';
 import '../widgets/video_card.dart';
 import 'player_screen.dart';
-
-final apiServiceProvider = Provider((ref) => ApiService());
 
 final subscriptionSearchProvider = StateProvider<String>((ref) => '');
 final subscriptionsSortProvider = StateProvider<String>((ref) => 'name_asc');
@@ -7970,18 +7967,275 @@ class _SubscriptionsScreenState extends ConsumerState<SubscriptionsScreen> {
 
 ```
 
+`frontend/lib/screens/video_details_screen.dart`:
+
+```dart
+import 'dart:io';
+
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../models/video.dart';
+import '../models/video_details.dart';
+import '../providers.dart';
+import '../controllers/player_controller.dart';
+import '../screens/player_screen.dart';
+import '../widgets/video_details/actions_section.dart';
+import '../widgets/video_details/comments_section.dart';
+import '../widgets/video_details/stats_section.dart';
+import '../widgets/video_details/thumbnail_section.dart';
+
+class VideoDetailsScreen extends ConsumerWidget {
+  final Video video;
+
+  const VideoDetailsScreen({super.key, required this.video});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final detailsAsync = ref.watch(videoDetailsProvider(video.id));
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Video Details'),
+        backgroundColor: Colors.red[700],
+      ),
+      body: detailsAsync.when(
+        data: (details) {
+          final safeDetails = _buildSafeDetails(details);
+
+          return SingleChildScrollView(
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 820),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    ThumbnailSection(
+                      thumbnailUrl: safeDetails.thumbnailUrl,
+                      onPlay: () async {
+                        await ref.read(playerControllerProvider.notifier).playVideo(video);
+                        if (context.mounted) {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (_) => PlayerScreen(video: video)),
+                          );
+                        }
+                      },
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          StatsSection(details: safeDetails),
+                          const SizedBox(height: 12),
+                          ActionsSection(
+                            items: [
+                              ActionItem(
+                                icon: Icons.playlist_add,
+                                label: 'Add To',
+                                onTap: () {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(content: Text('Add to playlist')),
+                                  );
+                                },
+                              ),
+                              ActionItem(
+                                icon: Icons.headset,
+                                label: 'Background',
+                                onTap: () async {
+                                  final controller = ref.read(playerControllerProvider.notifier);
+                                  await controller.playVideo(
+                                    video,
+                                    quality: 'audio',
+                                    surface: PlayerSurface.mini,
+                                  );
+                                  await controller.toggleBackgroundAudio();
+                                  if (context.mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text('Background mode enabled'),
+                                      ),
+                                    );
+                                  }
+                                },
+                              ),
+                              ActionItem(
+                                icon: Icons.crop_square,
+                                label: 'Popup',
+                                onTap: () async {
+                                  final controller = ref.read(playerControllerProvider.notifier);
+                                  await controller.playVideo(
+                                    video,
+                                    quality: ref.read(preferredQualityProvider),
+                                    surface: PlayerSurface.popup,
+                                  );
+                                  if (context.mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(content: Text('Popup mode enabled')),
+                                    );
+                                  }
+                                },
+                              ),
+                              ActionItem(
+                                icon: Icons.download,
+                                label: 'Download',
+                                onTap: () async {
+                                  final api = ref.read(apiServiceProvider);
+                                  final quality = ref.read(preferredQualityProvider);
+                                  final audioOnly = quality == 'audio';
+                                  final folder = ref.read(downloadFolderProvider);
+                                  final outputPath = _buildOutputPath(
+                                    folder,
+                                    safeDetails,
+                                    audioOnly: audioOnly,
+                                  );
+                                  int? id;
+
+                                  try {
+                                    await File(outputPath).parent.create(recursive: true);
+
+                                    id = await api.createDownload(
+                                      video.id,
+                                      safeDetails.title,
+                                      outputPath,
+                                      quality,
+                                    );
+
+                                    if (id != null) {
+                                      await api.updateDownloadProgress(
+                                        id,
+                                        'downloading',
+                                        0.0,
+                                        0.0,
+                                        0,
+                                      );
+                                    }
+
+                                    await api.downloadVideo(
+                                      videoId: video.id,
+                                      outputPath: outputPath,
+                                      quality: quality,
+                                      audioOnly: audioOnly,
+                                    );
+
+                                    if (id != null) {
+                                      final fileSize = await File(outputPath)
+                                          .length()
+                                          .catchError((_) => 0);
+                                      await api.completeDownload(id, fileSize);
+                                    }
+
+                                    if (context.mounted) {
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        SnackBar(content: Text('Download complete: $outputPath')),
+                                      );
+                                    }
+                                  } catch (e) {
+                                    if (id != null) {
+                                      await api.failDownload(id, e.toString());
+                                    }
+                                    if (context.mounted) {
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        SnackBar(
+                                          content: Text('Download failed: $e'),
+                                          backgroundColor: Colors.red[700],
+                                        ),
+                                      );
+                                    }
+                                  }
+                                },
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          const Text(
+                            'Description',
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Description coming soon',
+                            style: TextStyle(
+                              color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.70),
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          CommentsSection(comments: safeDetails.comments),
+                          const SizedBox(height: 40),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (err, st) => Center(child: Text('Failed to load details: $err')),
+      ),
+    );
+  }
+
+  VideoDetails _buildSafeDetails(VideoDetails details) {
+    return VideoDetails(
+      id: details.id.isNotEmpty ? details.id : video.id,
+      title: details.title.isNotEmpty ? details.title : video.title,
+      channelName: details.channelName.isNotEmpty
+          ? details.channelName
+          : video.channelName,
+      channelId: details.channelId.isNotEmpty ? details.channelId : video.channelId,
+      subscriberCount: details.subscriberCount,
+      viewCount: details.viewCount > 0 ? details.viewCount : video.views,
+      uploadDate: details.uploadDate.isNotEmpty
+          ? details.uploadDate
+          : video.uploadDate.toIso8601String(),
+      duration: details.duration > Duration.zero ? details.duration : video.duration,
+      thumbnailUrl: details.thumbnailUrl.isNotEmpty
+          ? details.thumbnailUrl
+          : video.thumbnail,
+      likeCount: details.likeCount,
+      dislikeCount: details.dislikeCount,
+      comments: details.comments,
+    );
+  }
+
+  String _buildOutputPath(
+    String folder,
+    VideoDetails details, {
+    required bool audioOnly,
+  }) {
+    final home = Platform.environment['HOME'] ?? '.';
+    final basePath = folder.startsWith('~/')
+        ? '$home/${folder.substring(2)}'
+        : (folder.trim().isEmpty ? '$home/Downloads/Tubular' : folder);
+
+    final safeTitle = details.title
+        .replaceAll(RegExp(r'[\\/:*?"<>|]'), '_')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+
+    final ext = audioOnly ? '.m4a' : '.mp4';
+    return '$basePath/$safeTitle$ext';
+  }
+}
+
+```
+
 `frontend/lib/services/api_service.dart`:
 
 ```dart
 import 'package:dio/dio.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:logger/logger.dart';
 import '../models/video.dart';
+import '../models/video_details.dart';
 import '../models/subscription.dart';
 import '../models/history_entry.dart';
 import '../models/download.dart';
 
-final apiServiceProvider = Provider<ApiService>((ref) => ApiService());
+/// Result type for API calls
+typedef ApiResult<T> = ({bool success, T? data, String? error, String? details});
 
 class ApiService {
   /// Match backend bind ([127.0.0.1]:3030) — `localhost` may resolve to ::1 and fail or delay.
@@ -8003,8 +8257,34 @@ class ApiService {
         ),
       );
 
-  Future<List<Video>> searchVideos(String query, {int limit = 10}) async {
+  /// Warmup backend to initialize yt-dlp cache (eliminates ~10-30s cold start)
+  Future<void> warmupBackend() async {
+    try {
+      _logger.i('🚀 Warming up backend...');
+      final response = await _dio.post('/warmup')
+          .timeout(const Duration(seconds: 60));
+      
+      if (response.statusCode == 200) {
+        _logger.i('✅ Backend warmup complete');
+      }
+    } catch (e) {
+      _logger.w('⚠️  Backend warmup failed (non-critical): $e');
+      // Warmup is optional - app works without it, just slower
+    }
+  }
+
+  Future<ApiResult<List<Video>>> searchVideos(String query, {int limit = 10}) async {
     _logger.i('Searching for: $query');
+    
+    if (query.trim().isEmpty) {
+      return (
+        success: false,
+        data: null,
+        error: 'Search query cannot be empty',
+        details: null,
+      );
+    }
+
     try {
       final response = await _dio.get(
         '/search',
@@ -8016,21 +8296,73 @@ class ApiService {
         _logger.i('Search successful, got ${data.length} results from backend');
         
         if (data.isEmpty) {
-          _logger.w('Backend returned 0 results, using mock data');
-          return _getMockSearchResults(query, limit);
+          _logger.w('Backend returned 0 results');
+          final mockResults = _getMockSearchResults(query, limit);
+          return (
+            success: true,
+            data: mockResults,
+            error: null,
+            details: null,
+          );
         }
         
-        return data.map((json) => Video.fromJson(json)).toList();
+        final videos = data.map((json) => Video.fromJson(json)).toList();
+        return (
+          success: true,
+          data: videos,
+          error: null,
+          details: null,
+        );
       } else {
-        _logger.w('Backend returned error: ${response.data['error']}');
-        throw Exception(response.data['error'] ?? 'Search failed');
+        final errorMsg = (response.data['error'] ?? 'Search failed').toString();
+        _logger.w('Backend returned error: $errorMsg');
+        return (
+          success: false,
+          data: null,
+          error: 'Search failed',
+          details: errorMsg,
+        );
+      }
+    } on DioException catch (e) {
+      _logger.w('Search DIO error: $e');
+      
+      if (e.type == DioExceptionType.connectionTimeout) {
+        return (
+          success: false,
+          data: null,
+          error: 'Connection timeout',
+          details: 'Backend took too long to respond. Is it running on http://127.0.0.1:3030?',
+        );
+      } else if (e.type == DioExceptionType.receiveTimeout) {
+        return (
+          success: false,
+          data: null,
+          error: 'Search timed out',
+          details: 'Backend took too long to respond. Try again.',
+        );
+      } else if (e.type == DioExceptionType.connectionError) {
+        return (
+          success: false,
+          data: null,
+          error: 'Backend server is not running',
+          details: 'Make sure the backend is started: cargo run',
+        );
+      } else {
+        return (
+          success: false,
+          data: null,
+          error: 'Network error',
+          details: (e.message ?? 'Unknown network error').toString(),
+        );
       }
     } catch (e) {
-      _logger.w('Backend unavailable or error, using mock data: $e');
-      // Return mock data for development
-      final results = _getMockSearchResults(query, limit);
-      _logger.i('Returning ${results.length} mock results for "$query"');
-      return results;
+      _logger.w('Unexpected search error: $e');
+      return (
+        success: false,
+        data: null,
+        error: 'Unexpected error',
+        details: e.toString(),
+      );
     }
   }
 
@@ -8124,7 +8456,7 @@ class ApiService {
           (video) =>
               video.title.toLowerCase().contains(query.toLowerCase()) ||
               video.channelName.toLowerCase().contains(query.toLowerCase()) ||
-              video.description!.toLowerCase().contains(query.toLowerCase()),
+              video.description.toLowerCase().contains(query.toLowerCase()),
         )
         .take(limit)
         .toList();
@@ -8153,6 +8485,36 @@ class ApiService {
     }
   }
 
+  Future<VideoDetails> getVideoDetails(String videoId) async {
+    try {
+      final response = await _dio.get('/video/details/$videoId');
+
+      if (response.data['success'] == true) {
+        return VideoDetails.fromJson(response.data['data']);
+      } else {
+        throw Exception(response.data['error'] ?? 'Failed to get video details');
+      }
+    } catch (e) {
+      _logger.w('Get video details error: $e');
+      // Fallback to real video info endpoint (no mocked metadata)
+      final info = await getVideoInfo(videoId);
+      return VideoDetails(
+        id: info.id,
+        title: info.title,
+        channelName: info.channelName,
+        channelId: info.channelId,
+        subscriberCount: 0,
+        viewCount: info.views,
+        uploadDate: info.uploadDate.toIso8601String(),
+        duration: info.duration,
+        thumbnailUrl: info.thumbnail,
+        likeCount: info.likes,
+        dislikeCount: info.dislikes,
+        comments: const [],
+      );
+    }
+  }
+
   Video _getMockVideoInfo(String videoId) {
     return Video(
       id: videoId,
@@ -8170,24 +8532,9 @@ class ApiService {
   }
 
   Future<String> getStreamUrl(String videoId, {String quality = 'best'}) async {
-    try {
-      final response = await _dio.get(
-        '/stream/$videoId',
-        queryParameters: {'quality': quality},
-      );
-
-      if (response.data['success'] == true) {
-        return response.data['data']['url'];
-      } else {
-        throw Exception(response.data['error'] ?? 'Failed to get stream URL');
-      }
-    } catch (e) {
-      _logger.w('Get stream URL error: $e');
-      // Return a placeholder for development
-      throw Exception(
-        'Backend not available. Please ensure the Rust backend is running on http://localhost:3030',
-      );
-    }
+    // Return the proxy stream URL instead of fetching the direct URL
+    // This avoids CORS issues and network restrictions with media_kit
+    return '$baseUrl/stream-proxy/$videoId?quality=$quality';
   }
 
   Future<String> downloadVideo({
@@ -8213,11 +8560,38 @@ class ApiService {
       } else {
         throw Exception(response.data['error'] ?? 'Download failed');
       }
+    } on DioException catch (e) {
+      _logger.w('Download DIO error: $e');
+
+      final responseData = e.response?.data;
+      if (responseData is Map) {
+        final serverError = responseData['error']?.toString();
+        final serverDetails = responseData['details']?.toString();
+        if (serverError != null && serverError.isNotEmpty) {
+          if (serverDetails != null && serverDetails.isNotEmpty) {
+            throw Exception('$serverError: $serverDetails');
+          }
+          throw Exception(serverError);
+        }
+        if (serverDetails != null && serverDetails.isNotEmpty) {
+          throw Exception(serverDetails);
+        }
+      }
+
+      if (e.type == DioExceptionType.connectionError) {
+        throw Exception(
+          'Backend server is not running. Please ensure the Rust backend is running on http://127.0.0.1:3030',
+        );
+      }
+
+      if (e.type == DioExceptionType.connectionTimeout || e.type == DioExceptionType.receiveTimeout) {
+        throw Exception('Download request timed out. Please try again.');
+      }
+
+      throw Exception(e.message ?? 'Download failed');
     } catch (e) {
       _logger.w('Download error: $e');
-      throw Exception(
-        'Backend not available. Please ensure the Rust backend is running on http://localhost:3030',
-      );
+      throw Exception(e.toString());
     }
   }
 
@@ -8358,22 +8732,34 @@ class ApiService {
 
       if (response.data['success'] == true) {
         final List<dynamic> data = response.data['data'];
-        // Convert backend Download objects to frontend Download objects
-        // For now, we'll map them as completed downloads
         return data.map((json) {
           final backendDownload = json as Map<String, dynamic>;
+          final status = (backendDownload['status'] ?? 'pending').toString();
+          final createdAtRaw =
+              backendDownload['created_at']?.toString() ??
+              backendDownload['completed_at']?.toString();
+          final completedAtRaw = backendDownload['completed_at']?.toString();
+
+          final createdAt =
+              DateTime.tryParse(createdAtRaw ?? '') ?? DateTime.now();
+          final completedAt = completedAtRaw != null
+              ? DateTime.tryParse(completedAtRaw)
+              : null;
+
           return Download(
             id: backendDownload['id'].toString(),
             videoId: backendDownload['video_id'] ?? '',
             title: backendDownload['title'] ?? '',
             filePath: backendDownload['file_path'] ?? '',
-            fileSize: 0, // Backend doesn't track this yet
-            format: 'video', // Default format
+            fileSize: (backendDownload['file_size'] as num?)?.toInt() ?? 0,
+            format: status == 'audio' ? 'audio' : 'video',
             quality: backendDownload['quality'] ?? 'unknown',
-            status: 'completed',
-            progress: 100.0,
-            createdAt: DateTime.parse(backendDownload['downloaded_at']),
-            completedAt: DateTime.parse(backendDownload['downloaded_at']),
+            status: status,
+            progress: (backendDownload['progress'] as num?)?.toDouble() ??
+                (status == 'completed' ? 100.0 : 0.0),
+            createdAt: createdAt,
+            completedAt: completedAt,
+            errorMessage: backendDownload['error_message']?.toString(),
           );
         }).toList();
       } else {
@@ -8591,6 +8977,55 @@ class ApiService {
 
 ```
 
+`frontend/lib/services/media_player_holder.dart`:
+
+```dart
+import 'package:media_kit/media_kit.dart';
+import 'package:media_kit_video/media_kit_video.dart';
+
+class MediaPlayerHolder {
+  MediaPlayerHolder._internal();
+  static final MediaPlayerHolder instance = MediaPlayerHolder._internal();
+
+  Player? _player;
+  VideoController? _videoController;
+  bool _initialized = false;
+
+  Player get player {
+    _ensureInit();
+    return _player!;
+  }
+
+  VideoController get videoController {
+    _ensureInit();
+    return _videoController!;
+  }
+
+  bool get isInitialized => _initialized;
+
+  void _ensureInit() {
+    if (_initialized) return;
+    _player = Player();
+    _videoController = VideoController(
+      _player!,
+      configuration: const VideoControllerConfiguration(
+        enableHardwareAcceleration: false,
+      ),
+    );
+    _initialized = true;
+  }
+
+  void dispose() {
+    // VideoController doesn't have a dispose method; only dispose the Player
+    _player?.dispose();
+    _videoController = null;
+    _player = null;
+    _initialized = false;
+  }
+}
+
+```
+
 `frontend/lib/services/player_service.dart`:
 
 ```dart
@@ -8759,6 +9194,66 @@ class PlayerServiceException implements Exception {
 
 ```
 
+`frontend/lib/widgets/error_widget.dart`:
+
+```dart
+import 'package:flutter/material.dart';
+
+class ErrorDisplay extends StatelessWidget {
+  final String message;
+  final VoidCallback? onRetry;
+  final String? details;
+
+  const ErrorDisplay({
+    Key? key,
+    required this.message,
+    this.onRetry,
+    this.details,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.error_outline,
+            size: 64,
+            color: Colors.red[400],
+          ),
+          SizedBox(height: 16),
+          Text(
+            message,
+            style: Theme.of(context).textTheme.headlineSmall,
+            textAlign: TextAlign.center,
+          ),
+          if (details != null) ...[
+            SizedBox(height: 8),
+            Text(
+              details!,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: Colors.grey,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+          if (onRetry != null) ...[
+            SizedBox(height: 24),
+            ElevatedButton.icon(
+              onPressed: onRetry,
+              icon: Icon(Icons.refresh),
+              label: Text('Retry'),
+            ),
+          ]
+        ],
+      ),
+    );
+  }
+}
+
+```
+
 `frontend/lib/widgets/player_shell.dart`:
 
 ```dart
@@ -8767,8 +9262,12 @@ import 'dart:math' as math;
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:media_kit/media_kit.dart';
+import 'package:media_kit_video/media_kit_video.dart';
 
 import '../controllers/player_controller.dart';
+import '../providers.dart';
+import '../services/media_player_holder.dart';
 
 class PlayerShell extends ConsumerWidget {
   const PlayerShell({super.key, required this.child});
@@ -8791,15 +9290,43 @@ class _PlayerOverlay extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final playerState = ref.watch(playerControllerProvider);
+    final showHiddenEngine =
+        playerState.hasVideo && playerState.surface != PlayerSurface.fullscreen;
 
+    Widget surface;
     switch (playerState.surface) {
       case PlayerSurface.fullscreen:
-        return const _FullscreenPlayer();
+        surface = const _FullscreenPlayer();
+        break;
       case PlayerSurface.mini:
-        return const _MiniPlayer();
+        surface = const _MiniPlayer();
+        break;
+      case PlayerSurface.popup:
+        surface = const _PopupPlayer();
+        break;
       case PlayerSurface.hidden:
-        return const SizedBox.shrink();
+        surface = const SizedBox.shrink();
+        break;
     }
+
+    if (!showHiddenEngine) {
+      return surface;
+    }
+
+    return Stack(
+      children: [
+        Positioned.fill(
+          child: IgnorePointer(
+            child: Opacity(
+              opacity: 0,
+              // Keep media_kit engine alive for mini/popup/background playback.
+              child: _PlayerStage(playerState: playerState),
+            ),
+          ),
+        ),
+        surface,
+      ],
+    );
   }
 }
 
@@ -8881,22 +9408,221 @@ class _PlayerTopBar extends StatelessWidget {
   }
 }
 
-class _PlayerStage extends ConsumerWidget {
+class _PlayerStage extends ConsumerStatefulWidget {
   const _PlayerStage({required this.playerState});
 
-  final PlayerState playerState;
+  final TubularPlayerState playerState;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final video = playerState.video;
+  ConsumerState<_PlayerStage> createState() => _PlayerStageState();
+}
+
+class _PlayerStageState extends ConsumerState<_PlayerStage> {
+  String? _currentStreamUrl;
+  double _appliedSpeed = 1.0;
+  bool _listenersAttached = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _initializePlayerFromHolder();
+  }
+
+  void _initializePlayerFromHolder() {
+    print('🎬 Initializing media_kit player from holder...');
+    // Use the shared MediaPlayerHolder so the player survives when the UI minimizes
+    final holder = MediaPlayerHolder.instance;
+    final _player = holder.player;
+    final _videoController = holder.videoController;
+
+    // Attach listeners once per widget instance (safe because holder's player persists)
+    if (!_listenersAttached) {
+      _listenersAttached = true;
+
+      _player.stream.position.listen((position) {
+        ref.read(playerControllerProvider.notifier).updatePosition(position);
+      });
+
+      _player.stream.duration.listen((duration) {
+        ref.read(playerControllerProvider.notifier).updateDuration(duration);
+      });
+
+      _player.stream.playing.listen((isPlaying) {
+        print('🎵 Player playing state changed: $isPlaying');
+        ref.read(playerControllerProvider.notifier).updatePlayingState(isPlaying);
+      });
+
+      _player.stream.buffering.listen((buffering) {
+        print('📊 Player buffering: $buffering');
+      });
+
+      _player.stream.width.listen((width) {
+        print('📐 Video width: $width');
+        if (width != null && width > 0) {
+          setState(() {});
+        }
+      });
+
+      _player.stream.height.listen((height) {
+        print('📐 Video height: $height');
+      });
+
+      _player.stream.error.listen((error) {
+        if (error != null) {
+          print('❌ Player error: $error');
+          ref.read(playerControllerProvider.notifier).setError(error);
+        }
+      });
+
+      _player.stream.completed.listen((completed) {
+        if (completed) {
+          print('✅ Playback completed');
+        }
+      });
+    }
+
+    print('✅ Player (holder) initialized');
+
+    // If stream URL is already available, open it
+    final streamUrl = widget.playerState.streamUrl;
+    if (streamUrl != null && streamUrl.isNotEmpty) {
+      _currentStreamUrl = streamUrl;
+      print('🎥 Opening stream in initState (holder): $streamUrl');
+      _player.open(Media(streamUrl), play: true);
+    }
+
+    // Apply current playback speed
+    final speed = ref.read(playbackSpeedProvider);
+    _appliedSpeed = speed;
+    try {
+      _player.setRate(speed);
+      print('DEBUG: Applied playback speed $speed at init (holder)');
+    } catch (e) {
+      print('DEBUG: Failed to set initial playback speed (holder): $e');
+    }
+  }
+
+  @override
+  void didUpdateWidget(_PlayerStage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    
+    final streamUrl = widget.playerState.streamUrl;
+    final isPlaying = widget.playerState.isPlaying;
+    final holder = MediaPlayerHolder.instance;
+    final _player = holder.isInitialized ? holder.player : null;
+    
+    print('🎬 Player didUpdateWidget:');
+    print('   streamUrl: $streamUrl');
+    print('   _currentStreamUrl: $_currentStreamUrl');
+    print('   isPlaying: $isPlaying');
+    print('   status: ${widget.playerState.status}');
+    
+    // Load new stream URL if changed
+    if (streamUrl != null && streamUrl != _currentStreamUrl && streamUrl.isNotEmpty) {
+      _currentStreamUrl = streamUrl;
+      print('🎥 Opening NEW stream: $streamUrl');
+      print('   Will play: true');
+      _player?.open(Media(streamUrl), play: true);
+      return; // Let the player handle state changes
+    }
+    
+    // Handle play/pause state changes only if URL hasn't changed
+    if (oldWidget.playerState.isPlaying != isPlaying && streamUrl == _currentStreamUrl) {
+      if (isPlaying) {
+        print('▶️  Playing');
+        _player?.play();
+      } else {
+        print('⏸️  Pausing');
+        _player?.pause();
+      }
+    }
+    
+    // Handle seek
+    if (oldWidget.playerState.position != widget.playerState.position) {
+      final shouldSeek = (widget.playerState.position - (_player?.state.position ?? Duration.zero)).abs() > const Duration(seconds: 1);
+      if (shouldSeek) {
+        print('⏩ Seeking to: ${widget.playerState.position}');
+        _player?.seek(widget.playerState.position);
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    // Do not dispose the shared player here. MediaPlayerHolder owns the player lifetime
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final video = widget.playerState.video;
     final controller = ref.read(playerControllerProvider.notifier);
+    final playbackSpeed = ref.watch(playbackSpeedProvider);
+    final hasStreamUrl = widget.playerState.streamUrl != null;
+
+    final holder = MediaPlayerHolder.instance;
+    final _player = holder.isInitialized ? holder.player : null;
+    final _videoController = holder.isInitialized ? holder.videoController : null;
+
+    final hasVideo = _player != null && _player.state.width != null && 
+                     _player.state.width! > 0 && 
+                     _player.state.height != null && 
+                     _player.state.height! > 0;
+
+    print('🎨 Building _PlayerStage:');
+    print('   hasStreamUrl: $hasStreamUrl');
+    print('   streamUrl: ${widget.playerState.streamUrl}');
+    print('   status: ${widget.playerState.status}');
+    print('   _videoController: $_videoController');
+    print('   _player state: ${_player?.state.playing}');
+    print('   _player width: ${_player?.state.width}');
+    print('   _player height: ${_player?.state.height}');
+    print('   hasVideo: $hasVideo');
+
+    // Apply playback speed updates if it changed
+    if (_player != null && playbackSpeed != _appliedSpeed) {
+      try {
+        _player.setRate(playbackSpeed);
+        _appliedSpeed = playbackSpeed;
+        print('DEBUG: Applied playback speed $playbackSpeed in build');
+      } catch (e) {
+        print('DEBUG: Failed to apply playback speed $playbackSpeed in build: $e');
+      }
+    }
 
     return ColoredBox(
       color: Colors.black,
       child: Stack(
         fit: StackFit.expand,
         children: [
-          if (video != null && video.thumbnail.isNotEmpty)
+          // Video player - only show if we have valid video dimensions AND not audio-only mode
+          if (_videoController != null && hasStreamUrl && hasVideo && widget.playerState.quality != 'audio')
+            SizedBox.expand(
+              child: Video(
+                controller: _videoController!,
+                controls: NoVideoControls,
+                fit: BoxFit.contain,
+                fill: Colors.black,
+                filterQuality: FilterQuality.medium,
+                wakelock: true,
+              ),
+            )
+          else if (_videoController != null && hasStreamUrl && !hasVideo && widget.playerState.quality != 'audio')
+            // Show loading indicator while waiting for video dimensions
+            const Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  CircularProgressIndicator(color: Colors.white),
+                  SizedBox(height: 16),
+                  Text(
+                    'Loading video...',
+                    style: TextStyle(color: Colors.white70),
+                  ),
+                ],
+              ),
+            )
+          else if (video != null && video.thumbnail.isNotEmpty)
             Opacity(
               opacity: 0.26,
               child: CachedNetworkImage(
@@ -8905,22 +9631,16 @@ class _PlayerStage extends ConsumerWidget {
                 errorWidget: (_, __, ___) => const SizedBox.shrink(),
               ),
             ),
-          const DecoratedBox(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [Color(0x66000000), Color(0xFF000000)],
+          
+          // Center control (loading/error/play button) - only show if not loading video
+          if (!hasStreamUrl || hasVideo)
+            Center(
+              child: _PlayerCenterControl(
+                playerState: widget.playerState,
+                onRetry: controller.retry,
+                onTogglePlayPause: controller.togglePlayPause,
               ),
             ),
-          ),
-          Center(
-            child: _PlayerCenterControl(
-              playerState: playerState,
-              onRetry: controller.retry,
-              onTogglePlayPause: controller.togglePlayPause,
-            ),
-          ),
         ],
       ),
     );
@@ -8934,7 +9654,7 @@ class _PlayerCenterControl extends StatelessWidget {
     required this.onTogglePlayPause,
   });
 
-  final PlayerState playerState;
+  final TubularPlayerState playerState;
   final VoidCallback onRetry;
   final VoidCallback onTogglePlayPause;
 
@@ -8994,13 +9714,15 @@ class _PlayerCenterControl extends StatelessWidget {
 class _FullscreenControls extends ConsumerWidget {
   const _FullscreenControls({required this.playerState});
 
-  final PlayerState playerState;
+  final TubularPlayerState playerState;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final controller = ref.read(playerControllerProvider.notifier);
     final duration = playerState.duration;
     final position = _safePosition(playerState.position, duration);
+    final preferredQuality = ref.watch(preferredQualityProvider);
+    final isAudioOnly = playerState.quality == 'audio';
 
     return SafeArea(
       top: false,
@@ -9071,17 +9793,24 @@ class _FullscreenControls extends ConsumerWidget {
                 ),
                 const Spacer(),
                 IconButton(
-                  tooltip: 'Background audio',
-                  onPressed: controller.toggleBackgroundAudio,
-                  color: playerState.backgroundAudio
-                      ? const Color(0xFFE53935)
-                      : Colors.white,
+                  tooltip: isAudioOnly ? 'Disable audio-only stream' : 'Enable audio-only stream',
+                  onPressed: () {
+                    final restoreQuality = preferredQuality == 'audio'
+                        ? 'best'
+                        : preferredQuality;
+                    controller.toggleAudioOnlyStream(
+                      fallbackQuality: restoreQuality,
+                    );
+                  },
+                  color: isAudioOnly ? const Color(0xFFE53935) : Colors.white,
                   icon: const Icon(Icons.headphones),
                 ),
                 _QualityMenu(
                   selectedQuality: playerState.quality,
                   onSelected: controller.setQuality,
                 ),
+                const SizedBox(width: 8),
+                _SpeedMenu(),
               ],
             ),
           ],
@@ -9142,6 +9871,62 @@ class _QualityLabel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Text(text, style: const TextStyle(color: Colors.white));
+  }
+}
+
+class _SpeedMenu extends ConsumerWidget {
+  const _SpeedMenu({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final speed = ref.watch(playbackSpeedProvider);
+    final controller = ref.read(playerControllerProvider.notifier);
+
+    return PopupMenuButton<String>(
+      tooltip: 'Speed',
+      color: const Color(0xFF1C1C1C),
+      initialValue: speed.toString(),
+      onSelected: (value) {
+        final v = double.tryParse(value) ?? 1.0;
+        ref.read(playbackSpeedProvider.notifier).state = v;
+        // controller doesn't need to apply speed; player_shell listens to provider
+      },
+      itemBuilder: (context) {
+        return const [
+          PopupMenuItem(value: '0.5', child: Text('0.5x')),
+          PopupMenuItem(value: '0.75', child: Text('0.75x')),
+          PopupMenuItem(value: '1.0', child: Text('1.0x')),
+          PopupMenuItem(value: '1.25', child: Text('1.25x')),
+          PopupMenuItem(value: '1.5', child: Text('1.5x')),
+          PopupMenuItem(value: '2.0', child: Text('2.0x')),
+          PopupMenuItem(value: '2.25', child: Text('2.25x')),
+          PopupMenuItem(value: '2.5', child: Text('2.5x')),
+          PopupMenuItem(value: '2.75', child: Text('2.75x')),
+          PopupMenuItem(value: '3.0', child: Text('3.0x')),
+          PopupMenuItem(value: '3.25', child: Text('3.25x')),
+          PopupMenuItem(value: '3.5', child: Text('3.5x')),
+          PopupMenuItem(value: '3.75', child: Text('3.75x')),
+          PopupMenuItem(value: '4.0', child: Text('4.0x')),
+        ];
+      },
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        child: Row(
+          children: [
+            const Icon(Icons.speed, color: Colors.white, size: 22),
+            const SizedBox(width: 6),
+            Text(
+              '${speed}x',
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 
@@ -9245,6 +10030,146 @@ class _MiniPlayer extends ConsumerWidget {
   }
 }
 
+class _PopupPlayer extends ConsumerStatefulWidget {
+  const _PopupPlayer();
+
+  @override
+  ConsumerState<_PopupPlayer> createState() => _PopupPlayerState();
+}
+
+class _PopupPlayerState extends ConsumerState<_PopupPlayer> {
+  Offset _offset = const Offset(24, 24);
+
+  @override
+  Widget build(BuildContext context) {
+    final playerState = ref.watch(playerControllerProvider);
+    final controller = ref.read(playerControllerProvider.notifier);
+    final video = playerState.video;
+    final size = MediaQuery.of(context).size;
+
+    if (video == null) {
+      return const SizedBox.shrink();
+    }
+
+    const popupWidth = 360.0;
+    const popupHeight = 220.0;
+
+    final maxDx = (size.width - popupWidth - 16).clamp(0.0, double.infinity);
+    final maxDy = (size.height - popupHeight - 16).clamp(0.0, double.infinity);
+
+    final clampedOffset = Offset(
+      _offset.dx.clamp(0.0, maxDx),
+      _offset.dy.clamp(0.0, maxDy),
+    );
+
+    if (clampedOffset != _offset) {
+      _offset = clampedOffset;
+    }
+
+    return Positioned(
+      left: _offset.dx,
+      top: _offset.dy,
+      child: Material(
+        color: Colors.transparent,
+        elevation: 12,
+        child: Container(
+          width: popupWidth,
+          height: popupHeight,
+          decoration: BoxDecoration(
+            color: const Color(0xFF111111),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: const Color(0xFF2C2C2C)),
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: Column(
+            children: [
+              GestureDetector(
+                onPanUpdate: (details) {
+                  setState(() {
+                    _offset = Offset(
+                      (_offset.dx + details.delta.dx).clamp(0.0, maxDx),
+                      (_offset.dy + details.delta.dy).clamp(0.0, maxDy),
+                    );
+                  });
+                },
+                child: Container(
+                  height: 34,
+                  color: const Color(0xFF1B1B1B),
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          video.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        tooltip: 'Mini player',
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints.tightFor(width: 28, height: 28),
+                        onPressed: controller.showMiniPlayer,
+                        icon: const Icon(Icons.call_to_action, size: 16, color: Colors.white),
+                      ),
+                      IconButton(
+                        tooltip: 'Fullscreen',
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints.tightFor(width: 28, height: 28),
+                        onPressed: controller.showFullscreen,
+                        icon: const Icon(Icons.fullscreen, size: 16, color: Colors.white),
+                      ),
+                      IconButton(
+                        tooltip: 'Close',
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints.tightFor(width: 28, height: 28),
+                        onPressed: controller.stop,
+                        icon: const Icon(Icons.close, size: 16, color: Colors.white),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              Expanded(
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    if (video.thumbnail.isNotEmpty)
+                      CachedNetworkImage(
+                        imageUrl: video.thumbnail,
+                        fit: BoxFit.cover,
+                        errorWidget: (_, __, ___) => const ColoredBox(color: Color(0xFF181818)),
+                      )
+                    else
+                      const ColoredBox(color: Color(0xFF181818)),
+                    Container(color: const Color(0x55000000)),
+                    Center(
+                      child: IconButton(
+                        tooltip: playerState.isPlaying ? 'Pause' : 'Play',
+                        onPressed: controller.togglePlayPause,
+                        color: Colors.white,
+                        iconSize: 44,
+                        icon: Icon(
+                          playerState.isPlaying ? Icons.pause_circle : Icons.play_circle,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 Duration _safePosition(Duration position, Duration duration) {
   if (duration == Duration.zero || position <= duration) {
     return position;
@@ -9336,6 +10261,7 @@ class _VideoCardState extends State<VideoCard> with SingleTickerProviderStateMix
           child: InkWell(
             onTap: widget.onTap,
             child: Column(
+              mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // Thumbnail with overlay
@@ -9403,11 +10329,12 @@ class _VideoCardState extends State<VideoCard> with SingleTickerProviderStateMix
                   ),
                 ),
                 // Video info
-                Expanded(
+                Flexible(
                   child: Padding(
                     padding: const EdgeInsets.all(12),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
                       children: [
                         Text(
                           widget.video.title,
@@ -9529,231 +10456,305 @@ class _VideoCardState extends State<VideoCard> with SingleTickerProviderStateMix
 
 ```
 
-`frontend/linux/CMakeLists.txt`:
+`frontend/lib/widgets/video_details/actions_section.dart`:
 
-```txt
-# Project-level configuration.
-cmake_minimum_required(VERSION 3.13)
-project(runner LANGUAGES CXX)
+```dart
+import 'package:flutter/material.dart';
 
-# The name of the executable created for the application. Change this to change
-# the on-disk name of your application.
-set(BINARY_NAME "tubular_pc")
-# The unique GTK application identifier for this application. See:
-# https://wiki.gnome.org/HowDoI/ChooseApplicationID
-set(APPLICATION_ID "com.example.tubular_pc")
+class ActionItem {
+  const ActionItem({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
 
-# Explicitly opt in to modern CMake behaviors to avoid warnings with recent
-# versions of CMake.
-cmake_policy(SET CMP0063 NEW)
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+}
 
-# Load bundled libraries from the lib/ directory relative to the binary.
-set(CMAKE_INSTALL_RPATH "$ORIGIN/lib")
+class ActionsSection extends StatelessWidget {
+  const ActionsSection({super.key, required this.items});
 
-# Root filesystem for cross-building.
-if(FLUTTER_TARGET_PLATFORM_SYSROOT)
-  set(CMAKE_SYSROOT ${FLUTTER_TARGET_PLATFORM_SYSROOT})
-  set(CMAKE_FIND_ROOT_PATH ${CMAKE_SYSROOT})
-  set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)
-  set(CMAKE_FIND_ROOT_PATH_MODE_PACKAGE ONLY)
-  set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY)
-  set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)
-endif()
+  final List<ActionItem> items;
 
-# Define build configuration options.
-if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
-  set(CMAKE_BUILD_TYPE "Debug" CACHE
-    STRING "Flutter build mode" FORCE)
-  set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS
-    "Debug" "Profile" "Release")
-endif()
+  @override
+  Widget build(BuildContext context) {
+    final foreground = Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.90);
 
-# Compilation settings that should be applied to most targets.
-#
-# Be cautious about adding new options here, as plugins use this function by
-# default. In most cases, you should add new options to specific targets instead
-# of modifying this function.
-function(APPLY_STANDARD_SETTINGS TARGET)
-  target_compile_features(${TARGET} PUBLIC cxx_std_14)
-  target_compile_options(${TARGET} PRIVATE -Wall -Werror)
-  target_compile_options(${TARGET} PRIVATE "$<$<NOT:$<CONFIG:Debug>>:-O3>")
-  target_compile_definitions(${TARGET} PRIVATE "$<$<NOT:$<CONFIG:Debug>>:NDEBUG>")
-endfunction()
-
-# Flutter library and tool build rules.
-set(FLUTTER_MANAGED_DIR "${CMAKE_CURRENT_SOURCE_DIR}/flutter")
-add_subdirectory(${FLUTTER_MANAGED_DIR})
-
-# System-level dependencies.
-find_package(PkgConfig REQUIRED)
-pkg_check_modules(GTK REQUIRED IMPORTED_TARGET gtk+-3.0)
-
-# Application build; see runner/CMakeLists.txt.
-add_subdirectory("runner")
-
-# Run the Flutter tool portions of the build. This must not be removed.
-add_dependencies(${BINARY_NAME} flutter_assemble)
-
-# Only the install-generated bundle's copy of the executable will launch
-# correctly, since the resources must in the right relative locations. To avoid
-# people trying to run the unbundled copy, put it in a subdirectory instead of
-# the default top-level location.
-set_target_properties(${BINARY_NAME}
-  PROPERTIES
-  RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/intermediates_do_not_run"
-)
-
-
-# Generated plugin build rules, which manage building the plugins and adding
-# them to the application.
-include(flutter/generated_plugins.cmake)
-
-
-# === Installation ===
-# By default, "installing" just makes a relocatable bundle in the build
-# directory.
-set(BUILD_BUNDLE_DIR "${PROJECT_BINARY_DIR}/bundle")
-if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
-  set(CMAKE_INSTALL_PREFIX "${BUILD_BUNDLE_DIR}" CACHE PATH "..." FORCE)
-endif()
-
-# Start with a clean build bundle directory every time.
-install(CODE "
-  file(REMOVE_RECURSE \"${BUILD_BUNDLE_DIR}/\")
-  " COMPONENT Runtime)
-
-set(INSTALL_BUNDLE_DATA_DIR "${CMAKE_INSTALL_PREFIX}/data")
-set(INSTALL_BUNDLE_LIB_DIR "${CMAKE_INSTALL_PREFIX}/lib")
-
-install(TARGETS ${BINARY_NAME} RUNTIME DESTINATION "${CMAKE_INSTALL_PREFIX}"
-  COMPONENT Runtime)
-
-install(FILES "${FLUTTER_ICU_DATA_FILE}" DESTINATION "${INSTALL_BUNDLE_DATA_DIR}"
-  COMPONENT Runtime)
-
-install(FILES "${FLUTTER_LIBRARY}" DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
-  COMPONENT Runtime)
-
-foreach(bundled_library ${PLUGIN_BUNDLED_LIBRARIES})
-  install(FILES "${bundled_library}"
-    DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
-    COMPONENT Runtime)
-endforeach(bundled_library)
-
-# Copy the native assets provided by the build.dart from all packages.
-set(NATIVE_ASSETS_DIR "${PROJECT_BUILD_DIR}native_assets/linux/")
-install(DIRECTORY "${NATIVE_ASSETS_DIR}"
-   DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
-   COMPONENT Runtime)
-
-# Fully re-copy the assets directory on each build to avoid having stale files
-# from a previous install.
-set(FLUTTER_ASSET_DIR_NAME "flutter_assets")
-install(CODE "
-  file(REMOVE_RECURSE \"${INSTALL_BUNDLE_DATA_DIR}/${FLUTTER_ASSET_DIR_NAME}\")
-  " COMPONENT Runtime)
-install(DIRECTORY "${PROJECT_BUILD_DIR}/${FLUTTER_ASSET_DIR_NAME}"
-  DESTINATION "${INSTALL_BUNDLE_DATA_DIR}" COMPONENT Runtime)
-
-# Install the AOT library on non-Debug builds only.
-if(NOT CMAKE_BUILD_TYPE MATCHES "Debug")
-  install(FILES "${AOT_LIBRARY}" DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
-    COMPONENT Runtime)
-endif()
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+      children: items
+          .map(
+            (item) => GestureDetector(
+              onTap: item.onTap,
+              child: Column(
+                children: [
+                  Icon(item.icon, size: 28, color: foreground),
+                  const SizedBox(height: 6),
+                  Text(
+                    item.label,
+                    style: TextStyle(fontSize: 12, color: foreground),
+                  ),
+                ],
+              ),
+            ),
+          )
+          .toList(),
+    );
+  }
+}
 
 ```
 
-`frontend/linux/flutter/CMakeLists.txt`:
+`frontend/lib/widgets/video_details/comments_section.dart`:
 
-```txt
-# This file controls Flutter-level build steps. It should not be edited.
-cmake_minimum_required(VERSION 3.10)
+```dart
+import 'package:flutter/material.dart';
 
-set(EPHEMERAL_DIR "${CMAKE_CURRENT_SOURCE_DIR}/ephemeral")
+import '../../models/video_details.dart';
 
-# Configuration provided via flutter tool.
-include(${EPHEMERAL_DIR}/generated_config.cmake)
+class CommentsSection extends StatelessWidget {
+  const CommentsSection({super.key, required this.comments});
 
-# TODO: Move the rest of this into files in ephemeral. See
-# https://github.com/flutter/flutter/issues/57146.
+  final List<Comment> comments;
 
-# Serves the same purpose as list(TRANSFORM ... PREPEND ...),
-# which isn't available in 3.10.
-function(list_prepend LIST_NAME PREFIX)
-    set(NEW_LIST "")
-    foreach(element ${${LIST_NAME}})
-        list(APPEND NEW_LIST "${PREFIX}${element}")
-    endforeach(element)
-    set(${LIST_NAME} "${NEW_LIST}" PARENT_SCOPE)
-endfunction()
+  @override
+  Widget build(BuildContext context) {
+    final secondary = Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.70);
 
-# === Flutter Library ===
-# System-level dependencies.
-find_package(PkgConfig REQUIRED)
-pkg_check_modules(GTK REQUIRED IMPORTED_TARGET gtk+-3.0)
-pkg_check_modules(GLIB REQUIRED IMPORTED_TARGET glib-2.0)
-pkg_check_modules(GIO REQUIRED IMPORTED_TARGET gio-2.0)
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Comments',
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 8),
+        if (comments.isEmpty)
+          Text(
+            'No comments available',
+            style: TextStyle(color: secondary),
+          )
+        else
+          ...comments.map((comment) => _buildCommentTile(comment, secondary)),
+      ],
+    );
+  }
 
-set(FLUTTER_LIBRARY "${EPHEMERAL_DIR}/libflutter_linux_gtk.so")
+  Widget _buildCommentTile(Comment comment, Color secondary) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          CircleAvatar(
+            radius: 18,
+            backgroundColor: Colors.grey[700],
+            child: Text(
+              comment.username.isNotEmpty
+                  ? comment.username[0].toUpperCase()
+                  : '?',
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      comment.username,
+                      style: const TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                    Text(
+                      comment.publishedText.isNotEmpty
+                          ? comment.publishedText
+                          : _timeAgo(comment.timestamp),
+                      style: TextStyle(color: secondary, fontSize: 12),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text(comment.text),
+                const SizedBox(height: 6),
+                Row(
+                  children: [
+                    Icon(Icons.thumb_up, size: 16, color: secondary),
+                    const SizedBox(width: 6),
+                    Text('${comment.likeCount}'),
+                    const SizedBox(width: 12),
+                    TextButton(
+                      onPressed: () {},
+                      child: const Text(
+                        '1 REPLY',
+                        style: TextStyle(fontSize: 12),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
-# Published to parent scope for install step.
-set(FLUTTER_LIBRARY ${FLUTTER_LIBRARY} PARENT_SCOPE)
-set(FLUTTER_ICU_DATA_FILE "${EPHEMERAL_DIR}/icudtl.dat" PARENT_SCOPE)
-set(PROJECT_BUILD_DIR "${PROJECT_DIR}/build/" PARENT_SCOPE)
-set(AOT_LIBRARY "${PROJECT_DIR}/build/lib/libapp.so" PARENT_SCOPE)
+  String _timeAgo(DateTime dt) {
+    final diff = DateTime.now().difference(dt);
+    if (diff.inMinutes < 60) {
+      return '${diff.inMinutes} minutes ago';
+    }
+    if (diff.inHours < 24) {
+      return '${diff.inHours} hours ago';
+    }
+    return '${diff.inDays} days ago';
+  }
+}
 
-list(APPEND FLUTTER_LIBRARY_HEADERS
-  "fl_basic_message_channel.h"
-  "fl_binary_codec.h"
-  "fl_binary_messenger.h"
-  "fl_dart_project.h"
-  "fl_engine.h"
-  "fl_json_message_codec.h"
-  "fl_json_method_codec.h"
-  "fl_message_codec.h"
-  "fl_method_call.h"
-  "fl_method_channel.h"
-  "fl_method_codec.h"
-  "fl_method_response.h"
-  "fl_plugin_registrar.h"
-  "fl_plugin_registry.h"
-  "fl_standard_message_codec.h"
-  "fl_standard_method_codec.h"
-  "fl_string_codec.h"
-  "fl_value.h"
-  "fl_view.h"
-  "flutter_linux.h"
-)
-list_prepend(FLUTTER_LIBRARY_HEADERS "${EPHEMERAL_DIR}/flutter_linux/")
-add_library(flutter INTERFACE)
-target_include_directories(flutter INTERFACE
-  "${EPHEMERAL_DIR}"
-)
-target_link_libraries(flutter INTERFACE "${FLUTTER_LIBRARY}")
-target_link_libraries(flutter INTERFACE
-  PkgConfig::GTK
-  PkgConfig::GLIB
-  PkgConfig::GIO
-)
-add_dependencies(flutter flutter_assemble)
+```
 
-# === Flutter tool backend ===
-# _phony_ is a non-existent file to force this command to run every time,
-# since currently there's no way to get a full input/output list from the
-# flutter tool.
-add_custom_command(
-  OUTPUT ${FLUTTER_LIBRARY} ${FLUTTER_LIBRARY_HEADERS}
-    ${CMAKE_CURRENT_BINARY_DIR}/_phony_
-  COMMAND ${CMAKE_COMMAND} -E env
-    ${FLUTTER_TOOL_ENVIRONMENT}
-    "${FLUTTER_ROOT}/packages/flutter_tools/bin/tool_backend.sh"
-      ${FLUTTER_TARGET_PLATFORM} ${CMAKE_BUILD_TYPE}
-  VERBATIM
-)
-add_custom_target(flutter_assemble DEPENDS
-  "${FLUTTER_LIBRARY}"
-  ${FLUTTER_LIBRARY_HEADERS}
-)
+`frontend/lib/widgets/video_details/stats_section.dart`:
+
+```dart
+import 'package:flutter/material.dart';
+
+import '../../models/video_details.dart';
+
+class StatsSection extends StatelessWidget {
+  const StatsSection({super.key, required this.details});
+
+  final VideoDetails details;
+
+  @override
+  Widget build(BuildContext context) {
+    final secondary = Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.75);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          details.title,
+          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            CircleAvatar(
+              radius: 20,
+              backgroundColor: Colors.grey[700],
+              child: Text(
+                details.channelName.isNotEmpty
+                    ? details.channelName[0].toUpperCase()
+                    : '?',
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    details.channelName,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    '${details.subscriberCount} subscribers',
+                    style: TextStyle(color: secondary, fontSize: 12),
+                  ),
+                ],
+              ),
+            ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  '${details.viewCount} views',
+                  style: TextStyle(color: secondary),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  details.uploadDate,
+                  style: TextStyle(color: secondary, fontSize: 12),
+                ),
+              ],
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            Icon(Icons.thumb_up, size: 16, color: secondary),
+            const SizedBox(width: 4),
+            Text('${details.likeCount}'),
+            const SizedBox(width: 16),
+            Icon(Icons.thumb_down, size: 16, color: secondary),
+            const SizedBox(width: 4),
+            Text('${details.dislikeCount}'),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+```
+
+`frontend/lib/widgets/video_details/thumbnail_section.dart`:
+
+```dart
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/material.dart';
+
+class ThumbnailSection extends StatelessWidget {
+  const ThumbnailSection({
+    super.key,
+    required this.thumbnailUrl,
+    required this.onPlay,
+  });
+
+  final String thumbnailUrl;
+  final VoidCallback onPlay;
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        AspectRatio(
+          aspectRatio: 16 / 9,
+          child: CachedNetworkImage(
+            imageUrl: thumbnailUrl,
+            fit: BoxFit.cover,
+            placeholder: (context, _) => Container(color: Colors.grey[800]),
+            errorWidget: (context, _, __) => Container(
+              color: Colors.grey[800],
+              child: const Center(
+                child: Icon(Icons.broken_image, color: Colors.white70),
+              ),
+            ),
+          ),
+        ),
+        Positioned.fill(
+          child: Center(
+            child: IconButton(
+              onPressed: onPlay,
+              iconSize: 84,
+              color: Colors.white.withOpacity(0.92),
+              icon: const Icon(Icons.play_circle_outline),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
 
 ```
 
@@ -9768,8 +10769,16 @@ add_custom_target(flutter_assemble DEPENDS
 
 #include "generated_plugin_registrant.h"
 
+#include <media_kit_libs_linux/media_kit_libs_linux_plugin.h>
+#include <media_kit_video/media_kit_video_plugin.h>
 
 void fl_register_plugins(FlPluginRegistry* registry) {
+  g_autoptr(FlPluginRegistrar) media_kit_libs_linux_registrar =
+      fl_plugin_registry_get_registrar_for_plugin(registry, "MediaKitLibsLinuxPlugin");
+  media_kit_libs_linux_plugin_register_with_registrar(media_kit_libs_linux_registrar);
+  g_autoptr(FlPluginRegistrar) media_kit_video_registrar =
+      fl_plugin_registry_get_registrar_for_plugin(registry, "MediaKitVideoPlugin");
+  media_kit_video_plugin_register_with_registrar(media_kit_video_registrar);
 }
 
 ```
@@ -9803,6 +10812,8 @@ void fl_register_plugins(FlPluginRegistry* registry);
 #
 
 list(APPEND FLUTTER_PLUGIN_LIST
+  media_kit_libs_linux
+  media_kit_video
 )
 
 list(APPEND FLUTTER_FFI_PLUGIN_LIST
@@ -9822,38 +10833,6 @@ foreach(ffi_plugin ${FLUTTER_FFI_PLUGIN_LIST})
   add_subdirectory(flutter/ephemeral/.plugin_symlinks/${ffi_plugin}/linux plugins/${ffi_plugin})
   list(APPEND PLUGIN_BUNDLED_LIBRARIES ${${ffi_plugin}_bundled_libraries})
 endforeach(ffi_plugin)
-
-```
-
-`frontend/linux/runner/CMakeLists.txt`:
-
-```txt
-cmake_minimum_required(VERSION 3.13)
-project(runner LANGUAGES CXX)
-
-# Define the application target. To change its name, change BINARY_NAME in the
-# top-level CMakeLists.txt, not the value here, or `flutter run` will no longer
-# work.
-#
-# Any new source files that you add to the application should be added here.
-add_executable(${BINARY_NAME}
-  "main.cc"
-  "my_application.cc"
-  "${FLUTTER_MANAGED_DIR}/generated_plugin_registrant.cc"
-)
-
-# Apply the standard set of build settings. This can be removed for applications
-# that need different build settings.
-apply_standard_settings(${BINARY_NAME})
-
-# Add preprocessor definitions for the application ID.
-add_definitions(-DAPPLICATION_ID="${APPLICATION_ID}")
-
-# Add dependency libraries. Add any application-specific dependencies here.
-target_link_libraries(${BINARY_NAME} PRIVATE flutter)
-target_link_libraries(${BINARY_NAME} PRIVATE PkgConfig::GTK)
-
-target_include_directories(${BINARY_NAME} PRIVATE "${CMAKE_SOURCE_DIR}")
 
 ```
 
@@ -10060,18 +11039,26 @@ packages:
     dependency: transitive
     description:
       name: _fe_analyzer_shared
-      sha256: "8d7ff3948166b8ec5da0fbb5962000926b8e02f2ed9b3e51d1738905fbd4c98d"
+      sha256: da0d9209ca76bde579f2da330aeb9df62b6319c834fa7baae052021b0462401f
       url: "https://pub.dev"
     source: hosted
-    version: "93.0.0"
+    version: "85.0.0"
   analyzer:
     dependency: transitive
     description:
       name: analyzer
-      sha256: de7148ed2fcec579b19f122c1800933dfa028f6d9fd38a152b04b1516cec120b
+      sha256: "974859dc0ff5f37bc4313244b3218c791810d03ab3470a579580279ba971a48d"
       url: "https://pub.dev"
     source: hosted
-    version: "10.0.1"
+    version: "7.7.1"
+  archive:
+    dependency: transitive
+    description:
+      name: archive
+      sha256: a96e8b390886ee8abb49b7bd3ac8df6f451c621619f52a26e815fdcf568959ff
+      url: "https://pub.dev"
+    source: hosted
+    version: "4.0.9"
   args:
     dependency: transitive
     description:
@@ -10100,18 +11087,18 @@ packages:
     dependency: transitive
     description:
       name: build
-      sha256: a156715e7cd728130c592f30552575908aae5b100005fbc1f0fb16b3c03a3d10
+      sha256: "51dc711996cbf609b90cbe5b335bbce83143875a9d58e4b5c6d3c4f684d3dda7"
       url: "https://pub.dev"
     source: hosted
-    version: "4.0.6"
+    version: "2.5.4"
   build_config:
     dependency: transitive
     description:
       name: build_config
-      sha256: "4070d2a59f8eec34c97c86ceb44403834899075f66e8a9d59706f8e7834f6f71"
+      sha256: "4ae2de3e1e67ea270081eaee972e1bd8f027d459f249e0f1186730784c2e7e33"
       url: "https://pub.dev"
     source: hosted
-    version: "1.3.0"
+    version: "1.1.2"
   build_daemon:
     dependency: transitive
     description:
@@ -10120,14 +11107,30 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "4.1.1"
+  build_resolvers:
+    dependency: transitive
+    description:
+      name: build_resolvers
+      sha256: ee4257b3f20c0c90e72ed2b57ad637f694ccba48839a821e87db762548c22a62
+      url: "https://pub.dev"
+    source: hosted
+    version: "2.5.4"
   build_runner:
     dependency: "direct dev"
     description:
       name: build_runner
-      sha256: "1523ce62448ebac2c15a8ba5fbad8acac169788658a7dd2a1c2d9c2a9318b9a6"
+      sha256: "382a4d649addbfb7ba71a3631df0ec6a45d5ab9b098638144faf27f02778eb53"
       url: "https://pub.dev"
     source: hosted
-    version: "2.15.0"
+    version: "2.5.4"
+  build_runner_core:
+    dependency: transitive
+    description:
+      name: build_runner_core
+      sha256: "85fbbb1036d576d966332a3f5ce83f2ce66a40bea1a94ad2d5fc29a19a0d3792"
+      url: "https://pub.dev"
+    source: hosted
+    version: "9.1.2"
   built_collection:
     dependency: transitive
     description:
@@ -10200,6 +11203,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.0.0"
+  code_builder:
+    dependency: transitive
+    description:
+      name: code_builder
+      sha256: "6a6cab2ba4680d6423f34a9b972a4c9a94ebe1b62ecec4e1a1f2cba91fd1319d"
+      url: "https://pub.dev"
+    source: hosted
+    version: "4.11.1"
   collection:
     dependency: transitive
     description:
@@ -10224,22 +11235,30 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "3.0.7"
-  csslib:
-    dependency: transitive
+  csv:
+    dependency: "direct main"
     description:
-      name: csslib
-      sha256: "09bad715f418841f976c77db72d5398dc1253c21fb9c0c7f0b0b985860b2d58e"
+      name: csv
+      sha256: c6aa2679b2a18cb57652920f674488d89712efaf4d3fdf2e537215b35fc19d6c
       url: "https://pub.dev"
     source: hosted
-    version: "1.0.2"
+    version: "6.0.0"
   dart_style:
     dependency: transitive
     description:
       name: dart_style
-      sha256: "29f7ecc274a86d32920b1d9cfc7502fa87220da41ec60b55f329559d5732e2b2"
+      sha256: "8a0e5fba27e8ee025d2ffb4ee820b4e6e2cf5e4246a6b1a477eb66866947e0bb"
       url: "https://pub.dev"
     source: hosted
-    version: "3.1.7"
+    version: "3.1.1"
+  dbus:
+    dependency: transitive
+    description:
+      name: dbus
+      sha256: d0c98dcd4f5169878b6cf8f6e0a52403a9dff371a3e2f019697accbf6f44a270
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.7.12"
   dio:
     dependency: "direct main"
     description:
@@ -10272,6 +11291,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.2.0"
+  ffi_leak_tracker:
+    dependency: transitive
+    description:
+      name: ffi_leak_tracker
+      sha256: "4093d4ef9ca06ffe2786e73bfb25e22aa92112b9bb4ec941f11e3e6b61489a97"
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.1.2"
   file:
     dependency: transitive
     description:
@@ -10305,10 +11332,10 @@ packages:
     dependency: "direct dev"
     description:
       name: flutter_lints
-      sha256: "9e8c3858111da373efc5aa341de011d9bd23e2c5c5e0c62bccf32438e192d7b1"
+      sha256: a25a15ebbdfc33ab1cd26c63a6ee519df92338a9c10f122adda92938253bef04
       url: "https://pub.dev"
     source: hosted
-    version: "3.0.2"
+    version: "2.0.3"
   flutter_riverpod:
     dependency: "direct main"
     description:
@@ -10335,6 +11362,30 @@ packages:
     description: flutter
     source: sdk
     version: "0.0.0"
+  freezed:
+    dependency: "direct main"
+    description:
+      name: freezed
+      sha256: "59a584c24b3acdc5250bb856d0d3e9c0b798ed14a4af1ddb7dc1c7b41df91c9c"
+      url: "https://pub.dev"
+    source: hosted
+    version: "2.5.8"
+  freezed_annotation:
+    dependency: transitive
+    description:
+      name: freezed_annotation
+      sha256: c2e2d632dd9b8a2b7751117abcfc2b4888ecfe181bd9fca7170d9ef02e595fe2
+      url: "https://pub.dev"
+    source: hosted
+    version: "2.4.4"
+  frontend_server_client:
+    dependency: transitive
+    description:
+      name: frontend_server_client
+      sha256: f64a0333a82f30b0cca061bc3d143813a486dc086b574bfb233b7c1372427694
+      url: "https://pub.dev"
+    source: hosted
+    version: "4.0.0"
   glob:
     dependency: transitive
     description:
@@ -10359,16 +11410,8 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.0.3"
-  html:
-    dependency: transitive
-    description:
-      name: html
-      sha256: "6d1264f2dffa1b1101c25a91dff0dc2daee4c18e87cd8538729773c073dbf602"
-      url: "https://pub.dev"
-    source: hosted
-    version: "0.15.6"
   http:
-    dependency: "direct main"
+    dependency: transitive
     description:
       name: http
       sha256: "87721a4a50b19c7f1d49001e51409bddc46303966ce89a65af4f4e6004896412"
@@ -10391,14 +11434,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "4.1.2"
-  intl:
-    dependency: "direct main"
+  image:
+    dependency: transitive
     description:
-      name: intl
-      sha256: d6f56758b7d3014a48af9701c085700aac781a92a87a62b1333b46d8879661cf
+      name: image
+      sha256: f9881ff4998044947ec38d098bc7c8316ae1186fa786eddffdb867b9bc94dfce
       url: "https://pub.dev"
     source: hosted
-    version: "0.19.0"
+    version: "4.8.0"
   io:
     dependency: transitive
     description:
@@ -10423,22 +11466,30 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.0.1"
+  js:
+    dependency: transitive
+    description:
+      name: js
+      sha256: "53385261521cc4a0c4658fd0ad07a7d14591cf8fc33abbceae306ddb974888dc"
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.7.2"
   json_annotation:
     dependency: "direct main"
     description:
       name: json_annotation
-      sha256: cb09e7dac6210041fad964ed7fbee004f14258b4eca4040f72d1234062ace4c8
+      sha256: "1ce844379ca14835a50d2f019a3099f419082cfdd231cd86a142af94dd5c6bb1"
       url: "https://pub.dev"
     source: hosted
-    version: "4.11.0"
+    version: "4.9.0"
   json_serializable:
     dependency: "direct dev"
     description:
       name: json_serializable
-      sha256: "2c15e78e1cc6e62aadecf59f81566fd56829713d96a8c4177699e2b2e17f20db"
+      sha256: c50ef5fc083d5b5e12eef489503ba3bf5ccc899e487d691584699b4bdefeea8c
       url: "https://pub.dev"
     source: hosted
-    version: "6.13.2"
+    version: "6.9.5"
   leak_tracker:
     dependency: transitive
     description:
@@ -10467,10 +11518,10 @@ packages:
     dependency: transitive
     description:
       name: lints
-      sha256: cbf8d4b858bb0134ef3ef87841abdf8d63bfc255c266b7bf6b39daa1085c4290
+      sha256: "0a217c6c989d21039f1498c3ed9f3ed71b354e69873f13a8dfc3c9fe76f1b452"
       url: "https://pub.dev"
     source: hosted
-    version: "3.0.0"
+    version: "2.1.1"
   logger:
     dependency: "direct main"
     description:
@@ -10503,6 +11554,70 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "0.13.0"
+  media_kit:
+    dependency: "direct main"
+    description:
+      name: media_kit
+      sha256: ae9e79597500c7ad6083a3c7b7b7544ddabfceacce7ae5c9709b0ec16a5d6643
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.2.6"
+  media_kit_libs_android_video:
+    dependency: transitive
+    description:
+      name: media_kit_libs_android_video
+      sha256: "3f6274e5ab2de512c286a25c327288601ee445ed8ac319e0ef0b66148bd8f76c"
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.3.8"
+  media_kit_libs_ios_video:
+    dependency: transitive
+    description:
+      name: media_kit_libs_ios_video
+      sha256: b5382994eb37a4564c368386c154ad70ba0cc78dacdd3fb0cd9f30db6d837991
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.1.4"
+  media_kit_libs_linux:
+    dependency: transitive
+    description:
+      name: media_kit_libs_linux
+      sha256: "2b473399a49ec94452c4d4ae51cfc0f6585074398d74216092bf3d54aac37ecf"
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.2.1"
+  media_kit_libs_macos_video:
+    dependency: transitive
+    description:
+      name: media_kit_libs_macos_video
+      sha256: f26aa1452b665df288e360393758f84b911f70ffb3878032e1aabba23aa1032d
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.1.4"
+  media_kit_libs_video:
+    dependency: "direct main"
+    description:
+      name: media_kit_libs_video
+      sha256: "2b235b5dac79c6020e01eef5022c6cc85fedc0df1738aadc6ea489daa12a92a9"
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.0.7"
+  media_kit_libs_windows_video:
+    dependency: transitive
+    description:
+      name: media_kit_libs_windows_video
+      sha256: dff76da2778729ab650229e6b4ec6ec111eb5151431002cbd7ea304ff1f112ab
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.0.11"
+  media_kit_video:
+    dependency: "direct main"
+    description:
+      name: media_kit_video
+      sha256: afaa509e7b7e0bf247557a3a740cde903a52c34ace9810f94500e127bd7b043d
+      url: "https://pub.dev"
+    source: hosted
+    version: "2.0.1"
   meta:
     dependency: transitive
     description:
@@ -10551,6 +11666,22 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.2.0"
+  package_info_plus:
+    dependency: transitive
+    description:
+      name: package_info_plus
+      sha256: "4bf625947f6c7713ee242296a682e23e44823c09cf9d79e4f1238923c92db852"
+      url: "https://pub.dev"
+    source: hosted
+    version: "10.1.0"
+  package_info_plus_platform_interface:
+    dependency: transitive
+    description:
+      name: package_info_plus_platform_interface
+      sha256: db762cb2f4f25ee60fb6359773861b0f199e00b90d237bd85a76a1e806b46ef4
+      url: "https://pub.dev"
+    source: hosted
+    version: "4.1.0"
   path:
     dependency: transitive
     description:
@@ -10560,7 +11691,7 @@ packages:
     source: hosted
     version: "1.9.1"
   path_provider:
-    dependency: "direct main"
+    dependency: transitive
     description:
       name: path_provider
       sha256: "50c5dd5b6e1aaf6fb3a78b33f6aa3afca52bf903a8a5298f53101fdaee55bbcd"
@@ -10607,6 +11738,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.3.0"
+  petitparser:
+    dependency: transitive
+    description:
+      name: petitparser
+      sha256: "91bd59303e9f769f108f8df05e371341b15d59e995e6806aefab827b58336675"
+      url: "https://pub.dev"
+    source: hosted
+    version: "7.0.2"
   platform:
     dependency: transitive
     description:
@@ -10631,6 +11770,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.5.2"
+  posix:
+    dependency: transitive
+    description:
+      name: posix
+      sha256: "185ef7606574f789b40f289c233efa52e96dead518aed988e040a10737febb07"
+      url: "https://pub.dev"
+    source: hosted
+    version: "6.5.0"
   pub_semver:
     dependency: transitive
     description:
@@ -10656,7 +11803,7 @@ packages:
     source: hosted
     version: "0.6.0"
   riverpod:
-    dependency: "direct main"
+    dependency: transitive
     description:
       name: riverpod
       sha256: "59062512288d3056b2321804332a13ffdd1bf16df70dcc8e506e411280a72959"
@@ -10671,6 +11818,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "0.28.0"
+  safe_local_storage:
+    dependency: transitive
+    description:
+      name: safe_local_storage
+      sha256: "287ea1f667c0b93cdc127dccc707158e2d81ee59fba0459c31a0c7da4d09c755"
+      url: "https://pub.dev"
+    source: hosted
+    version: "2.0.3"
   shelf:
     dependency: transitive
     description:
@@ -10696,18 +11851,18 @@ packages:
     dependency: transitive
     description:
       name: source_gen
-      sha256: ec37cc0e6694374cbef59ed79685572c870a54ede6fa30a3e420feb3adffea02
+      sha256: "35c8150ece9e8c8d263337a265153c3329667640850b9304861faea59fc98f6b"
       url: "https://pub.dev"
     source: hosted
-    version: "4.2.3"
+    version: "2.0.0"
   source_helper:
     dependency: transitive
     description:
       name: source_helper
-      sha256: "4227d54ceefd0bb8ca4c8fcb96e1719dc53f1ee1b6e2ca9d7a6069da160e4eae"
+      sha256: a447acb083d3a5ef17f983dd36201aeea33fedadb3228fa831f2f0c92f0f3aca
       url: "https://pub.dev"
     source: hosted
-    version: "1.3.12"
+    version: "1.3.7"
   source_span:
     dependency: transitive
     description:
@@ -10717,7 +11872,7 @@ packages:
     source: hosted
     version: "1.10.2"
   sqflite:
-    dependency: "direct main"
+    dependency: transitive
     description:
       name: sqflite
       sha256: "564cfed0746fe53140c23b70b308e045c3b31f17778f2f326ccb7d804ea0250a"
@@ -10736,10 +11891,10 @@ packages:
     dependency: transitive
     description:
       name: sqflite_common
-      sha256: "5e8377564d95166761a968ed96104e0569b6b6cc611faac92a36ab8a169112c3"
+      sha256: f8a08a13fb8f0f8c590df89d745000bed44a673ed94bac846739e1a016875c21
       url: "https://pub.dev"
     source: hosted
-    version: "2.5.6+1"
+    version: "2.5.7"
   sqflite_darwin:
     dependency: transitive
     description:
@@ -10820,6 +11975,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "0.7.10"
+  timing:
+    dependency: transitive
+    description:
+      name: timing
+      sha256: "62ee18aca144e4a9f29d212f5a4c6a053be252b895ab14b5821996cff4ed90fe"
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.0.2"
   typed_data:
     dependency: transitive
     description:
@@ -10828,6 +11991,22 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.4.0"
+  universal_platform:
+    dependency: transitive
+    description:
+      name: universal_platform
+      sha256: "64e16458a0ea9b99260ceb5467a214c1f298d647c659af1bff6d3bf82536b1ec"
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.1.0"
+  uri_parser:
+    dependency: transitive
+    description:
+      name: uri_parser
+      sha256: "051c62e5f693de98ca9f130ee707f8916e2266945565926be3ff20659f7853ce"
+      url: "https://pub.dev"
+    source: hosted
+    version: "3.0.2"
   uuid:
     dependency: transitive
     description:
@@ -10844,46 +12023,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.2.0"
-  video_player:
-    dependency: "direct main"
-    description:
-      name: video_player
-      sha256: "48a7bdaa38a3d50ec10c78627abdbfad863fdf6f0d6e08c7c3c040cfd80ae36f"
-      url: "https://pub.dev"
-    source: hosted
-    version: "2.11.1"
-  video_player_android:
-    dependency: transitive
-    description:
-      name: video_player_android
-      sha256: "877a6c7ba772456077d7bfd71314629b3fe2b73733ce503fc77c3314d43a0ca0"
-      url: "https://pub.dev"
-    source: hosted
-    version: "2.9.5"
-  video_player_avfoundation:
-    dependency: transitive
-    description:
-      name: video_player_avfoundation
-      sha256: af0e5b8a7a4876fb37e7cc8cb2a011e82bb3ecfa45844ef672e32cb14a1f259e
-      url: "https://pub.dev"
-    source: hosted
-    version: "2.9.4"
-  video_player_platform_interface:
-    dependency: transitive
-    description:
-      name: video_player_platform_interface
-      sha256: "16eaed5268c571c31840dc58ef8da5f0cd4db2a98490c3b8f1cf70122546c6e0"
-      url: "https://pub.dev"
-    source: hosted
-    version: "6.7.0"
-  video_player_web:
-    dependency: transitive
-    description:
-      name: video_player_web
-      sha256: "9f3c00be2ef9b76a95d94ac5119fb843dca6f2c69e6c9968f6f2b6c9e7afbdeb"
-      url: "https://pub.dev"
-    source: hosted
-    version: "2.4.0"
   vm_service:
     dependency: transitive
     description:
@@ -10892,6 +12031,22 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "15.2.0"
+  wakelock_plus:
+    dependency: transitive
+    description:
+      name: wakelock_plus
+      sha256: "2b09acadd7a2862d33c3577e77e7a2aabb684f47ccca1711f1413bd7307a6a72"
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.6.0"
+  wakelock_plus_platform_interface:
+    dependency: transitive
+    description:
+      name: wakelock_plus_platform_interface
+      sha256: "14b2e5b9e35c2631e656913c47adecdd71633ae92896a27a64c8f1fcfabc21cc"
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.5.0"
   watcher:
     dependency: transitive
     description:
@@ -10924,6 +12079,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "3.0.3"
+  win32:
+    dependency: transitive
+    description:
+      name: win32
+      sha256: a1fc9eb9248baa05dfc12ed5b66e377b3e23f095eec078e0371622b9033810d9
+      url: "https://pub.dev"
+    source: hosted
+    version: "6.2.0"
   xdg_directories:
     dependency: transitive
     description:
@@ -10932,6 +12095,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.1.0"
+  xml:
+    dependency: transitive
+    description:
+      name: xml
+      sha256: "971043b3a0d3da28727e40ed3e0b5d18b742fa5a68665cca88e74b7876d5e025"
+      url: "https://pub.dev"
+    source: hosted
+    version: "6.6.1"
   yaml:
     dependency: transitive
     description:
@@ -10942,63 +12113,81 @@ packages:
     version: "3.1.3"
 sdks:
   dart: ">=3.11.0 <4.0.0"
-  flutter: ">=3.38.4"
+  flutter: ">=3.41.0"
 
 ```
 
 `frontend/pubspec.yaml`:
 
 ```yaml
-name: tubular_pc
-description: A desktop YouTube client inspired by Tubular/NewPipe - ad-free, privacy-focused video streaming.
-version: 0.1.0
+name: tubular_frontend
+description: A new Flutter project.
+publish_to: 'none'
+version: 1.0.0+1
 
 environment:
-  sdk: '>=3.8.0 <4.0.0'
+  sdk: '>=3.0.0 <4.0.0'
 
 dependencies:
   flutter:
     sdk: flutter
-  
-  # State Management
-  riverpod: ^2.4.0
   flutter_riverpod: ^2.4.0
-  
-  # HTTP & API
   dio: ^5.3.0
-  http: ^1.1.0
-  
-  # Database
-  sqflite: ^2.3.0
-  
-  # Serialization
-  json_annotation: ^4.11.0
-  
-  # Video Player
-  video_player: ^2.8.0
-  
-  # UI
+  logger: ^2.0.1
+  csv: ^6.0.0
+  json_annotation: ^4.8.0
+  freezed: ^2.4.0
+  media_kit: ^1.2.6
+  media_kit_video: ^2.0.1
+  media_kit_libs_video: ^1.0.7
   flutter_staggered_grid_view: ^0.7.0
-  cached_network_image: ^3.3.0
-  
-  # Utils
-  intl: ^0.19.0
-  logger: ^2.0.0
-  path_provider: ^2.1.0
+  cached_network_image: ^3.4.1
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  flutter_lints: ^3.0.0
-  build_runner: ^2.4.0
+  flutter_lints: ^2.0.0
   json_serializable: ^6.7.0
+  build_runner: ^2.4.0
+  freezed: ^2.4.0
+```
 
-flutter:
-  uses-material-design: true
-  assets:
-    - assets/images/
-    - assets/icons/
+`frontend/test/history_screen_test.dart`:
 
+```dart
+import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../lib/screens/history_screen.dart';
+import '../lib/providers.dart';
+
+void main() {
+  group('HistoryScreen CSV Export - Basic Structure', () {
+    testWidgets('HistoryScreen has export button', (WidgetTester tester) async {
+      await tester.pumpWidget(
+        const ProviderScope(
+          child: MaterialApp(
+            home: HistoryScreen(),
+          ),
+        ),
+      );
+
+      // Check that the download/export icon is present in the app bar
+      expect(find.byIcon(Icons.download), findsOneWidget);
+    });
+
+    testWidgets('HistoryScreen title is correct', (WidgetTester tester) async {
+      await tester.pumpWidget(
+        const ProviderScope(
+          child: MaterialApp(
+            home: HistoryScreen(),
+          ),
+        ),
+      );
+
+      expect(find.text('Watch History'), findsOneWidget);
+    });
+  });
+}
 ```
 
 `frontend/test/widget_test.dart`:
@@ -11017,1807 +12206,6 @@ void main() {
     expect(find.text('Search videos...'), findsOneWidget);
   });
 }
-
-```
-
-`plan.md`:
-
-```md
-
-Alright Pragadeesh 😎🔥
-You’re not just building an app… you’re basically building a **desktop-level NewPipe/Tubular clone** — that’s elite tier stuff.
-
-I’ll give you a **FULL PROJECT GUIDE (production-level)** for:
-
-# 🚀 Project: **Tubular-PC**
-
-> Goal: Exact Tubular UI/UX + Desktop power 💻⚡
-> Platforms: Linux + Windows + macOS
-> Stack: Flutter + Rust + yt-dlp
-
----
-
-# 🧠 0. Reality check (VERY IMPORTANT)
-
-Tubular (NewPipe fork) works by:
-
-* ❌ No official YouTube API
-* ✅ Direct extraction/scraping
-* ✅ Local data storage
-* ✅ No login required
-
-➡️ This gives:
-
-* Ad-free
-* Background play
-* Downloads
-* Privacy
-
-But also:
-
-* Breaks often when YouTube updates ([OSTechNix][1])
-
-👉 So your architecture must be **modular + replaceable**
-
----
-
-# 🏗️ 1. FINAL ARCHITECTURE (BEST FOR YOU)
-
-```
-Tubular-PC/
-│
-├── frontend/        (Flutter Desktop)
-├── backend/         (Rust core)
-├── extractor/       (yt-dlp wrapper)
-├── player/          (mpv / libmpv)
-└── api/             (SponsorBlock, Dislike API)
-```
-
----
-
-# ⚙️ 2. TECH STACK (LOCK THIS IN 🔒)
-
-### 🎨 Frontend
-
-* Flutter (desktop)
-* Riverpod / Bloc (state)
-* Custom UI (no Material look — replicate Tubular)
-
----
-
-### ⚡ Backend
-
-* Rust
-* Tokio (async)
-* Expose API via:
-
-  * IPC (preferred)
-  * or HTTP localhost
-
----
-
-### 🎥 Extractor
-
-* yt-dlp (core engine)
-  👉 Supports 1000+ sites including YouTube ([StreamFab][2])
-
----
-
-### 🎬 Player
-
-* libmpv (BEST)
-* fallback: Flutter video player
-
----
-
-### 🌐 APIs
-
-* SponsorBlock → skip segments
-* Return YouTube Dislike
-
----
-
-# 🎨 3. EXACT UI/UX (Tubular Clone)
-
-You want **exact UI = not copy… replicate behavior**
-
----
-
-## 📱 Main Screens
-
-### 1. Home Feed
-
-![Image](https://images.openai.com/static-rsc-4/JrrodGM439iIuk340pyDkGxeNWFGw6sLz1yW8aDj4rTReRVTk20HBLrPRuYDRzL5XKJT1Zw2EZLtV_GXvvTOL8VzE3G0wy2i-Ib7dEuHR9TIwbymktBpT7XjxBLe48gzaR9oyRCa8w9dfEW5eOep608A38-993LEoLhw3GjM3XoQbTutr3dOJOCd_MtY0FAE?purpose=fullsize)
-
-![Image](https://images.openai.com/static-rsc-4/wbD2cg3B0Oi6JN6snup7UhNJ_CuuKhlDCHB7eTOu_2Rwn0UsyfHjd8jVZMReu7XYtyYCSEw36oMIHvhgrTh_8Hgcz4xiR5kASPW6NVIHoDvxTjk_NGagYlOzJjSr7EODMjdVW5Hhid9ZgmM1M5w3jiDTzoqzQWo0d3lrJGTmK6xRXSIG6O-2QLhNK4O1aumU?purpose=fullsize)
-
-![Image](https://images.openai.com/static-rsc-4/WH3_ew8HyHcPcljWImFCxFJljf5_ThsiXnW1D3VaN7uvUScAwrjXAzZsfhOcD1AuRJeixRdlAdM4EytV__ICuhzHhGyw1NvpTy5PqBWsZ7PwviFegGJt4EsCj-_MDMrn3x9pLxWgG1pqPtXkLHYQPyxpbQ1PngyOemYunUYEcD0wDJKJtVrFDc4gowSEHENV?purpose=fullsize)
-
-![Image](https://images.openai.com/static-rsc-4/153-k06EzeqUF5DBMWkapq5MzILqwT5kI8F9kWoaot__jfszRd4uXCj3tnboNgzrOij9rQmsRDjnulvr_-qqIiIaby4P8iQKTUWUPPOrjZPqa3-KzK4o09uwvpTbf9qrLJv0ajzxj5f0EVS14Op-pwjFm-A8YQjZzd9_8OKkNMnOAqlcIX-3g50Z7azxWjEu?purpose=fullsize)
-
-![Image](https://images.openai.com/static-rsc-4/P_OHHW5awK2pCEhfsDBKPROGZPyGx3DURFacGThY_-z1aIslwMsgXbMI-zrgjf8b_PTPc3h0N6kOUffHjEdTEZgcbG9WjDykT8ROZv_EUSQe5eLxm1ucjaWJHXN9zbilqrveC-fsQkFBpPllncyIrKZ5l7ZFLULn7vrCKE4ofc-VS2ACxaSOnHz1vUxmNw-B?purpose=fullsize)
-
-![Image](https://images.openai.com/static-rsc-4/1LzK2PtY9MRVhSDqh2OwyrrwjVWoz9JPGnZB5utYbM6o8Pp2fRZRpOcHEGoXmaRIdSmUnYISf-Mm7PHjsmSiCQUoCnVIuzTs4qugReUhK3EMrm6j2yFK7lmDgHhRU_WeIM3aWh5mrU-5wy8Rd7MmWpEETTCZapzPSNto8LP0BoxP3cJN8BK8zkWF4iaKslqN?purpose=fullsize)
-
-* Grid layout
-* Infinite scroll
-* Thumbnail + duration
-* Channel + views
-
----
-
-### 2. Video Player Screen
-
-![Image](https://images.openai.com/static-rsc-4/ZATUtOLG4ZrIjwk3kb3g3Pi1HaJNLibrZRFWD3Sj7LsmP8sxV3NCGutAIKBcXw1TP7NyRWrnZ-6Co4R7bqCQSEq7MuXk0UxHWxQUkVWRJ_x2HAAQV1ZwuaraVn6gSvQb0TnNu7qq2izspsvxERKZmL3vez5jAo9Fpb8nDFbdmcA3-poyaCdiAsUKVQaosMk6?purpose=fullsize)
-
-![Image](https://images.openai.com/static-rsc-4/axsWwtRk94no3rqdYEXiH7-MZn_O9nz4gkscqeUx1ujcldSnyHSnND9VYjbkVy5eua3P8-RMwx3H5ufV_48e1_FHhWU43Lt_zYlGh97O5AvBJL1eOqhtqLpgHSVQr_WYN6zx7kanO_VhylQR6lHILCPEL1t2D_AAzWDSY2SIC5cerGpIkLIkLmzAdXGq9f9C?purpose=fullsize)
-
-![Image](https://images.openai.com/static-rsc-4/F6RbLPOFeiFOLw-1_6JLSyFgBBD2isHPbmByWXRJzOxCEecmGA5sca_84c8H4iRYgHod2AHhfGjuDKc-u3JCR7Z6XpECRF40GPYTWvjROV0FSL979vyhoZz_y2r5bwFvxVrpARborIlDKJ0Uy4FGDR9oLHYdNv4p3uzQj9-BqRvZxW1Qqqm3wUPqPbbFoXu5?purpose=fullsize)
-
-![Image](https://images.openai.com/static-rsc-4/WEHqCnWnUSvY902VleiW5pQ5omLc5I-a7tDyCFdGdt8LHgAmC5vw0a1Fjxm3GCVCEPy2nNBwqpfL4TP4Y5LggiMdPvgevI7MyngzfV9SzrOTf7-irv2iBHeuEBq3CZW7BtHKTbd_l6N0MEU5c_l6GXQFEkOqpzifoyvxP5de-vOjzuc_fcOYxXNJndVkIcr-?purpose=fullsize)
-
-![Image](https://images.openai.com/static-rsc-4/GqHw57H63yLcxe6OdAlzE-I4IhWjFjv7gzied5o0lZvWN5E7O04CBlHrniXAS1naMNtsU8GKhO86JgxSAaX2jvFIPwmyrjOyMWuM7-LwTn6t-0zdbTUAheyc2EuqyWUlWwsBNKa7gJ25UMrkWydpuJehUDmXZmL_CK_XnTnUg9VOV2Kckpi8vQbrgOehRwPk?purpose=fullsize)
-
-![Image](https://images.openai.com/static-rsc-4/jN_NWknU5mgFAWUBmJPlpyHW5pBrh4fuXuoSD1AKiuuSuTU_h0WiNvD8EqDWP7RBqS5bFO5V2xHQSJ9fUP1pFe8Gn2B8VIn8wiVhV2t1VSo06nbSiQG2vEqiEQ-lnq2zu4Tzq5b68aDHZmEwoTPyQ1nchWWJW0rbBHe7KUvQrjjbBhPnuvq67wx_MxsuGyeG?purpose=fullsize)
-
-![Image](https://images.openai.com/static-rsc-4/qw4SENjgnLtLdPr_A2celUYeXnFXDT-xLGkoTNMqVhhhgYLNXmzWjlwiULvUAwxE-YYONs4idF5SrwDeA9pUYWx-XVKC3gzjeXZ2POhid4e6iivU0tRoUErGM3a0Wl6_4ez3Iukg7ot5oNQtCN9i1dqySH28DoYmj8F1b4mWzmts0a7QyKcaEnZ6p5RP9sk4?purpose=fullsize)
-
-* Title + channel
-* Like/Dislike
-* Download button
-* Background play toggle
-* Comments section
-
----
-
-### 3. Subscriptions Tab
-
-![Image](https://images.openai.com/static-rsc-4/BKGQYjjpNWViCWEUOvo2MEHJe6c8_AfaDnaYSlarmY1sbQ4UH6VmgtWCQzv9dg98Qv1bdHQnNbPYXPteIntcK2CQaKH0sz9C80KtRPDIh35RxpIbnvmexZtN9rIJcu1ZbKiN2eJStzGFthsXyRCii20hG2KOy8dar3W5EmbuLZJtuV3tT8Rj8iz4tV0taH1i?purpose=fullsize)
-
-![Image](https://images.openai.com/static-rsc-4/wbD2cg3B0Oi6JN6snup7UhNJ_CuuKhlDCHB7eTOu_2Rwn0UsyfHjd8jVZMReu7XYtyYCSEw36oMIHvhgrTh_8Hgcz4xiR5kASPW6NVIHoDvxTjk_NGagYlOzJjSr7EODMjdVW5Hhid9ZgmM1M5w3jiDTzoqzQWo0d3lrJGTmK6xRXSIG6O-2QLhNK4O1aumU?purpose=fullsize)
-
-![Image](https://images.openai.com/static-rsc-4/PUFIBObO7XSfweI3dtiIkyCHw5hmFawXKZN28ktThus-D2tMMctUcwxUtCpCY32lTP2PReacouMWstb_TDvVbkAiNN2Fqu3xYs9jYoMqMm3decf14F3PqI-2FMfO2xG6qnx2dhQm8ZuRvzsvJ6nVwalWAgN-dSfNn--BiX6L8WKAha6kT4IR7PYYC9lciqi-?purpose=fullsize)
-
-![Image](https://images.openai.com/static-rsc-4/zndQn-Xu8Iiaz_Ll46T8FGPgZ5QUJKGxNTyUR01jU-d82odVWU_FztGRiBg2pNmfY2gL-MvXUDJ_StOnYLTRQ3z9a612dQQ-nvf6HgnSOhpec-cN3SnMil-ZduiEOk8zqVxiqxs25I36tRrR3PyZJTOpDnm9dSw6QIrmu-UsSMQMV0Ap-WNtw-47wskICAhz?purpose=fullsize)
-
-![Image](https://images.openai.com/static-rsc-4/H2T7nPYFUxriq7d3UP9G1Gk7CtPAHrVFb6bYUYJdH8cUIgm6HBB6H1v2dXbKgH69BdeweysMrXzpMPgBfcfGsmbjV-WrErzA-Ec1RFfCvwFalEBDicoQOyt8S2ZKWgC3HXA6z2YexfMVK_IfbGjkeK2iiiJwpOp-iRivY-2MGIMPnvQTDcBzARA2dhqasWez?purpose=fullsize)
-
-![Image](https://images.openai.com/static-rsc-4/pUc5X0fFNWNMp8tlcnZq5m1ZLh43rFagOhfNT0IU5CVTLYs0Q-cmnifCSDSVIWv_4lAIZEFURxeOT8c9a27g6tT5X9hVC_9vIMTi1EigQEBy2v66lppmoe8xdtPL4dLug7GXlKSGFn784l0VwEGDAzznJWoAOr2u0gYv-mknqEoXXwzQlurjgXMFHNQvrc-F?purpose=fullsize)
-
-* Channel list
-* Latest uploads
-* Offline stored subscriptions
-
----
-
-### 4. Downloads Page
-
-![Image](https://images.openai.com/static-rsc-4/YI7k8qPR9tXkJCMQI1qRRDOsoWTLgnpNqVCUmGD53T_laxPU4E9G_8PHN_hfX2EsU5UusuVDfRtjjMq84fP2oXnvuJBGSmfSzaz73vE6V7ykCEBRNfJhg5MQCyF3q4hk1P5eTi26nIvMN5cJKK6wCe2S5zRg-4pi1lG_xtNRXqjaYq5_Jo0eDdHhda71ofxL?purpose=fullsize)
-
-![Image](https://images.openai.com/static-rsc-4/V6h4Z5o3zG9oCSvPPHRgQliMbl28zw_bv1PUXx1sP1OzEXHcVgBgHNrZvdUQQoO9Jq8beLiqsu-a0i9fCw6t7lBzAk3WxAVdvu0nV0fHtECf9UPxQnwAhdk3ang3Fvi-BOZKm-YnpjFUHqdsgMzI7d2On8w52sjVMfaoxlWkj8NXXsHUAgdsXWo72PYL2QVW?purpose=fullsize)
-
-![Image](https://images.openai.com/static-rsc-4/IQw6QG8vBgR4Cw6YYzFFVDtXu6VzezdUC9ug8QBjsFtuyssi2t1HgGSql7A4i1LRxiHY6KBAvZkz_Ai2rF5CTRZXfBD0c3Xetpe3uaMN8sjnhX7BA2sjosdw08iaai56Y53KnnS2p9wg_nTmescc_wM5I0nx1rk6r_UVQTNZZE4L0v6gIffkmG4_CiKt_S6U?purpose=fullsize)
-
-![Image](https://images.openai.com/static-rsc-4/kvVTQm4NfMB0XLydSj6renoItsKLIJOeRTzJLUVyh586yGl3R60uY_h53DEQ8-EDB_n0VItgvMm_S58kcmfPBf1IDXp_f3y65OLsMflS2sgdl1adL3Lcblxe1z3GLShrfIs5Jw7fLgXwyj3Qyw1YFK_mJw4NY96suzYe7kNf_eQ3i1tFozEt66gKUZidyUrx?purpose=fullsize)
-
-![Image](https://images.openai.com/static-rsc-4/IuSac43eeWxJsEpGOKSqII5bVvE_zhuMm3_FT_1K0dB1FXR72Z11erctrhSIgobT3LpBvWfAsafrVJZFNcH9eaZFoimoT40OZ06366LiK3M-jgx76KtRlB50r6DbcDXDCVsWTL_W-b6TKc9SG_Rgc4UH8Qxz2zVg1tpzgvJKyEUWIVN5Tknodk1_PvoYFud0?purpose=fullsize)
-
-![Image](https://images.openai.com/static-rsc-4/02pltauJXDuKMHOI-Ecq_8D_HX7JOQHVNr23qZLhMU-P64vU7EsDTisb5aJgh80_VCfqPEI17G9WV6iT8EMYUuoJudEsZdzHROSEYhck2MvIg7nm-xXKNfqmTJl4fqrCrED4gU3d2-iuJ4QNAoSd0Nwe9JiLdAcM9D0eKtO7QOstFILXTNq06GMSevQ-8vWY?purpose=fullsize)
-
-* Queue system
-* Progress bar
-* Format selection
-
----
-
-# 🧱 4. CORE FEATURES IMPLEMENTATION
-
----
-
-## 🔍 Search System
-
-```bash
-yt-dlp "ytsearch:query"
-```
-
-Rust wrapper:
-
-```rust
-Command::new("yt-dlp")
-    .arg("ytsearch10:lofi music")
-    .output();
-```
-
----
-
-## 🎥 Streaming (IMPORTANT)
-
-Flow:
-
-1. Get video URL via yt-dlp
-2. Extract stream URL
-3. Pass to mpv
-
-```bash
-yt-dlp -f best -g <url>
-```
-
----
-
-## 📥 Download System
-
-```bash
-yt-dlp -f best -o "~/Videos/%(title)s.%(ext)s" <url>
-```
-
-Features:
-
-* Audio only
-* 720p / 1080p selection
-* Batch downloads
-
----
-
-## ⏩ SponsorBlock
-
-Flow:
-
-```
-videoID → API → skip timestamps → mpv seek
-```
-
----
-
-## 👍 Dislike System
-
-Use Return YouTube Dislike API
-
----
-
-## 📦 Local Database
-
-Use:
-
-* SQLite
-
-Store:
-
-* Subscriptions
-* History
-* Downloads
-* Settings
-
----
-
-# 🧠 5. PROJECT STRUCTURE (DETAILED)
-
-```
-frontend/
-├── screens/
-│   ├── home.dart
-│   ├── player.dart
-│   ├── subscriptions.dart
-│   └── downloads.dart
-│
-├── widgets/
-│   ├── video_card.dart
-│   ├── player_controls.dart
-│   └── sidebar.dart
-│
-└── services/
-    ├── api_service.dart
-    └── yt_service.dart
-
-
-backend/
-├── src/
-│   ├── main.rs
-│   ├── yt_dlp.rs
-│   ├── player.rs
-│   └── db.rs
-```
-
----
-
-# ⚡ 6. DEVELOPMENT ROADMAP
-
-## 🚀 Phase 1 (MVP)
-
-* Search + video list
-* Play video (mpv)
-* Basic UI
-
----
-
-## 🚀 Phase 2
-
-* Downloads
-* Subscriptions
-* History
-
----
-
-## 🚀 Phase 3
-
-* SponsorBlock
-* Dislike API
-* Background playback
-
----
-
-## 🚀 Phase 4
-
-* UI polish (exact Tubular feel)
-* Animations
-* Performance tuning
-
----
-
-# 🖥️ 7. CROSS-PLATFORM BUILD
-
-### Flutter build:
-
-```bash
-flutter build linux
-flutter build windows
-flutter build macos
-```
-
----
-
-### Package:
-
-* Linux → AppImage / Flatpak
-* Windows → .exe
-* Mac → .dmg
-
----
-
-# ⚠️ 8. HARD PROBLEMS (don’t ignore)
-
-### 💀 YouTube blocking
-
-* yt-dlp updates required
-* Sometimes cookies needed ([Reddit][3])
-
----
-
-### ⚖️ Legal / ToS
-
-* Not officially allowed
-* Keep it open-source + personal use
-
----
-
-### 🔄 Maintenance
-
-* Extraction breaks often
-* Must update regularly
-
-```
-
-`prompt.md`:
-
-```md
-# 🎯 TUBULAR PC - COMPLETE BUILD PROMPT
-
-> **Master Development Guide** | Complete architecture, implementation strategy, code patterns, and execution plan for Tubular PC (Desktop YouTube Client)
-
----
-
-## 📋 TABLE OF CONTENTS
-
-1. [Project Overview](#project-overview)
-2. [Architecture & Tech Stack](#architecture--tech-stack)
-3. [Project Structure](#project-structure)
-4. [Database Schema](#database-schema)
-5. [API Design](#api-design)
-6. [Implementation Guidelines](#implementation-guidelines)
-7. [Code Patterns & Examples](#code-patterns--examples)
-8. [Phase-by-Phase Roadmap](#phase-by-phase-roadmap)
-9. [Testing Strategy](#testing-strategy)
-10. [Development Workflow](#development-workflow)
-
----
-
-## PROJECT OVERVIEW
-
-### **What is Tubular PC?**
-
-Tubular PC is a **desktop-native YouTube client** combining:
-- ✅ Privacy-first video streaming (no Google API)
-- ✅ SponsorBlock automatic skip
-- ✅ Return YouTube Dislike integration
-- ✅ Lightweight, no ads, open-source
-- ✅ Desktop optimization (Windows, macOS, Linux)
-
-### **Core Identity**
-
-```
-Tubular PC = NewPipe (Android) + SponsorBlock + ReturnYouTubeDislike + Desktop
-            + Better UX/Performance + Native platform features
-```
-
-### **Success Criteria**
-
-- ✅ Play any YouTube video without ads
-- ✅ Download videos (audio/video)
-- ✅ Manage subscriptions offline
-- ✅ Auto-skip sponsors (SponsorBlock)
-- ✅ Show community dislikes (ReturnYouTubeDislike)
-- ✅ Cross-platform (Windows/Mac/Linux)
-- ✅ Responsive UI with no lag
-
----
-
-## ARCHITECTURE & TECH STACK
-
-### **Backend Stack**
-```
-Language:     Rust (performance, safety)
-Framework:    Actix-web (async REST API)
-Database:     SQLite (local storage)
-Video Extract: yt-dlp (extract streams)
-Player:       mpv (native desktop player)
-```
-
-### **Frontend Stack**
-```
-Language:     Dart
-Framework:    Flutter (desktop: linux/windows/macos)
-State Mgmt:   Riverpod
-UI Library:   Material Design 3
-Architecture: Clean Architecture + MVVM
-```
-
-### **External APIs**
-```
-SponsorBlock:       https://sponsor.ajay.app/api/
-ReturnYouTubeDislike: https://returnyoutubedislikeapi.com/api/
-yt-dlp:             CLI tool (subprocess calls)
-```
-
-### **Architecture Diagram**
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                      FLUTTER UI (Dart)                      │
-│  Home | Player | Subscriptions | Downloads | History | etc  │
-└────────────────────────┬────────────────────────────────────┘
-                         │ REST API (JSON)
-                         ↓
-┌─────────────────────────────────────────────────────────────┐
-│              RUST BACKEND (Actix-web)                       │
-│  ┌──────────────┬──────────────┬────────────────────────┐  │
-│  │ API Handler  │ yt-dlp       │ SponsorBlock/RYD API   │  │
-│  │ (routes.rs)  │ (player.rs)  │ (integrations.rs)      │  │
-│  └──────────────┴──────────────┴────────────────────────┘  │
-│  ┌──────────────────────────────────────────────────────┐  │
-│  │       Database Layer (SQLite)                        │  │
-│  │  subscriptions | history | downloads | settings      │  │
-│  └──────────────────────────────────────────────────────┘  │
-└─────────────────────────────────────────────────────────────┘
-          ↓                              ↓
-    ┌──────────────┐           ┌──────────────────┐
-    │  SQLite DB   │           │   yt-dlp (CLI)   │
-    │  (local)     │           │   & mpv player   │
-    └──────────────┘           └──────────────────┘
-```
-
----
-
-## PROJECT STRUCTURE
-
-### **Complete Directory Layout**
-
-```
-tubular-pc/
-├── backend/                          # Rust backend
-│   ├── Cargo.toml                   # Dependencies
-│   ├── Cargo.lock
-│   ├── src/
-│   │   ├── main.rs                  # Entry point
-│   │   ├── lib.rs                   # Lib exports
-│   │   ├── api/
-│   │   │   ├── mod.rs               # API module
-│   │   │   ├── search.rs            # Search endpoint
-│   │   │   ├── video.rs             # Video info endpoint
-│   │   │   ├── subscriptions.rs     # Sub management
-│   │   │   ├── history.rs           # History endpoint
-│   │   │   ├── downloads.rs         # Download management
-│   │   │   └── settings.rs          # Settings endpoint
-│   │   ├── models/
-│   │   │   ├── mod.rs
-│   │   │   ├── video.rs             # Video data model
-│   │   │   ├── subscription.rs      # Subscription model
-│   │   │   ├── history.rs           # History entry model
-│   │   │   ├── download.rs          # Download model
-│   │   │   └── settings.rs          # Settings model
-│   │   ├── db/
-│   │   │   ├── mod.rs               # DB module
-│   │   │   ├── schema.rs            # SQL schema
-│   │   │   ├── migrations.rs        # Schema migrations
-│   │   │   └── queries.rs           # Query builders
-│   │   ├── player/
-│   │   │   ├── mod.rs
-│   │   │   ├── mpv.rs               # mpv integration
-│   │   │   └── stream.rs            # Stream extraction
-│   │   ├── extractors/
-│   │   │   ├── mod.rs
-│   │   │   ├── yt_dlp.rs            # yt-dlp wrapper
-│   │   │   ├── sponsorblock.rs      # SponsorBlock API
-│   │   │   └── dislike.rs           # Return YT Dislike API
-│   │   ├── utils/
-│   │   │   ├── mod.rs
-│   │   │   ├── errors.rs            # Error types
-│   │   │   ├── cache.rs             # Caching layer
-│   │   │   └── validators.rs        # Input validation
-│   │   └── config.rs                # Configuration
-│   ├── tests/
-│   │   ├── api_tests.rs
-│   │   ├── player_tests.rs
-│   │   └── db_tests.rs
-│   └── .env.example                 # Environment template
-│
-├── frontend/                         # Flutter frontend
-│   ├── lib/
-│   │   ├── main.dart                # App entry
-│   │   ├── config/
-│   │   │   ├── constants.dart       # App constants
-│   │   │   ├── theme.dart           # Theme config
-│   │   │   └── api_config.dart      # API endpoints
-│   │   ├── models/
-│   │   │   ├── video.dart           # Video model
-│   │   │   ├── subscription.dart    # Subscription model
-│   │   │   ├── history.dart         # History model
-│   │   │   ├── download.dart        # Download model
-│   │   │   └── settings.dart        # Settings model
-│   │   ├── providers/               # Riverpod providers
-│   │   │   ├── video_provider.dart
-│   │   │   ├── subscription_provider.dart
-│   │   │   ├── player_provider.dart
-│   │   │   ├── history_provider.dart
-│   │   │   ├── download_provider.dart
-│   │   │   └── settings_provider.dart
-│   │   ├── services/
-│   │   │   ├── api_service.dart     # REST client
-│   │   │   ├── player_service.dart  # Player control
-│   │   │   ├── storage_service.dart # Local storage
-│   │   │   └── cache_service.dart   # Cache management
-│   │   ├── screens/                 # UI screens
-│   │   │   ├── home_screen.dart     # Home/Search
-│   │   │   ├── player_screen.dart   # Video player
-│   │   │   ├── subscriptions_screen.dart
-│   │   │   ├── history_screen.dart
-│   │   │   ├── downloads_screen.dart
-│   │   │   ├── settings_screen.dart
-│   │   │   ├── channel_screen.dart  # Channel page
-│   │   │   └── playlists_screen.dart
-│   │   ├── widgets/                 # Reusable widgets
-│   │   │   ├── video_card.dart
-│   │   │   ├── player_shell.dart
-│   │   │   ├── channel_card.dart
-│   │   │   ├── playlist_card.dart
-│   │   │   ├── settings_tile.dart
-│   │   │   ├── search_bar.dart
-│   │   │   └── loading_spinner.dart
-│   │   └── utils/
-│   │       ├── formatters.dart      # Format duration, views
-│   │       ├── validators.dart      # Input validation
-│   │       ├── error_handler.dart   # Error UI handling
-│   │       └── extensions.dart      # Dart extensions
-│   ├── pubspec.yaml                 # Dependencies
-│   ├── pubspec.lock
-│   ├── test/
-│   │   ├── widget_test.dart
-│   │   ├── api_test.dart
-│   │   └── integration_test.dart
-│   ├── analysis_options.yaml
-│   └── README.md
-│
-├── docs/                            # Documentation
-│   ├── API.md                       # API documentation
-│   ├── ARCHITECTURE.md              # Architecture details
-│   ├── SETUP.md                     # Setup instructions
-│   ├── CONTRIBUTING.md              # Contribution guide
-│   └── TROUBLESHOOTING.md           # Common issues
-│
-├── scripts/                         # Helper scripts
-│   ├── setup.sh                     # Initial setup
-│   ├── start.sh                     # Start dev servers
-│   ├── build.sh                     # Build for release
-│   └── test.sh                      # Run tests
-│
-├── docker/                          # Docker files (optional)
-│   ├── Dockerfile.backend
-│   ├── Dockerfile.frontend
-│   └── docker-compose.yml
-│
-├── .github/
-│   ├── workflows/
-│   │   ├── ci.yml                   # CI/CD pipeline
-│   │   ├── test.yml
-│   │   └── release.yml
-│   └── ISSUE_TEMPLATE/
-│
-├── Cargo.toml                       # Workspace Cargo config
-├── CHANGELOG.md
-├── README.md
-├── LICENSE
-├── .gitignore
-├── .env.example
-└── project.md                       # This file
-
-```
-
----
-
-## DATABASE SCHEMA
-
-### **SQLite Schema (Full)**
-
-```sql
--- Users (future: multi-device sync)
-CREATE TABLE users (
-    id TEXT PRIMARY KEY,
-    username TEXT NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    last_sync TIMESTAMP
-);
-
--- Subscriptions
-CREATE TABLE subscriptions (
-    id TEXT PRIMARY KEY,
-    channel_id TEXT NOT NULL UNIQUE,
-    channel_name TEXT NOT NULL,
-    channel_thumbnail TEXT,
-    subscriber_count INTEGER,
-    description TEXT,
-    subscribed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    is_favorite BOOLEAN DEFAULT FALSE,
-    notification_enabled BOOLEAN DEFAULT TRUE
-);
-
--- Videos (cached from searches/subscriptions)
-CREATE TABLE videos (
-    id TEXT PRIMARY KEY,
-    title TEXT NOT NULL,
-    description TEXT,
-    thumbnail TEXT,
-    duration INTEGER,
-    views INTEGER,
-    upload_date TIMESTAMP,
-    channel_id TEXT NOT NULL,
-    channel_name TEXT NOT NULL,
-    url TEXT NOT NULL UNIQUE,
-    is_live BOOLEAN DEFAULT FALSE,
-    cached_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY(channel_id) REFERENCES subscriptions(channel_id)
-);
-
--- Watch History
-CREATE TABLE history (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    video_id TEXT NOT NULL,
-    watched_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    watch_duration INTEGER,
-    total_duration INTEGER,
-    resume_position INTEGER DEFAULT 0,
-    FOREIGN KEY(video_id) REFERENCES videos(id)
-);
-
--- Downloads
-CREATE TABLE downloads (
-    id TEXT PRIMARY KEY,
-    video_id TEXT NOT NULL,
-    video_title TEXT NOT NULL,
-    file_path TEXT NOT NULL UNIQUE,
-    file_size INTEGER,
-    format TEXT NOT NULL,  -- 'video' | 'audio' | 'both'
-    quality TEXT,          -- '360p', '720p', '1080p'
-    status TEXT NOT NULL,  -- 'pending' | 'downloading' | 'completed' | 'failed' | 'paused'
-    progress REAL DEFAULT 0.0,  -- 0-100
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    completed_at TIMESTAMP,
-    error_message TEXT,
-    FOREIGN KEY(video_id) REFERENCES videos(id)
-);
-
--- Playlists
-CREATE TABLE playlists (
-    id TEXT PRIMARY KEY,
-    name TEXT NOT NULL,
-    description TEXT,
-    thumbnail TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    is_favorite BOOLEAN DEFAULT FALSE
-);
-
--- Playlist Videos
-CREATE TABLE playlist_videos (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    playlist_id TEXT NOT NULL,
-    video_id TEXT NOT NULL,
-    position INTEGER,
-    added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY(playlist_id) REFERENCES playlists(id),
-    FOREIGN KEY(video_id) REFERENCES videos(id)
-);
-
--- Settings
-CREATE TABLE settings (
-    key TEXT PRIMARY KEY,
-    value TEXT NOT NULL,
-    type TEXT,  -- 'string' | 'integer' | 'boolean' | 'json'
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
--- SponsorBlock Cache
-CREATE TABLE sponsorblock_cache (
-    video_id TEXT PRIMARY KEY,
-    segments TEXT NOT NULL,  -- JSON array
-    fetched_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY(video_id) REFERENCES videos(id)
-);
-
--- Return YouTube Dislike Cache
-CREATE TABLE ryd_cache (
-    video_id TEXT PRIMARY KEY,
-    likes INTEGER,
-    dislikes INTEGER,
-    rating REAL,
-    view_count INTEGER,
-    deleted BOOLEAN DEFAULT FALSE,
-    fetched_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY(video_id) REFERENCES videos(id)
-);
-
--- Create indexes for performance
-CREATE INDEX idx_video_channel ON videos(channel_id);
-CREATE INDEX idx_history_watched ON history(watched_at);
-CREATE INDEX idx_history_video ON history(video_id);
-CREATE INDEX idx_downloads_status ON downloads(status);
-CREATE INDEX idx_playlist_video ON playlist_videos(playlist_id, position);
-CREATE INDEX idx_sponsorblock_video ON sponsorblock_cache(video_id);
-CREATE INDEX idx_ryd_video ON ryd_cache(video_id);
-```
-
----
-
-## API DESIGN
-
-### **REST API Endpoints**
-
-#### **Search & Discovery**
-```
-GET  /api/search?q=query&limit=20&offset=0
-     → {videos: [{id, title, thumbnail, duration, views, channel}...]}
-
-GET  /api/trending?category=all&region=US
-     → {videos: [...]}
-
-GET  /api/video/:video_id
-     → {id, title, description, duration, views, channel, uploadDate, comments_count}
-
-GET  /api/video/:video_id/streams
-     → {streams: [{quality, format, url, bitrate}...]}
-
-GET  /api/channel/:channel_id
-     → {id, name, thumbnail, subscribers, description, videos: [...]}
-
-GET  /api/channel/:channel_id/videos?page=1
-     → {videos: [...], hasMore: boolean}
-```
-
-#### **Subscriptions**
-```
-GET  /api/subscriptions
-     → {subscriptions: [{id, channel_id, name, thumbnail}...]}
-
-POST /api/subscriptions
-     {channel_id: "...", channel_name: "..."}
-     → {id, created_at}
-
-DELETE /api/subscriptions/:channel_id
-     → {success: true}
-
-GET  /api/subscriptions/:channel_id/latest
-     → {videos: [...]}  // Latest uploads from channel
-```
-
-#### **Watch History**
-```
-GET  /api/history?limit=50&offset=0
-     → {history: [{id, video, watched_at, resume_position}...]}
-
-POST /api/history
-     {video_id: "...", duration_watched: 120, total_duration: 600}
-     → {id, created_at}
-
-DELETE /api/history/:history_id
-     → {success: true}
-
-DELETE /api/history
-     → {success: true}  // Clear all
-
-PUT  /api/history/:history_id/resume
-     {position: 45}
-     → {resume_position: 45}
-```
-
-#### **Downloads**
-```
-GET  /api/downloads?status=downloading
-     → {downloads: [{id, video, progress, status, file_path}...]}
-
-POST /api/downloads
-     {video_id: "...", format: "video", quality: "720p"}
-     → {id, status: "pending"}
-
-PATCH /api/downloads/:download_id
-     {action: "pause"|"resume"|"cancel"}
-     → {status: "paused"|"downloading"|"cancelled"}
-
-DELETE /api/downloads/:download_id
-     {delete_file: true}
-     → {success: true}
-```
-
-#### **Playlists**
-```
-GET  /api/playlists
-     → {playlists: [{id, name, thumbnail, video_count}...]}
-
-POST /api/playlists
-     {name: "My Playlist", description: "..."}
-     → {id, created_at}
-
-GET  /api/playlists/:playlist_id
-     → {id, name, videos: [...]}
-
-POST /api/playlists/:playlist_id/videos
-     {video_id: "..."}
-     → {success: true}
-
-DELETE /api/playlists/:playlist_id/videos/:video_id
-     → {success: true}
-
-DELETE /api/playlists/:playlist_id
-     → {success: true}
-```
-
-#### **Settings**
-```
-GET  /api/settings
-     → {settings: {theme: "dark", quality: "720p", ...}}
-
-PUT  /api/settings
-     {key: "theme", value: "light"}
-     → {settings: {...}}
-
-GET  /api/settings/:key
-     → {key: "theme", value: "dark"}
-```
-
-#### **SponsorBlock & RYD**
-```
-GET  /api/video/:video_id/sponsorblock
-     → {segments: [{category, startTime, endTime}...]}
-
-GET  /api/video/:video_id/dislike
-     → {likes: 1500, dislikes: 300, rating: 0.83}
-
-POST /api/sponsorblock/report
-     {video_id: "...", segment: {category, start, end}}
-     → {success: true}
-```
-
-### **WebSocket Events (Future)**
-```
-ws://localhost:3000/ws
-
-Events:
-  - download:progress {download_id, progress, speed}
-  - video:playing {video_id, timestamp}
-  - player:error {error_message}
-  - subscription:new_video {channel_id, video}
-```
-
----
-
-## IMPLEMENTATION GUIDELINES
-
-### **Rust Backend Best Practices**
-
-#### **1. Error Handling**
-```rust
-// Use custom error type
-#[derive(Debug)]
-pub enum AppError {
-    NotFound(String),
-    InvalidInput(String),
-    ExternalApiError(String),
-    DatabaseError(String),
-    IoError(String),
-}
-
-impl ResponseError for AppError {
-    fn error_response(&self) -> HttpResponse {
-        match self {
-            Self::NotFound(msg) => HttpResponse::NotFound().json(json!({"error": msg})),
-            Self::InvalidInput(msg) => HttpResponse::BadRequest().json(json!({"error": msg})),
-            _ => HttpResponse::InternalServerError().json(json!({"error": "Internal error"})),
-        }
-    }
-}
-
-pub type AppResult<T> = Result<T, AppError>;
-```
-
-#### **2. Database Transactions**
-```rust
-pub async fn add_video_to_playlist(
-    db: &DbPool,
-    playlist_id: &str,
-    video_id: &str,
-) -> AppResult<()> {
-    let mut conn = db.get_conn()?;
-
-    conn.transaction::<_, _, rusqlite::Error>(|| {
-        // Verify playlist exists
-        let count: i32 = conn.query_row(
-            "SELECT COUNT(*) FROM playlists WHERE id = ?1",
-            params![playlist_id],
-            |row| row.get(0),
-        )?;
-
-        if count == 0 {
-            return Err(rusqlite::Error::ExecuteReturnedNoRows);
-        }
-
-        // Insert video
-        conn.execute(
-            "INSERT INTO playlist_videos (playlist_id, video_id, position)
-             VALUES (?1, ?2, (SELECT COALESCE(MAX(position), 0) + 1
-                              FROM playlist_videos WHERE playlist_id = ?1))",
-            params![playlist_id, video_id],
-        )?;
-
-        Ok(())
-    })?;
-
-    Ok(())
-}
-```
-
-#### **3. Async Operations**
-```rust
-// Use tokio for async operations
-pub async fn search_videos(query: &str, limit: u32) -> AppResult<Vec<Video>> {
-    let output = tokio::process::Command::new("yt-dlp")
-        .arg(format!("ytsearch{}:{}", limit, query))
-        .arg("--dump-json")
-        .output()
-        .await
-        .map_err(|e| AppError::IoError(e.to_string()))?;
-
-    let json = String::from_utf8(output.stdout)?;
-    let videos = parse_yt_dlp_output(&json)?;
-
-    Ok(videos)
-}
-
-// Parallel API calls
-let (sponsors, dislikes) = tokio::join!(
-    fetch_sponsorblock(&video_id),
-    fetch_youtube_dislikes(&video_id)
-);
-```
-
-### **Flutter Frontend Best Practices**
-
-#### **1. Riverpod State Management**
-```dart
-// Define provider
-final videoProvider = FutureProvider.family<Video, String>(
-  (ref, videoId) async {
-    final apiService = ref.watch(apiServiceProvider);
-    return apiService.getVideo(videoId);
-  },
-);
-
-// Use in widget
-class VideoDetailsWidget extends ConsumerWidget {
-  final String videoId;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final videoAsync = ref.watch(videoProvider(videoId));
-
-    return videoAsync.when(
-      data: (video) => VideoCard(video: video),
-      loading: () => const LoadingSpinner(),
-      error: (error, stack) => ErrorWidget(error: error.toString()),
-    );
-  }
-}
-```
-
-#### **2. Screen Navigation**
-```dart
-// Use GoRouter for declarative routing
-final routerProvider = Provider<GoRouter>((ref) {
-  return GoRouter(
-    routes: [
-      GoRoute(
-        path: '/',
-        builder: (context, state) => const HomeScreen(),
-        routes: [
-          GoRoute(
-            path: 'player/:videoId',
-            builder: (context, state) => PlayerScreen(
-              videoId: state.params['videoId']!,
-            ),
-          ),
-          GoRoute(
-            path: 'subscriptions',
-            builder: (context, state) => const SubscriptionsScreen(),
-          ),
-        ],
-      ),
-    ],
-  );
-});
-```
-
-#### **3. Widget Composition**
-```dart
-// Break down into smaller, testable widgets
-class VideoCard extends StatelessWidget {
-  final Video video;
-  final VoidCallback onTap;
-
-  const VideoCard({required this.video, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Card(
-        child: Column(
-          children: [
-            VideoThumbnail(thumbnail: video.thumbnail),
-            VideoInfo(video: video),
-            VideoActions(video: video),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// Separate smaller widgets
-class VideoThumbnail extends StatelessWidget {
-  final String thumbnail;
-  const VideoThumbnail({required this.thumbnail});
-
-  @override
-  Widget build(BuildContext context) {
-    return Stack(
-      children: [
-        Image.network(thumbnail),
-        // Duration badge, play button, etc.
-      ],
-    );
-  }
-}
-```
-
----
-
-## CODE PATTERNS & EXAMPLES
-
-### **Example 1: Search Implementation**
-
-**Backend (Rust)**:
-```rust
-// src/api/search.rs
-use actix_web::{web, HttpResponse};
-use crate::utils::{AppResult, AppError};
-
-#[derive(Deserialize)]
-pub struct SearchQuery {
-    q: String,
-    #[serde(default = "default_limit")]
-    limit: u32,
-    #[serde(default)]
-    offset: u32,
-}
-
-fn default_limit() -> u32 { 20 }
-
-#[get("/search")]
-pub async fn search(
-    query: web::Query<SearchQuery>,
-) -> AppResult<HttpResponse> {
-    if query.q.is_empty() {
-        return Err(AppError::InvalidInput("Query cannot be empty".into()));
-    }
-
-    if query.limit > 100 {
-        return Err(AppError::InvalidInput("Limit cannot exceed 100".into()));
-    }
-
-    let videos = search_videos(&query.q, query.limit).await?;
-
-    Ok(HttpResponse::Ok().json(json!({
-        "videos": videos,
-        "count": videos.len(),
-    })))
-}
-
-async fn search_videos(query: &str, limit: u32) -> AppResult<Vec<Video>> {
-    let output = tokio::process::Command::new("yt-dlp")
-        .args(&[
-            &format!("ytsearch{}:{}", limit, query),
-            "--dump-json",
-            "--no-warnings",
-        ])
-        .output()
-        .await
-        .map_err(|e| AppError::IoError(format!("yt-dlp failed: {}", e)))?;
-
-    if !output.status.success() {
-        return Err(AppError::ExternalApiError("yt-dlp search failed".into()));
-    }
-
-    let json = String::from_utf8(output.stdout)?;
-    parse_yt_dlp_output(&json)
-}
-
-fn parse_yt_dlp_output(json: &str) -> AppResult<Vec<Video>> {
-    let entries: Vec<serde_json::Value> = serde_json::from_str(json)?;
-
-    Ok(entries.into_iter().map(|entry| {
-        Video {
-            id: entry["id"].as_str().unwrap_or("").to_string(),
-            title: entry["title"].as_str().unwrap_or("").to_string(),
-            thumbnail: entry["thumbnail"].as_str().unwrap_or("").to_string(),
-            duration: entry["duration"].as_i64().unwrap_or(0) as u32,
-            views: entry["view_count"].as_i64().unwrap_or(0) as u32,
-            channel: entry["uploader"].as_str().unwrap_or("Unknown").to_string(),
-            url: format!("https://youtube.com/watch?v={}",
-                        entry["id"].as_str().unwrap_or("")),
-            upload_date: entry["upload_date"].as_str().map(|s| s.to_string()),
-        }
-    }).collect())
-}
-```
-
-**Frontend (Flutter)**:
-```dart
-// lib/providers/search_provider.dart
-final searchQueryProvider = StateProvider<String>((ref) => '');
-
-final searchResultsProvider = FutureProvider.autoDispose<List<Video>>((ref) async {
-    final query = ref.watch(searchQueryProvider);
-
-    if (query.isEmpty) {
-        return [];
-    }
-
-    final apiService = ref.watch(apiServiceProvider);
-    return apiService.search(query, limit: 20);
-});
-
-// lib/screens/home_screen.dart
-class HomeScreen extends ConsumerWidget {
-    @override
-    Widget build(BuildContext context, WidgetRef ref) {
-        final query = ref.watch(searchQueryProvider);
-        final searchAsync = ref.watch(searchResultsProvider);
-
-        return Scaffold(
-            appBar: AppBar(
-                title: SearchBar(
-                    onChanged: (value) {
-                        ref.read(searchQueryProvider.notifier).state = value;
-                    },
-                ),
-            ),
-            body: searchAsync.when(
-                data: (videos) => _buildVideoGrid(videos, ref),
-                loading: () => const Center(child: CircularProgressIndicator()),
-                error: (error, stack) => _buildErrorWidget(error),
-            ),
-        );
-    }
-
-    Widget _buildVideoGrid(List<Video> videos, WidgetRef ref) {
-        return GridView.builder(
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                childAspectRatio: 0.65,
-            ),
-            itemCount: videos.length,
-            itemBuilder: (context, index) {
-                return VideoCard(
-                    video: videos[index],
-                    onTap: () {
-                        context.push('/player/${videos[index].id}');
-                    },
-                );
-            },
-        );
-    }
-}
-```
-
-### **Example 2: SponsorBlock Integration**
-
-**Backend (Rust)**:
-```rust
-// src/extractors/sponsorblock.rs
-use serde::{Deserialize, Serialize};
-
-#[derive(Serialize, Deserialize, Debug)]
-pub struct SponsorSegment {
-    pub category: String,  // "sponsor", "intro", "outro"
-    #[serde(rename = "startTime")]
-    pub start_time: f64,
-    #[serde(rename = "endTime")]
-    pub end_time: f64,
-}
-
-pub struct SponsorBlockClient {
-    client: reqwest::Client,
-    base_url: String,
-}
-
-impl SponsorBlockClient {
-    pub fn new() -> Self {
-        Self {
-            client: reqwest::Client::new(),
-            base_url: "https://sponsor.ajay.app/api".to_string(),
-        }
-    }
-
-    pub async fn get_segments(&self, video_id: &str) -> AppResult<Vec<SponsorSegment>> {
-        let url = format!(
-            "{}/skipSegments?videoID={}&categories=[\"sponsor\",\"intro\",\"outro\"]",
-            self.base_url, video_id
-        );
-
-        let response = self.client
-            .get(&url)
-            .send()
-            .await
-            .map_err(|e| AppError::ExternalApiError(format!("SponsorBlock request failed: {}", e)))?;
-
-        if response.status().is_success() {
-            let segments = response.json::<Vec<SponsorSegment>>().await?;
-            Ok(segments)
-        } else {
-            Ok(vec![])  // No segments found
-        }
-    }
-}
-
-// API endpoint
-#[get("/video/{video_id}/sponsorblock")]
-pub async fn get_sponsorblock(
-    video_id: web::Path<String>,
-    db: web::Data<DbPool>,
-) -> AppResult<HttpResponse> {
-    let video_id = video_id.into_inner();
-
-    // Check cache first
-    if let Ok(cached) = get_cached_segments(&db, &video_id) {
-        return Ok(HttpResponse::Ok().json(json!({"segments": cached})));
-    }
-
-    // Fetch from API
-    let client = SponsorBlockClient::new();
-    let segments = client.get_segments(&video_id).await?;
-
-    // Cache result
-    cache_segments(&db, &video_id, &segments)?;
-
-    Ok(HttpResponse::Ok().json(json!({"segments": segments})))
-}
-```
-
-**Frontend (Flutter)**:
-```dart
-// lib/providers/sponsorblock_provider.dart
-final sponsorBlockProvider = FutureProvider.family<List<Segment>, String>(
-  (ref, videoId) async {
-    final apiService = ref.watch(apiServiceProvider);
-    return apiService.getSponsorBlockSegments(videoId);
-  },
-);
-
-// lib/widgets/player_shell.dart
-class PlayerShell extends ConsumerWidget {
-    final String videoId;
-
-    @override
-    Widget build(BuildContext context, WidgetRef ref) {
-        final sponsorAsync = ref.watch(sponsorBlockProvider(videoId));
-
-        return sponsorAsync.when(
-            data: (segments) => _buildPlayer(segments),
-            loading: () => const SizedBox(),  // No UI, just silent
-            error: (_, __) => const SizedBox(),
-        );
-    }
-
-    Widget _buildPlayer(List<Segment> segments) {
-        return Stack(
-            children: [
-                VideoPlayer(),  // Main player
-                if (segments.isNotEmpty)
-                    Positioned(
-                        bottom: 0,
-                        left: 0,
-                        right: 0,
-                        child: SponsorBlockTimeline(segments: segments),
-                    ),
-            ],
-        );
-    }
-}
-
-// Visual indicator on timeline
-class SponsorBlockTimeline extends StatelessWidget {
-    final List<Segment> segments;
-
-    @override
-    Widget build(BuildContext context) {
-        return Container(
-            height: 4,
-            color: Colors.grey[700],
-            child: Stack(
-                children: segments.map((segment) {
-                    final startPercent = segment.startTime / totalDuration;
-                    final widthPercent = (segment.endTime - segment.startTime) / totalDuration;
-
-                    return Positioned(
-                        left: MediaQuery.of(context).size.width * startPercent,
-                        width: MediaQuery.of(context).size.width * widthPercent,
-                        top: 0,
-                        bottom: 0,
-                        child: Container(
-                            color: _getCategoryColor(segment.category),
-                        ),
-                    );
-                }).toList(),
-            ),
-        );
-    }
-
-    Color _getCategoryColor(String category) {
-        switch (category) {
-            case 'sponsor': return Colors.red;
-            case 'intro': return Colors.blue;
-            case 'outro': return Colors.green;
-            default: return Colors.grey;
-        }
-    }
-}
-```
-
----
-
-## PHASE-BY-PHASE ROADMAP
-
-### **PHASE 1: MVP (Weeks 1-2)**
-
-**Goal**: Core functionality works
-
-**Deliverables**:
-- ✅ Backend API server running
-- ✅ Search & video playback working
-- ✅ Basic UI (Home, Player)
-- ✅ Subscriptions backend + basic UI
-- ✅ History backend + basic UI
-
-**Tasks**:
-```bash
-Week 1:
-  - [ ] Complete Subscriptions Screen UI
-  - [ ] Complete History Screen UI
-  - [ ] Connect both to backend APIs
-  - [ ] Basic error handling
-
-Week 2:
-  - [ ] Download queue UI (show/pause/cancel)
-  - [ ] Basic Settings screen (theme, quality)
-  - [ ] Test backend stability
-  - [ ] Deploy & run on Linux
-```
-
-### **PHASE 2: Integrations (Weeks 3-4)**
-
-**Goal**: SponsorBlock & Dislike working
-
-**Deliverables**:
-- ✅ SponsorBlock auto-skip in player
-- ✅ Return YouTube Dislike display
-- ✅ Settings for both integrations
-- ✅ Caching system for both
-
-**Tasks**:
-```bash
-Week 3:
-  - [ ] Wire SponsorBlock API to player
-  - [ ] Test sponsor skipping
-  - [ ] Implement skip notifications
-  - [ ] Add settings for categories
-
-Week 4:
-  - [ ] Integrate ReturnYouTubeDislike API
-  - [ ] Display on video cards + player
-  - [ ] Add bar graph visualization
-  - [ ] Cache dislike data
-```
-
-### **PHASE 3: Advanced Features (Weeks 5-6)**
-
-**Goal**: Playlists, Channels, Comments
-
-**Deliverables**:
-- ✅ Playlists system (create, add, play)
-- ✅ Channel pages
-- ✅ Comments display
-- ✅ Background playback
-
-**Tasks**:
-```bash
-Week 5:
-  - [ ] Implement Playlists database schema
-  - [ ] Playlists API endpoints
-  - [ ] Playlists UI screen
-  - [ ] Add to playlist context menu
-
-Week 6:
-  - [ ] Channel page design & implementation
-  - [ ] Comments API & display
-  - [ ] Background audio playback
-  - [ ] Keyboard shortcuts
-```
-
-### **PHASE 4: Polish & Release (Weeks 7-8)**
-
-**Goal**: Production-ready
-
-**Deliverables**:
-- ✅ Windows/macOS packaging
-- ✅ Full testing coverage
-- ✅ Documentation
-- ✅ Performance optimization
-
-**Tasks**:
-```bash
-Week 7:
-  - [ ] Cross-platform testing
-  - [ ] Windows .exe packaging
-  - [ ] macOS .dmg packaging
-  - [ ] Linux AppImage/Flatpak
-
-Week 8:
-  - [ ] Performance profiling & optimization
-  - [ ] Security audit
-  - [ ] Final testing
-  - [ ] Release v1.0
-```
-
----
-
-## TESTING STRATEGY
-
-### **Unit Testing (Rust)**
-
-```rust
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_parse_yt_dlp_output() {
-        let json = r#"[{"id":"dQw4w9WgXcQ","title":"Video","duration":212}]"#;
-        let videos = parse_yt_dlp_output(json).unwrap();
-
-        assert_eq!(videos.len(), 1);
-        assert_eq!(videos[0].id, "dQw4w9WgXcQ");
-    }
-
-    #[tokio::test]
-    async fn test_search_videos() {
-        let results = search_videos("rust tutorial", 10).await;
-        assert!(results.is_ok());
-        assert!(results.unwrap().len() > 0);
-    }
-}
-```
-
-### **Widget Testing (Flutter)**
-
-```dart
-void main() {
-  testWidgets('VideoCard displays video info', (WidgetTester tester) async {
-    final video = Video(
-      id: 'test123',
-      title: 'Test Video',
-      thumbnail: 'https://example.com/thumb.jpg',
-      duration: 300,
-      views: 1000,
-      channel: 'Test Channel',
-    );
-
-    await tester.pumpWidget(
-      MaterialApp(
-        home: Scaffold(
-          body: VideoCard(video: video, onTap: () {}),
-        ),
-      ),
-    );
-
-    expect(find.text('Test Video'), findsOneWidget);
-    expect(find.text('Test Channel'), findsOneWidget);
-  });
-}
-```
-
-### **Integration Testing**
-
-```bash
-# Test full workflow
-1. Start backend server
-2. Search for videos
-3. Play video
-4. Check SponsorBlock segments
-5. Check Return YouTube Dislikes
-6. Add to playlist
-7. Resume from history
-```
-
----
-
-## DEVELOPMENT WORKFLOW
-
-### **Local Development Setup**
-
-```bash
-# Clone repo
-git clone https://github.com/yourusername/tubular-pc.git
-cd tubular-pc
-
-# Install dependencies
-./scripts/setup.sh
-
-# Start development
-./scripts/start.sh
-
-# Backend runs on: http://localhost:3000
-# Frontend runs on: http://localhost:5000 (hot reload)
-```
-
-### **Git Workflow**
-
-```bash
-# Create feature branch
-git checkout -b feat/subscriptions-screen
-
-# Make changes, test locally
-cargo test   # backend
-flutter test # frontend
-
-# Commit with conventional message
-git commit -m "feat: Add subscriptions screen with filter"
-
-# Push and create PR
-git push origin feat/subscriptions-screen
-```
-
-### **Code Review Checklist**
-
-- [ ] Tests added/updated
-- [ ] Documentation updated
-- [ ] No hardcoded values
-- [ ] Follows project style guide
-- [ ] API errors handled
-- [ ] Performance considered
-- [ ] Security review done
-
-### **Release Process**
-
-```bash
-# Update version
-# Update CHANGELOG.md
-# Create release branch
-git checkout -b release/v1.0.0
-
-# Build for all platforms
-./scripts/build.sh
-
-# Create GitHub release with assets
-# Tag commit: git tag v1.0.0
-# Push: git push --tags
-```
-
----
-
-## COMMON PATTERNS
-
-### **Error Recovery**
-
-```rust
-// Retry with exponential backoff
-async fn fetch_with_retry<T, F, Fut>(
-    mut f: F,
-    max_retries: u32,
-) -> AppResult<T>
-where
-    F: FnMut() -> Fut,
-    Fut: Future<Output = AppResult<T>>,
-{
-    let mut retries = 0;
-    loop {
-        match f().await {
-            Ok(result) => return Ok(result),
-            Err(e) => {
-                retries += 1;
-                if retries >= max_retries {
-                    return Err(e);
-                }
-                tokio::time::sleep(Duration::from_millis(100 * 2u64.pow(retries))).await;
-            }
-        }
-    }
-}
-```
-
-### **Caching Pattern**
-
-```dart
-// Smart cache invalidation
-final videoCache = StateNotifierProvider<
-    VideoCacheNotifier,
-    Map<String, Video>
->((ref) {
-  return VideoCacheNotifier();
-});
-
-class VideoCacheNotifier extends StateNotifier<Map<String, Video>> {
-  VideoCacheNotifier() : super({});
-
-  void set(String id, Video video) {
-    state = {...state, id: video};
-  }
-
-  Video? get(String id) => state[id];
-
-  void clear() => state = {};
-}
-```
-
----
-
-## DEBUGGING TIPS
-
-### **Backend Debug**
-
-```bash
-# Enable debug logging
-RUST_LOG=debug cargo run
-
-# Test API endpoints
-curl http://localhost:3000/api/search?q=rust
-
-# Check yt-dlp
-yt-dlp --version
-yt-dlp "ytsearch:test" --dump-json
-```
-
-### **Frontend Debug**
-
-```bash
-# Enable verbose logs
-flutter run -v
-
-# Use DevTools
-flutter pub global activate devtools
-devtools
-
-# Hot reload
-Press 'r' in terminal
-```
-
----
-
-## PERFORMANCE TARGETS
-
-- **Search**: < 2s response time
-- **Video load**: < 1s to play
-- **UI animations**: 60 FPS
-- **Memory usage**: < 300MB idle
-- **Startup time**: < 3s
-
----
-
-## SECURITY CHECKLIST
-
-- [ ] No hardcoded API keys
-- [ ] Input validation on all endpoints
-- [ ] HTTPS for external APIs
-- [ ] SQLite encryption (optional)
-- [ ] Secure credential storage
-- [ ] Regular dependency updates
-- [ ] Security audit before release
-
----
-
-## RESOURCES
-
-- **yt-dlp**: https://github.com/yt-dlp/yt-dlp
-- **SponsorBlock API**: https://wiki.sponsor.ajay.app/w/API_Docs
-- **Return YouTube Dislike**: https://returnyoutubedislikeapi.com/
-- **Flutter**: https://flutter.dev/docs
-- **Rust**: https://doc.rust-lang.org/book/
-- **Riverpod**: https://riverpod.dev/
-
----
-
-## NEXT STEPS
-
-1. **Read this document end-to-end** (15 min)
-2. **Review the project structure** (10 min)
-3. **Set up local development** (20 min)
-4. **Implement Phase 1 features** (1-2 weeks)
-5. **Iterate based on feedback**
-
----
-
-**Created**: 2026 | **For**: Tubular PC Desktop Project | **By**: AI Development Assistant
-
----
-
-## QUICK REFERENCE
-
-### Commands
-```bash
-# Backend
-cd backend && cargo run --release
-
-# Frontend
-cd frontend && flutter run -d windows
-
-# Tests
-cargo test && flutter test
-
-# Build Release
-./scripts/build.sh
-```
-
-### File Locations
-```
-Backend API:      src/api/*
-Frontend UI:      lib/screens/*
-Database:         ~/.local/share/tubular-pc/data.db
-Config:           ~/.config/tubular-pc/settings.json
-```
-
-### API Base URLs
-```
-Local Dev:        http://localhost:3000/api/
-External APIs:    https://sponsor.ajay.app/api/
-                  https://returnyoutubedislikeapi.com/
-```
-
----
-
-**Happy coding! 🚀**
 
 ```
 
@@ -12861,50 +12249,5 @@ cd frontend
 flutter run -d windows
 
 pause
-
-```
-
-`start.sh`:
-
-```sh
-#!/bin/bash
-
-# Tubular PC Startup Script
-
-echo "🚀 Starting Tubular PC..."
-
-# Check if yt-dlp is installed
-if ! command -v yt-dlp &> /dev/null; then
-    echo "❌ yt-dlp not found. Please install it:"
-    echo "   pip install yt-dlp"
-    exit 1
-fi
-
-# Check if mpv is installed
-if ! command -v mpv &> /dev/null; then
-    echo "❌ mpv not found. Please install it:"
-    echo "   Linux: sudo apt install mpv"
-    echo "   macOS: brew install mpv"
-    exit 1
-fi
-
-# Start backend in background
-echo "📡 Starting backend server..."
-cd backend
-cargo run --release &
-BACKEND_PID=$!
-cd ..
-
-# Wait for backend to start
-echo "⏳ Waiting for backend to initialize..."
-sleep 3
-
-# Start frontend
-echo "🎨 Starting frontend..."
-cd frontend
-flutter run -d linux
-
-# Cleanup on exit
-trap "kill $BACKEND_PID" EXIT
 
 ```

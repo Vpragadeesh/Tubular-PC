@@ -160,7 +160,10 @@ pub async fn init_db() -> Result<()> {
     .execute(&pool)
     .await?;
 
-    DB_POOL.set(pool).map_err(|_| anyhow::anyhow!("Failed to set DB pool"))?;
+    // Fix HIGH: Handle pool already being set gracefully
+    if DB_POOL.set(pool).is_err() {
+        tracing::warn!("DB pool already initialized, skipping reinit");
+    }
     Ok(())
 }
 

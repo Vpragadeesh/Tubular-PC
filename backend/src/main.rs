@@ -4,6 +4,7 @@ use axum::{
 };
 use std::net::SocketAddr;
 use tower_http::cors::CorsLayer;
+use tower_http::limit::RequestBodyLimitLayer;
 use tracing_subscriber;
 
 mod api;
@@ -85,6 +86,7 @@ async fn main() -> anyhow::Result<()> {
         .route("/playlists/:id/videos", post(api::add_video_to_playlist))
         .route("/playlists/:id/videos/remove", post(api::remove_video_from_playlist))
         .layer(CorsLayer::permissive())
+        .layer(RequestBodyLimitLayer::new(10 * 1024 * 1024)) // Fix LOW: 10MB request body limit
         .with_state(player);
 
     // Start server

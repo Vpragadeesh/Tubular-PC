@@ -228,7 +228,7 @@ class ApiService {
           (video) =>
               video.title.toLowerCase().contains(query.toLowerCase()) ||
               video.channelName.toLowerCase().contains(query.toLowerCase()) ||
-              video.description!.toLowerCase().contains(query.toLowerCase()),
+              video.description.toLowerCase().contains(query.toLowerCase()),
         )
         .take(limit)
         .toList();
@@ -332,11 +332,38 @@ class ApiService {
       } else {
         throw Exception(response.data['error'] ?? 'Download failed');
       }
+    } on DioException catch (e) {
+      _logger.w('Download DIO error: $e');
+
+      final responseData = e.response?.data;
+      if (responseData is Map) {
+        final serverError = responseData['error']?.toString();
+        final serverDetails = responseData['details']?.toString();
+        if (serverError != null && serverError.isNotEmpty) {
+          if (serverDetails != null && serverDetails.isNotEmpty) {
+            throw Exception('$serverError: $serverDetails');
+          }
+          throw Exception(serverError);
+        }
+        if (serverDetails != null && serverDetails.isNotEmpty) {
+          throw Exception(serverDetails);
+        }
+      }
+
+      if (e.type == DioExceptionType.connectionError) {
+        throw Exception(
+          'Backend server is not running. Please ensure the Rust backend is running on http://127.0.0.1:3030',
+        );
+      }
+
+      if (e.type == DioExceptionType.connectionTimeout || e.type == DioExceptionType.receiveTimeout) {
+        throw Exception('Download request timed out. Please try again.');
+      }
+
+      throw Exception(e.message ?? 'Download failed');
     } catch (e) {
       _logger.w('Download error: $e');
-      throw Exception(
-        'Backend not available. Please ensure the Rust backend is running on http://localhost:3030',
-      );
+      throw Exception(e.toString());
     }
   }
 
