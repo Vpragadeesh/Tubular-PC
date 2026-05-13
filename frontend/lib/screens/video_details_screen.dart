@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/video.dart';
@@ -10,17 +11,39 @@ import '../controllers/player_controller.dart';
 import '../screens/player_screen.dart';
 import '../widgets/video_details/actions_section.dart';
 import '../widgets/video_details/comments_section.dart';
+import '../widgets/video_details/recommended_videos_section.dart';
 import '../widgets/video_details/stats_section.dart';
 import '../widgets/video_details/thumbnail_section.dart';
+import '../widgets/video_details/transcripts_section.dart';
+import '../widgets/video_details/chapters_section.dart';
 
-class VideoDetailsScreen extends ConsumerWidget {
+class VideoDetailsScreen extends ConsumerStatefulWidget {
   final Video video;
 
   const VideoDetailsScreen({super.key, required this.video});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final detailsAsync = ref.watch(videoDetailsProvider(video.id));
+  ConsumerState<VideoDetailsScreen> createState() => _VideoDetailsScreenState();
+}
+
+class _VideoDetailsScreenState extends ConsumerState<VideoDetailsScreen> with TickerProviderStateMixin {
+  late TabController _tabController;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 3, vsync: this);
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final detailsAsync = ref.watch(videoDetailsProvider(widget.video.id));
 
     return Scaffold(
       appBar: AppBar(
@@ -41,11 +64,11 @@ class VideoDetailsScreen extends ConsumerWidget {
                     ThumbnailSection(
                       thumbnailUrl: safeDetails.thumbnailUrl,
                       onPlay: () async {
-                        await ref.read(playerControllerProvider.notifier).playVideo(video);
+                        await ref.read(playerControllerProvider.notifier).playVideo(widget.video);
                         if (context.mounted) {
                           Navigator.push(
                             context,
-                            MaterialPageRoute(builder: (_) => PlayerScreen(video: video)),
+                            MaterialPageRoute(builder: (_) => PlayerScreen(video: widget.video)),
                           );
                         }
                       },
@@ -69,12 +92,61 @@ class VideoDetailsScreen extends ConsumerWidget {
                                 },
                               ),
                               ActionItem(
+                                icon: Icons.bookmark_outline,
+                                label: 'Bookmark',
+                                onTap: () async {
+                                  final apiService = ref.read(apiServiceProvider);
+                                  
+                                  // Check if already bookmarked
+                                  final checkResult = await apiService.isBookmarked(widget.video.id);
+                                  final isBookmarked = checkResult.data ?? false;
+                                  
+                                  if (isBookmarked) {
+                                    // Remove bookmark
+                                    final result = await apiService.removeBookmark(widget.video.id);
+                                    if (context.mounted) {
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        SnackBar(
+                                          content: Text(result.success 
+                                            ? '❌ Bookmark removed' 
+                                            : 'Failed to remove bookmark'),
+                                        ),
+                                      );
+                                      // Invalidate bookmark providers to refresh
+                                      ref.invalidate(bookmarksProvider);
+                                      ref.invalidate(isBookmarkedProvider(widget.video.id));
+                                    }
+                                  } else {
+                                    // Add bookmark
+                                    final result = await apiService.addBookmark(
+                                      videoId: widget.video.id,
+                                      title: widget.video.title,
+                                      channel: widget.video.channelName,
+                                      thumbnail: widget.video.thumbnail,
+                                      duration: int.tryParse(widget.video.duration.toString()) ?? 0,
+                                    );
+                                    if (context.mounted) {
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        SnackBar(
+                                          content: Text(result.success 
+                                            ? '✅ Bookmark added' 
+                                            : 'Failed to add bookmark'),
+                                        ),
+                                      );
+                                      // Invalidate bookmark providers to refresh
+                                      ref.invalidate(bookmarksProvider);
+                                      ref.invalidate(isBookmarkedProvider(widget.video.id));
+                                    }
+                                  }
+                                },
+                              ),
+                              ActionItem(
                                 icon: Icons.headset,
                                 label: 'Background',
                                 onTap: () async {
                                   final controller = ref.read(playerControllerProvider.notifier);
                                   await controller.playVideo(
-                                    video,
+                                    widget.video,
                                     quality: 'audio',
                                     surface: PlayerSurface.mini,
                                   );
@@ -94,7 +166,7 @@ class VideoDetailsScreen extends ConsumerWidget {
                                 onTap: () async {
                                   final controller = ref.read(playerControllerProvider.notifier);
                                   await controller.playVideo(
-                                    video,
+                                    widget.video,
                                     quality: ref.read(preferredQualityProvider),
                                     surface: PlayerSurface.popup,
                                   );
@@ -110,7 +182,86 @@ class VideoDetailsScreen extends ConsumerWidget {
                                 label: 'Download',
                                 onTap: () async {
                                   if (context.mounted) {
-                                    await _showQualitySelectionDialog(context, ref, video, safeDetails);
+                                    await _showQualitySelectionDialog(context, ref, widget.video, safeDetails);
+                                  }
+                                },
+                              ),
+                              ActionItem(
+                                icon: Icons.share,
+                                label: 'Share',
+                                onTap: () async {
+                                  // Create a shareable video URL
+                                  // Using YouTube format: https://youtu.be/{videoId}
+                                  final shareUrl = 'https://youtu.be/${widget.video.id}';
+                                  
+                                  // Copy to clipboard
+                                  await Clipboard.setData(ClipboardData(text: shareUrl));
+                                  
+                                  if (context.mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: const Text('✅ Link copied to clipboard'),
+                                        duration: const Duration(seconds: 2),
+                                        action: SnackBarAction(
+                                          label: 'Show',
+                                          onPressed: () {
+                                            showDialog(
+                                              context: context,
+                                              builder: (_) => AlertDialog(
+                                                title: const Text('Share Video'),
+                                                content: SelectableText(
+                                                  shareUrl,
+                                                  style: const TextStyle(fontFamily: 'monospace'),
+                                                ),
+                                                actions: [
+                                                  TextButton(
+                                                    onPressed: () => Navigator.pop(context),
+                                                    child: const Text('Close'),
+                                                  ),
+                                                ],
+                                              ),
+                                            );
+                                          },
+                                        ),
+                                      ),
+                                    );
+                                  }
+                                },
+                              ),
+                              ActionItem(
+                                icon: Icons.open_in_new,
+                                label: 'New Window',
+                                onTap: () {
+                                  final activePlayers = ref.read(activePlayersProvider.notifier);
+                                  final currentPlayers = ref.read(activePlayersProvider);
+                                  
+                                  if (currentPlayers.length >= 4) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(content: Text('Maximum 4 windows allowed')),
+                                    );
+                                    return;
+                                  }
+                                  
+                                  if (!currentPlayers.contains(widget.video.id)) {
+                                    activePlayers.state = [...currentPlayers, widget.video.id];
+                                    
+                                    // Set as focused player if it's the first one
+                                    if (currentPlayers.isEmpty) {
+                                      ref.read(focusedPlayerProvider.notifier).state = widget.video.id;
+                                      // Switch to multi-player layout
+                                      ref.read(multiPlayerLayoutProvider.notifier).state = MultiPlayerLayout.single;
+                                    }
+                                    
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text('Opened in new window'),
+                                        duration: Duration(seconds: 2),
+                                      ),
+                                    );
+                                  } else {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(content: Text('Already open in a window')),
+                                    );
                                   }
                                 },
                               ),
@@ -129,7 +280,35 @@ class VideoDetailsScreen extends ConsumerWidget {
                             ),
                           ),
                           const SizedBox(height: 16),
-                          CommentsSection(comments: safeDetails.comments),
+                          Container(
+                            decoration: BoxDecoration(
+                              border: Border(bottom: BorderSide(color: Colors.grey[700]!)),
+                            ),
+                            child: TabBar(
+                              controller: _tabController,
+                              labelColor: Colors.red[700],
+                              unselectedLabelColor: Colors.grey[400],
+                              indicatorColor: Colors.red[700],
+                              tabs: const [
+                                Tab(text: 'Comments'),
+                                Tab(text: 'Transcripts'),
+                                Tab(text: 'Chapters'),
+                              ],
+                            ),
+                          ),
+                          SizedBox(
+                            height: 300,
+                            child: TabBarView(
+                              controller: _tabController,
+                              children: [
+                                CommentsSection(comments: safeDetails.comments),
+                                TranscriptsSection(subtitles: safeDetails.subtitles, videoId: widget.video.id),
+                                ChaptersSection(chapters: safeDetails.chapters),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 24),
+                          RecommendedVideosSection(videoId: widget.video.id),
                           const SizedBox(height: 40),
                         ],
                       ),
@@ -148,24 +327,25 @@ class VideoDetailsScreen extends ConsumerWidget {
 
   VideoDetails _buildSafeDetails(VideoDetails details) {
     return VideoDetails(
-      id: details.id.isNotEmpty ? details.id : video.id,
-      title: details.title.isNotEmpty ? details.title : video.title,
+      id: details.id.isNotEmpty ? details.id : widget.video.id,
+      title: details.title.isNotEmpty ? details.title : widget.video.title,
       channelName: details.channelName.isNotEmpty
           ? details.channelName
-          : video.channelName,
-      channelId: details.channelId.isNotEmpty ? details.channelId : video.channelId,
+          : widget.video.channelName,
+      channelId: details.channelId.isNotEmpty ? details.channelId : widget.video.channelId,
       subscriberCount: details.subscriberCount,
-      viewCount: details.viewCount > 0 ? details.viewCount : video.views,
+      viewCount: details.viewCount > 0 ? details.viewCount : widget.video.views,
       uploadDate: details.uploadDate.isNotEmpty
           ? details.uploadDate
-          : video.uploadDate.toIso8601String(),
-      duration: details.duration > Duration.zero ? details.duration : video.duration,
+          : widget.video.uploadDate.toIso8601String(),
+      duration: details.duration > Duration.zero ? details.duration : widget.video.duration,
       thumbnailUrl: details.thumbnailUrl.isNotEmpty
           ? details.thumbnailUrl
-          : video.thumbnail,
+          : widget.video.thumbnail,
       likeCount: details.likeCount,
       dislikeCount: details.dislikeCount,
       comments: details.comments,
+      subtitles: details.subtitles,
     );
   }
 
@@ -189,12 +369,14 @@ class VideoDetailsScreen extends ConsumerWidget {
   }
 
   Future<void> _showQualitySelectionDialog(
+    BuildContext context,
+    WidgetRef ref,
     Video video,
     VideoDetails details,
   ) async {
     final selectedQuality = await showDialog<String>(
       context: context,
-      builder: (context) => _QualitySelectionDialog(
+      builder: (dialogContext) => _QualitySelectionDialog(
         currentQuality: ref.read(preferredQualityProvider),
       ),
     );
@@ -235,35 +417,12 @@ class VideoDetailsScreen extends ConsumerWidget {
         details.title,
         outputPath,
         quality,
-      );
-
-      if (id != null) {
-        await api.updateDownloadProgress(
-          id,
-          'downloading',
-          0.0,
-          0.0,
-          0,
-        );
-      }
-
-      await api.downloadVideo(
-        videoId: video.id,
-        outputPath: outputPath,
-        quality: quality,
         audioOnly: audioOnly,
       );
 
-      if (id != null) {
-        final fileSize = await File(outputPath)
-            .length()
-            .catchError((_) => 0);
-        await api.completeDownload(id, fileSize);
-      }
-
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Download complete: $outputPath')),
+          SnackBar(content: Text('Download started: $outputPath')),
         );
       }
     } catch (e) {

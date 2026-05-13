@@ -26,6 +26,19 @@ pub struct HistoryEntry {
     pub progress: Option<f64>,
 }
 
+#[derive(Debug, Serialize, Deserialize, sqlx::FromRow)]
+pub struct Bookmark {
+    pub id: i64,
+    pub video_id: String,
+    pub title: String,
+    pub channel: String,
+    pub thumbnail: String,
+    pub duration: i64,
+    pub bookmarked_at: String,
+}
+
+
+
 #[allow(dead_code)]
 #[derive(Debug, Serialize, Deserialize, sqlx::FromRow)]
 pub struct Download {
@@ -49,6 +62,35 @@ pub struct Download {
 pub struct Setting {
     pub key: String,
     pub value: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, sqlx::FromRow)]
+pub struct Notification {
+    pub id: i64,
+    pub video_id: String,
+    pub channel_id: String,
+    pub title: String,
+    pub channel_name: String,
+    pub thumbnail: String,
+    pub is_read: bool,
+    pub created_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+pub struct MetadataCache {
+    pub id: i64,
+    pub video_id: String,
+    pub title: String,
+    pub channel_id: String,
+    pub channel_name: String,
+    pub thumbnail: Option<String>,
+    pub duration: Option<i32>,
+    pub description: Option<String>,
+    pub view_count: Option<i32>,
+    pub upload_date: Option<String>,
+    pub metadata: Option<String>,
+    pub cached_at: String,
+    pub last_accessed: String,
 }
 
 pub async fn init_db() -> Result<()> {
@@ -154,6 +196,65 @@ pub async fn init_db() -> Result<()> {
             position INTEGER NOT NULL,
             added_at TEXT NOT NULL,
             FOREIGN KEY (playlist_id) REFERENCES playlists(id) ON DELETE CASCADE
+        )
+        "#,
+    )
+    .execute(&pool)
+    .await?;
+
+    // Create bookmarks table
+    sqlx::query(
+        r#"
+        CREATE TABLE IF NOT EXISTS bookmarks (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            video_id TEXT UNIQUE NOT NULL,
+            title TEXT NOT NULL,
+            channel TEXT NOT NULL,
+            thumbnail TEXT,
+            duration INTEGER,
+            bookmarked_at TEXT NOT NULL
+        )
+        "#,
+    )
+    .execute(&pool)
+    .await?;
+
+    // Create notifications table
+    sqlx::query(
+        r#"
+        CREATE TABLE IF NOT EXISTS notifications (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            video_id TEXT NOT NULL,
+            channel_id TEXT NOT NULL,
+            title TEXT NOT NULL,
+            channel_name TEXT NOT NULL,
+            thumbnail TEXT,
+            is_read INTEGER NOT NULL DEFAULT 0,
+            created_at TEXT NOT NULL,
+            UNIQUE(video_id)
+        )
+        "#,
+    )
+    .execute(&pool)
+    .await?;
+
+    // Create metadata cache table for offline support
+    sqlx::query(
+        r#"
+        CREATE TABLE IF NOT EXISTS metadata_cache (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            video_id TEXT UNIQUE NOT NULL,
+            title TEXT NOT NULL,
+            channel_id TEXT NOT NULL,
+            channel_name TEXT NOT NULL,
+            thumbnail TEXT,
+            duration INTEGER,
+            description TEXT,
+            view_count INTEGER,
+            upload_date TEXT,
+            metadata JSON,
+            cached_at TEXT NOT NULL,
+            last_accessed TEXT NOT NULL
         )
         "#,
     )
@@ -348,6 +449,31 @@ pub async fn clear_history() -> Result<()> {
     Ok(())
 }
 
+pub async fn save_video_progress(video_id: &str, progress: f64) -> Result<()> {
+    let pool = get_pool();
+    sqlx::query(
+        "UPDATE history SET progress = ? WHERE video_id = ? AND id = (SELECT id FROM history WHERE video_id = ? ORDER BY watched_at DESC LIMIT 1)"
+    )
+    .bind(progress)
+    .bind(video_id)
+    .bind(video_id)
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
+pub async fn get_video_progress(video_id: &str) -> Result<Option<f64>> {
+    let pool = get_pool();
+    let row: Option<(f64,)> = sqlx::query_as(
+        "SELECT progress FROM history WHERE video_id = ? AND progress IS NOT NULL ORDER BY watched_at DESC LIMIT 1"
+    )
+    .bind(video_id)
+    .fetch_optional(pool)
+    .await?;
+    
+    Ok(row.map(|(p,)| p))
+}
+
 // Download operations
 pub async fn create_download(video_id: &str, title: &str, file_path: &str, quality: &str) -> Result<i64> {
     let pool = get_pool();
@@ -533,6 +659,59 @@ pub async fn set_setting(key: &str, value: &str) -> Result<()> {
     Ok(())
 }
 
+// Bookmark methods
+pub async fn add_bookmark(
+    video_id: &str,
+    title: &str,
+    channel: &str,
+    thumbnail: &str,
+    duration: i64,
+) -> Result<()> {
+    let pool = get_pool();
+    let now = chrono::Utc::now().to_rfc3339();
+    sqlx::query(
+        r#"
+        INSERT OR REPLACE INTO bookmarks (video_id, title, channel, thumbnail, duration, bookmarked_at)
+        VALUES (?, ?, ?, ?, ?, ?)
+        "#,
+    )
+    .bind(video_id)
+    .bind(title)
+    .bind(channel)
+    .bind(thumbnail)
+    .bind(duration)
+    .bind(now)
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
+pub async fn remove_bookmark(video_id: &str) -> Result<()> {
+    let pool = get_pool();
+    sqlx::query("DELETE FROM bookmarks WHERE video_id = ?")
+        .bind(video_id)
+        .execute(pool)
+        .await?;
+    Ok(())
+}
+
+pub async fn get_bookmarks() -> Result<Vec<Bookmark>> {
+    let pool = get_pool();
+    let bookmarks = sqlx::query_as::<_, Bookmark>("SELECT * FROM bookmarks ORDER BY bookmarked_at DESC")
+        .fetch_all(pool)
+        .await?;
+    Ok(bookmarks)
+}
+
+pub async fn is_bookmarked(video_id: &str) -> Result<bool> {
+    let pool = get_pool();
+    let row = sqlx::query("SELECT 1 FROM bookmarks WHERE video_id = ?")
+        .bind(video_id)
+        .fetch_optional(pool)
+        .await?;
+    Ok(row.is_some())
+}
+
 pub async fn get_setting(key: &str) -> Result<Option<String>> {
     let pool = get_pool();
     let row: Option<(String,)> = sqlx::query_as("SELECT value FROM settings WHERE key = ?")
@@ -684,4 +863,181 @@ pub async fn reorder_playlist_video(playlist_id: i64, video_id: &str, new_positi
     .execute(pool)
     .await?;
     Ok(())
+}
+
+// Notification operations
+pub async fn add_notification(
+    video_id: &str,
+    channel_id: &str,
+    title: &str,
+    channel_name: &str,
+    thumbnail: &str,
+) -> Result<()> {
+    let pool = get_pool();
+    let now = chrono::Utc::now().to_rfc3339();
+
+    sqlx::query(
+        "INSERT OR IGNORE INTO notifications (video_id, channel_id, title, channel_name, thumbnail, is_read, created_at) 
+         VALUES (?, ?, ?, ?, ?, 0, ?)"
+    )
+    .bind(video_id)
+    .bind(channel_id)
+    .bind(title)
+    .bind(channel_name)
+    .bind(thumbnail)
+    .bind(now)
+    .execute(pool)
+    .await?;
+
+    Ok(())
+}
+
+pub async fn get_notifications(unread_only: bool) -> Result<Vec<Notification>> {
+    let pool = get_pool();
+    let query = if unread_only {
+        "SELECT id, video_id, channel_id, title, channel_name, thumbnail, is_read, created_at FROM notifications WHERE is_read = 0 ORDER BY created_at DESC"
+    } else {
+        "SELECT id, video_id, channel_id, title, channel_name, thumbnail, is_read, created_at FROM notifications ORDER BY created_at DESC"
+    };
+    
+    let notifications = sqlx::query_as::<_, Notification>(query)
+        .fetch_all(pool)
+        .await?;
+    Ok(notifications)
+}
+
+pub async fn mark_notification_as_read(notification_id: i64) -> Result<()> {
+    let pool = get_pool();
+    sqlx::query("UPDATE notifications SET is_read = 1 WHERE id = ?")
+        .bind(notification_id)
+        .execute(pool)
+        .await?;
+    Ok(())
+}
+
+pub async fn mark_all_notifications_as_read() -> Result<()> {
+    let pool = get_pool();
+    sqlx::query("UPDATE notifications SET is_read = 1 WHERE is_read = 0")
+        .execute(pool)
+        .await?;
+    Ok(())
+}
+
+pub async fn delete_notification(notification_id: i64) -> Result<()> {
+    let pool = get_pool();
+    sqlx::query("DELETE FROM notifications WHERE id = ?")
+        .bind(notification_id)
+        .execute(pool)
+        .await?;
+    Ok(())
+}
+
+pub async fn get_unread_notification_count() -> Result<i64> {
+    let pool = get_pool();
+    let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM notifications WHERE is_read = 0")
+        .fetch_one(pool)
+        .await?;
+    Ok(count)
+}
+
+// Metadata cache operations for offline support
+pub async fn cache_video_metadata(
+    video_id: &str,
+    title: &str,
+    channel_id: &str,
+    channel_name: &str,
+    thumbnail: Option<&str>,
+    duration: Option<i32>,
+    description: Option<&str>,
+    view_count: Option<i32>,
+    upload_date: Option<&str>,
+) -> Result<()> {
+    let pool = get_pool();
+    let now = chrono::Utc::now().to_rfc3339();
+
+    sqlx::query(
+        r#"
+        INSERT OR REPLACE INTO metadata_cache 
+        (video_id, title, channel_id, channel_name, thumbnail, duration, description, 
+         view_count, upload_date, cached_at, last_accessed)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        "#,
+    )
+    .bind(video_id)
+    .bind(title)
+    .bind(channel_id)
+    .bind(channel_name)
+    .bind(thumbnail)
+    .bind(duration)
+    .bind(description)
+    .bind(view_count)
+    .bind(upload_date)
+    .bind(&now)
+    .bind(&now)
+    .execute(pool)
+    .await?;
+
+    Ok(())
+}
+
+pub async fn get_cached_metadata(video_id: &str) -> Result<Option<MetadataCache>> {
+    let pool = get_pool();
+    
+    // Update last_accessed timestamp
+    let now = chrono::Utc::now().to_rfc3339();
+    let _ = sqlx::query("UPDATE metadata_cache SET last_accessed = ? WHERE video_id = ?")
+        .bind(&now)
+        .bind(video_id)
+        .execute(pool)
+        .await;
+
+    let cache = sqlx::query_as::<_, MetadataCache>(
+        "SELECT * FROM metadata_cache WHERE video_id = ?"
+    )
+    .bind(video_id)
+    .fetch_optional(pool)
+    .await?;
+
+    Ok(cache)
+}
+
+pub async fn get_cache_stats() -> Result<(i64, String)> {
+    let pool = get_pool();
+    
+    let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM metadata_cache")
+        .fetch_one(pool)
+        .await?;
+
+    let size_kb: f64 = sqlx::query_scalar(
+        "SELECT ROUND(SUM(LENGTH(title) + LENGTH(channel_name) + LENGTH(description) + LENGTH(metadata)) / 1024.0, 2) FROM metadata_cache"
+    )
+    .fetch_one(pool)
+    .await
+    .unwrap_or(0.0);
+
+    Ok((count, format!("{:.2} KB", size_kb)))
+}
+
+pub async fn clear_cache() -> Result<i64> {
+    let pool = get_pool();
+    
+    let result = sqlx::query("DELETE FROM metadata_cache")
+        .execute(pool)
+        .await?;
+
+    Ok(result.rows_affected() as i64)
+}
+
+pub async fn clear_old_cache(days: i32) -> Result<i64> {
+    let pool = get_pool();
+    
+    let cutoff_date = chrono::Utc::now() - chrono::Duration::days(days as i64);
+    let cutoff_iso = cutoff_date.to_rfc3339();
+
+    let result = sqlx::query("DELETE FROM metadata_cache WHERE cached_at < ?")
+        .bind(cutoff_iso)
+        .execute(pool)
+        .await?;
+
+    Ok(result.rows_affected() as i64)
 }

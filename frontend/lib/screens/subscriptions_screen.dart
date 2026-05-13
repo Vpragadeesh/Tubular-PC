@@ -1,11 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 import '../models/subscription.dart';
 import '../models/video.dart';
 import '../providers.dart';
+import '../controllers/player_controller.dart';
 import '../widgets/video_card.dart';
 import 'player_screen.dart';
+import 'video_details_screen.dart';
 
+final subscriptionsFeedTabProvider = StateProvider<String>((ref) => 'feed');
 final subscriptionSearchProvider = StateProvider<String>((ref) => '');
 final subscriptionsSortProvider = StateProvider<String>((ref) => 'name_asc');
 
@@ -42,13 +46,6 @@ final subscriptionsProvider = FutureProvider<List<Subscription>>((ref) async {
   return subs;
 });
 
-final subscriptionVideosProvider = FutureProvider.family<List<Video>, String>((ref, channelId) async {
-  final apiService = ref.watch(apiServiceProvider);
-  // This would fetch latest videos from the channel
-  // For now, return empty list
-  return [];
-});
-
 class SubscriptionsScreen extends ConsumerStatefulWidget {
   const SubscriptionsScreen({Key? key}) : super(key: key);
 
@@ -73,100 +70,164 @@ class _SubscriptionsScreenState extends ConsumerState<SubscriptionsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final feedAsync = ref.watch(subscriptionFeedProvider);
     final subscriptionsAsync = ref.watch(subscriptionsProvider);
+    final tab = ref.watch(subscriptionsFeedTabProvider);
     final sort = ref.watch(subscriptionsSortProvider);
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Subscriptions'),
-        backgroundColor: Colors.red[700],
-        foregroundColor: Colors.white,
-        elevation: 0,
-        actions: [
-          PopupMenuButton<String>(
-            icon: const Icon(Icons.sort),
-            tooltip: 'Sort',
-            itemBuilder: (context) => [
-              const PopupMenuItem(
-                value: 'name_asc',
-                child: Text('Name (A-Z)'),
-              ),
-              const PopupMenuItem(
-                value: 'name_desc',
-                child: Text('Name (Z-A)'),
-              ),
-              const PopupMenuItem(
-                value: 'date_desc',
-                child: Text('Recently Subscribed'),
-              ),
-              const PopupMenuItem(
-                value: 'date_asc',
-                child: Text('Oldest First'),
-              ),
-            ],
-            onSelected: (value) {
-              ref.read(subscriptionsSortProvider.notifier).state = value;
+    return DefaultTabController(
+      length: 2,
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Subscriptions'),
+          backgroundColor: Colors.red[700],
+          foregroundColor: Colors.white,
+          elevation: 0,
+          bottom: TabBar(
+            labelColor: Colors.white,
+            unselectedLabelColor: Colors.grey[400],
+            indicatorColor: Colors.white,
+            onTap: (index) {
+              ref.read(subscriptionsFeedTabProvider.notifier).state = index == 0 ? 'feed' : 'channels';
             },
+            tabs: const [
+              Tab(text: 'Feed'),
+              Tab(text: 'Channels'),
+            ],
           ),
-        ],
-      ),
-      body: Column(
-        children: [
-          // Search bar
-          Container(
-            color: Colors.grey[850],
-            padding: const EdgeInsets.all(12),
-            child: TextField(
-              controller: _searchController,
-              style: const TextStyle(color: Colors.white),
-              onChanged: (value) {
-                ref.read(subscriptionSearchProvider.notifier).state = value;
-              },
-              decoration: InputDecoration(
-                hintText: 'Search subscriptions...',
-                hintStyle: TextStyle(color: Colors.grey[500]),
-                filled: true,
-                fillColor: Colors.grey[800],
-                prefixIcon: const Icon(Icons.search, color: Colors.grey),
-                suffixIcon: _searchController.text.isNotEmpty
-                    ? IconButton(
-                        icon: const Icon(Icons.clear, color: Colors.grey),
-                        onPressed: () {
-                          _searchController.clear();
-                          ref.read(subscriptionSearchProvider.notifier).state = '';
-                        },
-                      )
-                    : null,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide.none,
-                ),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+          actions: [
+            if (tab == 'channels')
+              PopupMenuButton<String>(
+                icon: const Icon(Icons.sort),
+                tooltip: 'Sort',
+                itemBuilder: (context) => [
+                  const PopupMenuItem(
+                    value: 'name_asc',
+                    child: Text('Name (A-Z)'),
+                  ),
+                  const PopupMenuItem(
+                    value: 'name_desc',
+                    child: Text('Name (Z-A)'),
+                  ),
+                  const PopupMenuItem(
+                    value: 'date_desc',
+                    child: Text('Recently Subscribed'),
+                  ),
+                  const PopupMenuItem(
+                    value: 'date_asc',
+                    child: Text('Oldest First'),
+                  ),
+                ],
+                onSelected: (value) {
+                  ref.read(subscriptionsSortProvider.notifier).state = value;
+                },
               ),
-            ),
-          ),
-          // Subscriptions list
-          Expanded(
-            child: subscriptionsAsync.when(
-              data: (subscriptions) {
-                if (subscriptions.isEmpty) {
-                  return _buildEmptyState();
-                }
+          ],
+        ),
+        body: tab == 'feed'
+            ? _buildFeedTab(context, ref, feedAsync)
+            : _buildChannelsTab(context, ref, subscriptionsAsync),
+      ),
+    );
+  }
 
-                return ListView.builder(
-                  itemCount: subscriptions.length,
-                  itemBuilder: (context, index) {
-                    final sub = subscriptions[index];
-                    return AnimatedOpacity(
-                      opacity: 1.0,
-                      duration: const Duration(milliseconds: 300),
-                      child: _buildSubscriptionTile(context, sub),
+  Widget _buildFeedTab(
+    BuildContext context,
+    WidgetRef ref,
+    AsyncValue<List<Video>> feedAsync,
+  ) {
+    return feedAsync.when(
+      data: (videos) {
+        if (videos.isEmpty) {
+          return _buildEmptyFeedState();
+        }
+
+        return Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 1200),
+            child: MasonryGridView.count(
+              crossAxisCount: 4,
+              itemCount: videos.length,
+              padding: const EdgeInsets.all(12),
+              mainAxisSpacing: 12,
+              crossAxisSpacing: 12,
+              itemBuilder: (context, index) {
+                final video = videos[index];
+                return VideoCard(
+                  video: video,
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => VideoDetailsScreen(video: video),
+                      ),
                     );
                   },
                 );
               },
-              loading: () => const Center(child: CircularProgressIndicator()),
-              error: (error, stack) => _buildErrorState(error.toString()),
+            ),
+          ),
+        );
+      },
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (error, stack) => _buildErrorState(error.toString()),
+    );
+  }
+
+  Widget _buildChannelsTab(
+    BuildContext context,
+    WidgetRef ref,
+    AsyncValue<List<Subscription>> subscriptionsAsync,
+  ) {
+    return subscriptionsAsync.when(
+      data: (subscriptions) {
+        if (subscriptions.isEmpty) {
+          return _buildEmptyChannelsState();
+        }
+
+        return ListView.builder(
+          padding: const EdgeInsets.all(12),
+          itemCount: subscriptions.length,
+          itemBuilder: (context, index) {
+            final sub = subscriptions[index];
+            return AnimatedOpacity(
+              opacity: 1.0,
+              duration: const Duration(milliseconds: 300),
+              child: _buildSubscriptionTile(context, sub),
+            );
+          },
+        );
+      },
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (error, stack) => _buildErrorState(error.toString()),
+    );
+  }
+
+  Widget _buildEmptyFeedState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.feed,
+            size: 64,
+            color: Colors.grey[400],
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'No videos in feed',
+            style: TextStyle(
+              fontSize: 18,
+              color: Colors.grey[600],
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Subscribe to channels to see their latest videos',
+            style: TextStyle(
+              fontSize: 14,
+              color: Colors.grey[500],
             ),
           ),
         ],
@@ -174,7 +235,7 @@ class _SubscriptionsScreenState extends ConsumerState<SubscriptionsScreen> {
     );
   }
 
-  Widget _buildEmptyState() {
+  Widget _buildEmptyChannelsState() {
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -200,7 +261,6 @@ class _SubscriptionsScreenState extends ConsumerState<SubscriptionsScreen> {
               fontSize: 14,
               color: Colors.grey[500],
             ),
-            textAlign: TextAlign.center,
           ),
         ],
       ),

@@ -4,6 +4,7 @@ use axum::{
     response::{IntoResponse, Json, Response},
     body::Body,
 };
+use chrono::{TimeZone, Utc};
 use serde::{Deserialize, Serialize};
 use futures::StreamExt;
 
@@ -14,10 +15,28 @@ pub struct SearchQuery {
     q: String,
     #[serde(default = "default_limit")]
     limit: u32,
+    #[serde(default = "default_sort")]
+    sort: String,
+    #[serde(default = "default_duration")]
+    duration: String,
+    #[serde(default = "default_upload_date")]
+    upload_date: String,
 }
 
 fn default_limit() -> u32 {
     20
+}
+
+fn default_sort() -> String {
+    "relevance".to_string()
+}
+
+fn default_duration() -> String {
+    "any".to_string()
+}
+
+fn default_upload_date() -> String {
+    "any".to_string()
 }
 
 #[derive(Debug, Serialize)]
@@ -58,6 +77,66 @@ fn validate_video_id(id: &str) -> Result<(), String> {
 
 fn validate_quality(quality: &str) -> bool {
     matches!(quality, "best" | "worst" | "720p" | "480p" | "360p" | "1080p" | "audio")
+}
+
+#[derive(Debug, Deserialize)]
+pub struct TrendingQuery {
+    #[serde(default = "default_region")]
+    region: String,
+    #[serde(default = "default_trending_type")]
+    #[serde(rename = "type")]
+    trend_type: String,
+}
+
+fn default_region() -> String {
+    "US".to_string()
+}
+
+fn default_trending_type() -> String {
+    "default".to_string()
+}
+
+#[derive(Debug, Serialize)]
+pub struct TrendingVideoResponse {
+    pub id: String,
+    pub title: String,
+    pub channel: String,
+    pub channel_id: String,
+    pub thumbnail: String,
+    pub duration: u64,
+    pub view_count: u64,
+    pub upload_date: String,
+    pub description: String,
+    pub like_count: u64,
+    pub dislike_count: u64,
+}
+
+fn map_trending_video(video: invidious::InvidiousVideo) -> TrendingVideoResponse {
+    let thumbnail = video
+        .thumbnails
+        .first()
+        .map(|thumb| thumb.url.clone())
+        .unwrap_or_default();
+
+    let upload_date = video
+        .published
+        .and_then(|seconds| Utc.timestamp_opt(seconds as i64, 0).single())
+        .map(|dt| dt.to_rfc3339())
+        .unwrap_or_else(|| Utc::now().to_rfc3339());
+
+    TrendingVideoResponse {
+        id: video.video_id,
+        title: video.title,
+        channel: video.author,
+        channel_id: video.author_id,
+        thumbnail,
+        duration: video.length_seconds,
+        view_count: video.view_count,
+        upload_date,
+        description: video.description.unwrap_or_default(),
+        like_count: 0,
+        dislike_count: 0,
+    }
 }
 
 pub async fn search(Query(params): Query<SearchQuery>) -> impl IntoResponse {
@@ -111,6 +190,22 @@ pub struct VideoDetailsCommentResponse {
 }
 
 #[derive(Debug, Serialize)]
+pub struct SubtitleTrackResponse {
+    pub language: String,
+    pub language_name: String,
+    pub url: String,
+    pub ext: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ChapterResponse {
+    pub title: String,
+    pub start_time: u64,
+    pub end_time: Option<u64>,
+    pub thumbnail: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
 pub struct VideoDetailsResponse {
     id: String,
     title: String,
@@ -124,6 +219,10 @@ pub struct VideoDetailsResponse {
     like_count: u64,
     dislike_count: u64,
     comments: Vec<VideoDetailsCommentResponse>,
+    #[serde(default)]
+    subtitles: Vec<SubtitleTrackResponse>,
+    #[serde(default)]
+    chapters: Vec<ChapterResponse>,
 }
 
 pub async fn get_video_details(Path(id): Path<String>) -> impl IntoResponse {
@@ -147,6 +246,8 @@ pub async fn get_video_details(Path(id): Path<String>) -> impl IntoResponse {
 
     let dislike_data = returnyoutubedislike::get_dislikes(&id).await.ok();
     let comments = invidious::get_comments(&id).await.unwrap_or_default();
+    let subtitles = yt_dlp::get_subtitles(&id).await.unwrap_or_default();
+    let chapters = yt_dlp::get_chapters(&id).await.unwrap_or_default();
 
     // Fix dislike count logic: use and_then for proper Option chaining
     let like_count = dislike_data
@@ -160,6 +261,19 @@ pub async fn get_video_details(Path(id): Path<String>) -> impl IntoResponse {
         .map(|d| d.dislikes.max(0) as u64)
         .unwrap_or(0);
 
+    // Cache metadata for offline support before moving fields into the response.
+    let _ = db::cache_video_metadata(
+        &info.id,
+        &info.title,
+        &info.channel_id,
+        &info.channel,
+        Some(info.thumbnail.as_str()),
+        info.duration.map(|d| d as i32),
+        info.description.as_deref(),
+        info.view_count.map(|v| v as i32),
+        info.upload_date.as_deref(),
+    ).await;
+
     let details = VideoDetailsResponse {
         id: info.id,
         title: info.title,
@@ -172,6 +286,24 @@ pub async fn get_video_details(Path(id): Path<String>) -> impl IntoResponse {
         thumbnail_url: info.thumbnail,
         like_count,
         dislike_count,
+        subtitles: subtitles
+            .into_iter()
+            .map(|s| SubtitleTrackResponse {
+                language: s.language,
+                language_name: s.language_name,
+                url: s.url,
+                ext: s.ext,
+            })
+            .collect(),
+        chapters: chapters
+            .into_iter()
+            .map(|c| ChapterResponse {
+                title: c.title,
+                start_time: c.start_time,
+                end_time: c.end_time,
+                thumbnail: c.thumbnail,
+            })
+            .collect(),
         comments: comments
             .into_iter()
             .map(|c| {
@@ -427,7 +559,7 @@ pub struct CreateDownloadRequest {
     title: String,
     output_path: String,
     quality: String,
-    #[allow(dead_code)]
+    #[serde(default)]
     audio_only: bool,
 }
 
@@ -441,7 +573,16 @@ pub struct DownloadRequest {
 
 pub async fn create_download(Json(req): Json<CreateDownloadRequest>) -> impl IntoResponse {
     match db::create_download(&req.video_id, &req.title, &req.output_path, &req.quality).await {
-        Ok(id) => (StatusCode::OK, Json(ApiResponse::success(serde_json::json!({ "id": id })))),
+        Ok(id) => {
+            spawn_download_job(
+                id,
+                req.video_id,
+                req.output_path,
+                req.quality,
+                req.audio_only,
+            );
+            (StatusCode::OK, Json(ApiResponse::success(serde_json::json!({ "id": id }))))
+        }
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(ApiResponse::<serde_json::Value>::error(e.to_string())),
@@ -457,6 +598,40 @@ pub async fn download_video(Json(req): Json<DownloadRequest>) -> impl IntoRespon
             Json(ApiResponse::<String>::error(e.to_string())),
         ),
     }
+}
+
+fn spawn_download_job(
+    id: i64,
+    video_id: String,
+    output_path: String,
+    quality: String,
+    audio_only: bool,
+) {
+    tokio::spawn(async move {
+        tracing::info!("Starting download job {} for video {}", id, video_id);
+
+        if let Err(e) = db::update_download_status(id, "downloading", 1.0, 0.0, 0).await {
+            tracing::warn!("Failed to mark download {} as downloading: {}", id, e);
+        }
+
+        match yt_dlp::download_video(&video_id, &output_path, &quality, audio_only).await {
+            Ok(path) => {
+                let file_size = tokio::fs::metadata(&path)
+                    .await
+                    .map(|metadata| metadata.len() as i64)
+                    .unwrap_or(0);
+                if let Err(e) = db::complete_download(id, file_size).await {
+                    tracing::warn!("Failed to mark download {} as completed: {}", id, e);
+                }
+            }
+            Err(e) => {
+                tracing::warn!("Download job {} failed: {}", id, e);
+                if let Err(db_error) = db::fail_download(id, &e.to_string()).await {
+                    tracing::warn!("Failed to mark download {} as failed: {}", id, db_error);
+                }
+            }
+        }
+    });
 }
 
 pub async fn get_downloads() -> impl IntoResponse {
@@ -649,6 +824,39 @@ pub async fn add_to_history(Json(req): Json<AddHistoryRequest>) -> impl IntoResp
     }
 }
 
+#[derive(Debug, Deserialize)]
+pub struct SaveProgressRequest {
+    video_id: String,
+    progress: f64,
+}
+
+pub async fn save_video_progress(Json(req): Json<SaveProgressRequest>) -> impl IntoResponse {
+    match db::save_video_progress(&req.video_id, req.progress).await {
+        Ok(_) => (StatusCode::OK, Json(ApiResponse::success("Progress saved".to_string()))),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiResponse::<String>::error(e.to_string())),
+        ),
+    }
+}
+
+pub async fn get_video_progress(Path(id): Path<String>) -> impl IntoResponse {
+    match db::get_video_progress(&id).await {
+        Ok(Some(progress)) => (
+            StatusCode::OK,
+            Json(ApiResponse::success(serde_json::json!({ "progress": progress }))),
+        ),
+        Ok(None) => (
+            StatusCode::OK,
+            Json(ApiResponse::success(serde_json::json!({ "progress": 0.0 }))),
+        ),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiResponse::<serde_json::Value>::error(e.to_string())),
+        ),
+    }
+}
+
 pub async fn get_sponsorblock_segments(Path(id): Path<String>) -> impl IntoResponse {
     match sponsorblock::get_segments(&id).await {
         Ok(segments) => (StatusCode::OK, Json(ApiResponse::success(segments))),
@@ -714,7 +922,15 @@ pub async fn get_all_settings() -> impl IntoResponse {
 
 /// Invidious: Search videos
 pub async fn invidious_search(Query(params): Query<SearchQuery>) -> impl IntoResponse {
-    match invidious::search_videos(&params.q, params.limit).await {
+    // Map filter parameters to Invidious API format
+    let sort = map_sort_param(&params.sort);
+    let date = map_date_param(&params.upload_date);
+    let duration = map_duration_param(&params.duration);
+    
+    tracing::info!("🔍 Invidious search: query='{}', sort='{}', date='{}', duration='{}'", 
+        params.q, sort, date, duration);
+    
+    match invidious::search_videos_with_filters(&params.q, params.limit, &sort, &date, &duration).await {
         Ok(videos) => {
             // Convert to our Video format
             let results: Vec<_> = videos.iter().map(|v| {
@@ -730,13 +946,44 @@ pub async fn invidious_search(Query(params): Query<SearchQuery>) -> impl IntoRes
             (StatusCode::OK, Json(ApiResponse::success(results)))
         }
         Err(e) => {
-            // Fix MEDIUM: Add error logging for debugging
             tracing::error!("Invidious search failed for '{}': {}", params.q, e);
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(ApiResponse::<Vec<serde_json::Value>>::error(e.to_string())),
             )
         },
+    }
+}
+
+fn map_sort_param(sort: &str) -> String {
+    match sort {
+        "relevance" => "relevance".to_string(),
+        "upload_date" => "upload_date".to_string(),
+        "view_count" => "view_count".to_string(),
+        "rating" => "rating".to_string(),
+        _ => "relevance".to_string(),
+    }
+}
+
+fn map_date_param(date: &str) -> String {
+    match date {
+        "any" => "all".to_string(),
+        "hour" => "hour".to_string(),
+        "day" => "day".to_string(),
+        "week" => "week".to_string(),
+        "month" => "month".to_string(),
+        "year" => "year".to_string(),
+        _ => "all".to_string(),
+    }
+}
+
+fn map_duration_param(duration: &str) -> String {
+    match duration {
+        "any" => "all".to_string(),
+        "short" => "short".to_string(),
+        "medium" => "medium".to_string(),
+        "long" => "long".to_string(),
+        _ => "all".to_string(),
     }
 }
 
@@ -899,6 +1146,470 @@ pub async fn remove_video_from_playlist(
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(ApiResponse::<String>::error(e.to_string())),
+        ),
+    }
+}
+
+pub async fn get_channel_info(Path(id): Path<String>) -> impl IntoResponse {
+    match crate::invidious::get_channel_info(&id).await {
+        Ok(info) => Json(serde_json::json!({
+            "success": true,
+            "data": info
+        })).into_response(),
+        Err(e) => {
+            tracing::error!("Failed to get channel info for {}: {}", id, e);
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({
+                    "success": false,
+                    "error": format!("Failed to fetch channel info: {}", e)
+                }))
+            ).into_response()
+        }
+    }
+}
+
+pub async fn get_channel_videos(
+    Path(id): Path<String>,
+    Query(params): Query<std::collections::HashMap<String, String>>,
+) -> impl IntoResponse {
+    let page = params.get("page").and_then(|p| p.parse::<u32>().ok()).unwrap_or(1);
+    match crate::invidious::get_channel_videos(&id, page).await {
+        Ok(videos) => Json(serde_json::json!({
+            "success": true,
+            "data": videos
+        })).into_response(),
+        Err(e) => {
+            tracing::error!("Failed to get channel videos for {}: {}", id, e);
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({
+                    "success": false,
+                    "error": format!("Failed to fetch channel videos: {}", e)
+                }))
+            ).into_response()
+        }
+    }
+}
+
+pub async fn get_subtitles(Path(id): Path<String>) -> impl IntoResponse {
+    if let Err(e) = validate_video_id(&id) {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({
+                "success": false,
+                "error": e
+            })),
+        ).into_response();
+    }
+
+    match yt_dlp::get_subtitles(&id).await {
+        Ok(tracks) => Json(serde_json::json!({
+            "success": true,
+            "data": tracks
+        })).into_response(),
+        Err(e) => {
+            tracing::error!("Failed to get subtitles for {}: {}", id, e);
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({
+                    "success": false,
+                    "error": format!("Failed to fetch subtitles: {}", e)
+                })),
+            ).into_response()
+        }
+    }
+}
+
+#[derive(Debug, Deserialize)]
+pub struct AddBookmarkRequest {
+    pub video_id: String,
+    pub title: String,
+    pub channel: String,
+    pub thumbnail: String,
+    pub duration: i64,
+}
+
+pub async fn add_bookmark(Json(req): Json<AddBookmarkRequest>) -> impl IntoResponse {
+    match db::add_bookmark(&req.video_id, &req.title, &req.channel, &req.thumbnail, req.duration).await {
+        Ok(_) => (StatusCode::OK, Json(ApiResponse::success("Bookmark added".to_string()))),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiResponse::<String>::error(e.to_string())),
+        ),
+    }
+}
+
+pub async fn remove_bookmark(Path(id): Path<String>) -> impl IntoResponse {
+    match db::remove_bookmark(&id).await {
+        Ok(_) => (StatusCode::OK, Json(ApiResponse::success("Bookmark removed".to_string()))),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiResponse::<String>::error(e.to_string())),
+        ),
+    }
+}
+
+pub async fn get_bookmarks() -> impl IntoResponse {
+    match db::get_bookmarks().await {
+        Ok(bookmarks) => (StatusCode::OK, Json(ApiResponse::success(bookmarks))),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiResponse::<Vec<db::Bookmark>>::error(e.to_string())),
+        ),
+    }
+}
+
+pub async fn is_bookmarked(Path(id): Path<String>) -> impl IntoResponse {
+    match db::is_bookmarked(&id).await {
+        Ok(bookmarked) => (StatusCode::OK, Json(ApiResponse::success(bookmarked))),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiResponse::<bool>::error(e.to_string())),
+        ),
+    }
+}
+
+/// Get subscription feed - videos from all subscribed channels, sorted by publication date
+pub async fn get_subscription_feed() -> impl IntoResponse {
+    match db::get_subscriptions().await {
+        Ok(subscriptions) => {
+            let mut feed_videos = Vec::new();
+            
+            // Fetch videos from each subscribed channel
+            for sub in subscriptions {
+                match invidious::get_channel_videos(&sub.channel_id, 1).await {
+                    Ok(mut videos) => {
+                        // Add channel name from subscription if not already present
+                        for video in &mut videos {
+                            if video.author.is_empty() {
+                                video.author = sub.channel_name.clone();
+                            }
+                        }
+                        feed_videos.extend(videos);
+                    }
+                    Err(e) => {
+                        tracing::warn!("Failed to fetch videos for channel {}: {}", sub.channel_id, e);
+                    }
+                }
+            }
+            
+            // Sort by publication date (newest first)
+            // Note: Invidious videos have `published` timestamp
+            feed_videos.sort_by(|a, b| {
+                let a_time = a.published.unwrap_or(0);
+                let b_time = b.published.unwrap_or(0);
+                b_time.cmp(&a_time)
+            });
+            
+            // Limit to first 50 videos
+            feed_videos.truncate(50);
+            
+            (StatusCode::OK, Json(ApiResponse::success(feed_videos)))
+        }
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiResponse::<Vec<invidious::InvidiousVideo>>::error(e.to_string())),
+        ),
+    }
+}
+
+pub async fn get_trending_videos(Query(params): Query<TrendingQuery>) -> impl IntoResponse {
+    match invidious::get_trending(Some(&params.region), Some(&params.trend_type)).await {
+        Ok(videos) => {
+            let trending: Vec<TrendingVideoResponse> = videos.into_iter().map(map_trending_video).collect();
+            (StatusCode::OK, Json(ApiResponse::success(trending)))
+        }
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiResponse::<Vec<TrendingVideoResponse>>::error(e.to_string())),
+        ),
+    }
+}
+
+#[derive(Debug, Deserialize)]
+pub struct RecommendedQuery {
+    #[serde(default = "default_recommended_limit")]
+    limit: u32,
+}
+
+fn default_recommended_limit() -> u32 {
+    20
+}
+
+pub async fn get_recommended_videos(
+    Path(video_id): Path<String>,
+    Query(params): Query<RecommendedQuery>,
+) -> impl IntoResponse {
+    if let Err(e) = validate_video_id(&video_id) {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(ApiResponse::<Vec<TrendingVideoResponse>>::error(e)),
+        );
+    }
+
+    match invidious::get_recommended(&video_id, params.limit).await {
+        Ok(videos) => {
+            let recommended: Vec<TrendingVideoResponse> = videos.into_iter().map(map_trending_video).collect();
+            (StatusCode::OK, Json(ApiResponse::success(recommended)))
+        }
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiResponse::<Vec<TrendingVideoResponse>>::error(e.to_string())),
+        ),
+    }
+}
+
+#[derive(Debug, Deserialize)]
+pub struct PlaylistQuery {
+    #[serde(default)]
+    page: u32,
+}
+
+#[derive(Debug, Serialize)]
+pub struct PlaylistResponse {
+    pub id: String,
+    pub title: String,
+    pub thumbnail: String,
+    pub author: String,
+    pub video_count: u32,
+    pub videos: Vec<TrendingVideoResponse>,
+}
+
+pub async fn get_invidious_playlist(
+    Path(playlist_id): Path<String>,
+    Query(params): Query<PlaylistQuery>,
+) -> impl IntoResponse {
+    if playlist_id.is_empty() {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(ApiResponse::<PlaylistResponse>::error("Playlist ID cannot be empty".to_string())),
+        );
+    }
+
+    match invidious::get_playlist(&playlist_id, params.page).await {
+        Ok(playlist) => {
+            let videos: Vec<TrendingVideoResponse> = playlist
+                .videos
+                .unwrap_or_default()
+                .into_iter()
+                .map(map_trending_video)
+                .collect();
+            
+            let response = PlaylistResponse {
+                id: playlist.playlist_id,
+                title: playlist.title,
+                thumbnail: playlist.playlist_thumbnail.unwrap_or_default(),
+                author: playlist.author.unwrap_or_else(|| "Unknown".to_string()),
+                video_count: playlist.video_count,
+                videos,
+            };
+            
+            (StatusCode::OK, Json(ApiResponse::success(response)))
+        }
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiResponse::<PlaylistResponse>::error(e.to_string())),
+        ),
+    }
+}
+
+// Notification endpoints
+#[derive(Debug, Serialize)]
+pub struct NotificationResponse {
+    pub id: i64,
+    pub video_id: String,
+    pub channel_id: String,
+    pub title: String,
+    pub channel_name: String,
+    pub thumbnail: String,
+    pub is_read: bool,
+    pub created_at: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct GetNotificationsQuery {
+    #[serde(default)]
+    unread_only: bool,
+}
+
+pub async fn get_notifications(Query(params): Query<GetNotificationsQuery>) -> impl IntoResponse {
+    match db::get_notifications(params.unread_only).await {
+        Ok(notifications) => {
+            let response: Vec<NotificationResponse> = notifications
+                .into_iter()
+                .map(|n| NotificationResponse {
+                    id: n.id,
+                    video_id: n.video_id,
+                    channel_id: n.channel_id,
+                    title: n.title,
+                    channel_name: n.channel_name,
+                    thumbnail: n.thumbnail,
+                    is_read: n.is_read,
+                    created_at: n.created_at,
+                })
+                .collect();
+            (StatusCode::OK, Json(ApiResponse::success(response)))
+        }
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiResponse::<Vec<NotificationResponse>>::error(e.to_string())),
+        ),
+    }
+}
+
+#[derive(Debug, Deserialize)]
+pub struct MarkNotificationReadRequest {
+    notification_id: i64,
+}
+
+pub async fn mark_notification_as_read(
+    Json(req): Json<MarkNotificationReadRequest>,
+) -> impl IntoResponse {
+    match db::mark_notification_as_read(req.notification_id).await {
+        Ok(_) => (StatusCode::OK, Json(ApiResponse::success(true))),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiResponse::<bool>::error(e.to_string())),
+        ),
+    }
+}
+
+pub async fn mark_all_notifications_as_read() -> impl IntoResponse {
+    match db::mark_all_notifications_as_read().await {
+        Ok(_) => (StatusCode::OK, Json(ApiResponse::success(true))),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiResponse::<bool>::error(e.to_string())),
+        ),
+    }
+}
+
+pub async fn delete_notification(Path(id): Path<i64>) -> impl IntoResponse {
+    match db::delete_notification(id).await {
+        Ok(_) => (StatusCode::OK, Json(ApiResponse::success(true))),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiResponse::<bool>::error(e.to_string())),
+        ),
+    }
+}
+
+#[derive(Debug, Serialize)]
+pub struct SubtitleSearchResponse {
+    pub text: String,
+    pub start_time: f64,
+    pub end_time: f64,
+    pub line_number: u32,
+}
+
+pub async fn get_unread_notification_count() -> impl IntoResponse {
+    match db::get_unread_notification_count().await {
+        Ok(count) => (StatusCode::OK, Json(ApiResponse::success(count))),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiResponse::<i64>::error(e.to_string())),
+        ),
+    }
+}
+
+// Metadata cache endpoints for offline support
+#[derive(Debug, Serialize)]
+pub struct CacheStatsResponse {
+    count: i64,
+    size: String,
+}
+
+pub async fn get_cache_stats() -> impl IntoResponse {
+    match db::get_cache_stats().await {
+        Ok((count, size)) => (
+            StatusCode::OK,
+            Json(ApiResponse::success(CacheStatsResponse { count, size })),
+        ),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiResponse::<CacheStatsResponse>::error(e.to_string())),
+        ),
+    }
+}
+
+pub async fn clear_cache() -> impl IntoResponse {
+    match db::clear_cache().await {
+        Ok(count) => (
+            StatusCode::OK,
+            Json(ApiResponse::success(serde_json::json!({ "deleted": count }))),
+        ),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiResponse::<serde_json::Value>::error(e.to_string())),
+        ),
+    }
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CacheCleanupRequest {
+    days: i32,
+}
+
+pub async fn cleanup_old_cache(Json(req): Json<CacheCleanupRequest>) -> impl IntoResponse {
+    match db::clear_old_cache(req.days).await {
+        Ok(count) => (
+            StatusCode::OK,
+            Json(ApiResponse::success(serde_json::json!({ "deleted": count }))),
+        ),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiResponse::<serde_json::Value>::error(e.to_string())),
+        ),
+    }
+}
+
+pub async fn get_cached_metadata(Path(video_id): Path<String>) -> impl IntoResponse {
+    match db::get_cached_metadata(&video_id).await {
+        Ok(Some(cache)) => (StatusCode::OK, Json(ApiResponse::success(cache))),
+        Ok(None) => (
+            StatusCode::NOT_FOUND,
+            Json(ApiResponse::<db::MetadataCache>::error("Not in cache".to_string())),
+        ),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiResponse::<db::MetadataCache>::error(e.to_string())),
+        ),
+    }
+}
+
+#[derive(Debug, Deserialize)]
+pub struct SubtitleSearchQuery {
+    q: String,
+}
+
+pub async fn search_subtitles(
+    Path(video_id): Path<String>,
+    Query(params): Query<SubtitleSearchQuery>,
+) -> impl IntoResponse {
+    if params.q.trim().is_empty() {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(ApiResponse::<Vec<SubtitleSearchResponse>>::error("Search query cannot be empty".to_string())),
+        );
+    }
+
+    match yt_dlp::search_subtitles(&video_id, &params.q).await {
+        Ok(results) => {
+            let response: Vec<SubtitleSearchResponse> = results
+                .into_iter()
+                .map(|r| SubtitleSearchResponse {
+                    text: r.text,
+                    start_time: r.start_time,
+                    end_time: r.end_time,
+                    line_number: r.line_number,
+                })
+                .collect();
+            (StatusCode::OK, Json(ApiResponse::success(response)))
+        }
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiResponse::<Vec<SubtitleSearchResponse>>::error(e.to_string())),
         ),
     }
 }

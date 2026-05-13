@@ -132,7 +132,7 @@ reqwest = { version = "0.11", features = ["json", "stream"] }
 sqlx = { version = "0.7", features = ["runtime-tokio-native-tls", "sqlite"] }
 axum = "0.7"
 tower = "0.4"
-tower-http = { version = "0.5", features = ["cors"] }
+tower-http = { version = "0.5", features = ["cors", "limit"] }
 anyhow = "1.0"
 tracing = "0.1"
 tracing-subscriber = "0.3"
@@ -202,6 +202,21 @@ impl<T: Serialize> ApiResponse<T> {
     }
 }
 
+// Fix LOW PRIORITY: Input validation helpers
+fn validate_video_id(id: &str) -> Result<(), String> {
+    if id.is_empty() || id.len() > 100 {
+        return Err("Invalid video ID length (must be 1-100 chars)".to_string());
+    }
+    if !id.chars().all(|c| c.is_alphanumeric() || c == '-' || c == '_') {
+        return Err("Invalid characters in video ID (only alphanumeric, -, _ allowed)".to_string());
+    }
+    Ok(())
+}
+
+fn validate_quality(quality: &str) -> bool {
+    matches!(quality, "best" | "worst" | "720p" | "480p" | "360p" | "1080p" | "audio")
+}
+
 pub async fn search(Query(params): Query<SearchQuery>) -> impl IntoResponse {
     match yt_dlp::search_videos(&params.q, params.limit).await {
         Ok(results) => (StatusCode::OK, Json(ApiResponse::success(results))),
@@ -228,6 +243,11 @@ pub async fn clear_search_cache() -> impl IntoResponse {
 }
 
 pub async fn get_video_info(Path(id): Path<String>) -> impl IntoResponse {
+    // Validate input
+    if let Err(e) = validate_video_id(&id) {
+        return (StatusCode::BAD_REQUEST, Json(ApiResponse::<yt_dlp::VideoInfo>::error(e)));
+    }
+    
     match yt_dlp::get_video_info(&id).await {
         Ok(info) => (StatusCode::OK, Json(ApiResponse::success(info))),
         Err(e) => (
@@ -264,6 +284,14 @@ pub struct VideoDetailsResponse {
 }
 
 pub async fn get_video_details(Path(id): Path<String>) -> impl IntoResponse {
+    // Validate input
+    if let Err(e) = validate_video_id(&id) {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(ApiResponse::<VideoDetailsResponse>::error(e)),
+        );
+    }
+    
     let info = match yt_dlp::get_video_info(&id).await {
         Ok(info) => info,
         Err(e) => {
@@ -277,10 +305,11 @@ pub async fn get_video_details(Path(id): Path<String>) -> impl IntoResponse {
     let dislike_data = returnyoutubedislike::get_dislikes(&id).await.ok();
     let comments = invidious::get_comments(&id).await.unwrap_or_default();
 
+    // Fix dislike count logic: use and_then for proper Option chaining
     let like_count = dislike_data
         .as_ref()
-        .map(|d| d.likes.max(0) as u64)
-        .or(info.like_count)
+        .and_then(|d| Some(d.likes.max(0) as u64))
+        .or_else(|| info.like_count)
         .unwrap_or(0);
 
     let dislike_count = dislike_data
@@ -302,13 +331,19 @@ pub async fn get_video_details(Path(id): Path<String>) -> impl IntoResponse {
         dislike_count,
         comments: comments
             .into_iter()
-            .map(|c| VideoDetailsCommentResponse {
-                user_id: c.author_id,
-                username: c.author,
-                avatar_url: c.author_avatar,
-                text: c.content,
-                timestamp: c.published_text,
-                like_count: c.like_count,
+            .map(|c| {
+                // Fix MEDIUM: Log incomplete comment data for debugging
+                if c.author.is_empty() || c.content.is_empty() {
+                    tracing::warn!("Incomplete comment data: author_id={}", c.author_id);
+                }
+                VideoDetailsCommentResponse {
+                    user_id: c.author_id,
+                    username: c.author,
+                    avatar_url: c.author_avatar,
+                    text: c.content,
+                    timestamp: c.published_text,
+                    like_count: c.like_count,
+                }
             })
             .collect(),
     };
@@ -330,6 +365,15 @@ pub async fn get_stream_url(
     Path(id): Path<String>,
     Query(params): Query<StreamQuery>,
 ) -> impl IntoResponse {
+    // Validate inputs
+    if let Err(e) = validate_video_id(&id) {
+        return (StatusCode::BAD_REQUEST, Json(ApiResponse::<yt_dlp::StreamUrl>::error(e)));
+    }
+    
+    if !validate_quality(&params.quality) {
+        tracing::warn!("Invalid quality requested: {}", params.quality);
+    }
+    
     match yt_dlp::get_stream_url(&id, &params.quality).await {
         Ok(stream) => (StatusCode::OK, Json(ApiResponse::success(stream))),
         Err(e) => (
@@ -419,27 +463,49 @@ pub async fn proxy_stream(
     // Convert response to stream
     let stream = response.bytes_stream();
     let stream = stream.map(|result| {
-        result.map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))
+        result.map_err(|e| {
+            // Fix MEDIUM: Add error context to stream errors
+            tracing::error!("Stream error during proxying: {}", e);
+            std::io::Error::new(std::io::ErrorKind::Other, e)
+        })
     });
 
     let body = Body::from_stream(stream);
 
     // Build response with proper headers
     let mut headers = HeaderMap::new();
-    headers.insert("content-type", HeaderValue::from_str(&content_type).unwrap());
+    
+    // Fix CRITICAL: Handle HeaderValue::from_str errors gracefully
+    if let Ok(ct) = HeaderValue::from_str(&content_type) {
+        headers.insert("content-type", ct);
+    } else {
+        tracing::warn!("Invalid content-type header: {}", content_type);
+    }
+    
     headers.insert("accept-ranges", HeaderValue::from_static("bytes"));
 
     if let Some(length) = content_length {
-        headers.insert("content-length", HeaderValue::from_str(&length.to_string()).unwrap());
+        if let Ok(cl) = HeaderValue::from_str(&length.to_string()) {
+            headers.insert("content-length", cl);
+        } else {
+            tracing::warn!("Invalid content-length header: {}", length);
+        }
     }
 
     if let Some(content_range) = content_range {
         if let Ok(value) = HeaderValue::from_str(&content_range) {
             headers.insert("content-range", value);
+        } else {
+            tracing::warn!("Invalid content-range header: {}", content_range);
         }
     }
 
-    let status = StatusCode::from_u16(upstream_status.as_u16()).unwrap_or(StatusCode::OK);
+    // Fix CRITICAL: Use BAD_GATEWAY instead of OK for invalid status codes
+    let status = StatusCode::from_u16(upstream_status.as_u16())
+        .unwrap_or_else(|_| {
+            tracing::error!("Invalid upstream status code: {}", upstream_status);
+            StatusCode::BAD_GATEWAY
+        });
     Ok((status, headers, body).into_response())
 }
 
@@ -635,6 +701,17 @@ pub struct UpdateDownloadProgressRequest {
 }
 
 pub async fn update_download_progress(Path(id): Path<i64>, Json(req): Json<UpdateDownloadProgressRequest>) -> impl IntoResponse {
+    // Fix HIGH: Validate progress and speed bounds
+    if !(0.0..=100.0).contains(&req.progress) {
+        return (StatusCode::BAD_REQUEST, Json(ApiResponse::<String>::error("Progress must be between 0 and 100".to_string())));
+    }
+    if req.speed < 0.0 {
+        return (StatusCode::BAD_REQUEST, Json(ApiResponse::<String>::error("Speed cannot be negative".to_string())));
+    }
+    if req.eta_seconds < 0 {
+        return (StatusCode::BAD_REQUEST, Json(ApiResponse::<String>::error("ETA seconds cannot be negative".to_string())));
+    }
+    
     match db::update_download_status(id, &req.status, req.progress, req.speed, req.eta_seconds).await {
         Ok(_) => (StatusCode::OK, Json(ApiResponse::success("Progress updated".to_string()))),
         Err(e) => (
@@ -804,15 +881,19 @@ pub async fn invidious_search(Query(params): Query<SearchQuery>) -> impl IntoRes
                     "channel": v.author,
                     "duration": v.length_seconds,
                     "view_count": v.view_count,
-                    "thumbnail": v.thumbnails.first().map(|t| &t.url).unwrap_or(&String::new()),
+                    "thumbnail": v.thumbnails.first().map(|t| &t.url).cloned().unwrap_or_default(),
                 })
             }).collect();
             (StatusCode::OK, Json(ApiResponse::success(results)))
         }
-        Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ApiResponse::<Vec<serde_json::Value>>::error(e.to_string())),
-        ),
+        Err(e) => {
+            // Fix MEDIUM: Add error logging for debugging
+            tracing::error!("Invidious search failed for '{}': {}", params.q, e);
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiResponse::<Vec<serde_json::Value>>::error(e.to_string())),
+            )
+        },
     }
 }
 
@@ -1146,7 +1227,10 @@ pub async fn init_db() -> Result<()> {
     .execute(&pool)
     .await?;
 
-    DB_POOL.set(pool).map_err(|_| anyhow::anyhow!("Failed to set DB pool"))?;
+    // Fix HIGH: Handle pool already being set gracefully
+    if DB_POOL.set(pool).is_err() {
+        tracing::warn!("DB pool already initialized, skipping reinit");
+    }
     Ok(())
 }
 
@@ -2141,6 +2225,7 @@ use axum::{
 };
 use std::net::SocketAddr;
 use tower_http::cors::CorsLayer;
+use tower_http::limit::RequestBodyLimitLayer;
 use tracing_subscriber;
 
 mod api;
@@ -2222,6 +2307,7 @@ async fn main() -> anyhow::Result<()> {
         .route("/playlists/:id/videos", post(api::add_video_to_playlist))
         .route("/playlists/:id/videos/remove", post(api::remove_video_from_playlist))
         .layer(CorsLayer::permissive())
+        .layer(RequestBodyLimitLayer::new(10 * 1024 * 1024)) // Fix LOW: 10MB request body limit
         .with_state(player);
 
     // Start server
@@ -3096,7 +3182,9 @@ async fn get_stream_url_ytdlp_command(video_id: &str, quality: &str) -> Result<S
         });
     }
 
-    Err(last_error.unwrap_or_else(|| anyhow::anyhow!("all yt-dlp attempts failed")))
+    Err(last_error.unwrap_or_else(|| {
+        anyhow::anyhow!("all yt-dlp stream URL attempts failed (no error context available)")
+    }))
 }
 
 /// Get stream URL using rusty_ytdl (fallback)
@@ -3307,7 +3395,9 @@ async fn download_video_with_ytdlp_command(
         return Ok(output_path.to_string());
     }
 
-    Err(last_error.unwrap_or_else(|| anyhow::anyhow!("all yt-dlp attempts failed")))
+    Err(last_error.unwrap_or_else(|| {
+        anyhow::anyhow!("all yt-dlp download attempts failed (no error context available)")
+    }))
 }
 
 async fn download_video_direct(
@@ -8081,68 +8171,8 @@ class VideoDetailsScreen extends ConsumerWidget {
                                 icon: Icons.download,
                                 label: 'Download',
                                 onTap: () async {
-                                  final api = ref.read(apiServiceProvider);
-                                  final quality = ref.read(preferredQualityProvider);
-                                  final audioOnly = quality == 'audio';
-                                  final folder = ref.read(downloadFolderProvider);
-                                  final outputPath = _buildOutputPath(
-                                    folder,
-                                    safeDetails,
-                                    audioOnly: audioOnly,
-                                  );
-                                  int? id;
-
-                                  try {
-                                    await File(outputPath).parent.create(recursive: true);
-
-                                    id = await api.createDownload(
-                                      video.id,
-                                      safeDetails.title,
-                                      outputPath,
-                                      quality,
-                                    );
-
-                                    if (id != null) {
-                                      await api.updateDownloadProgress(
-                                        id,
-                                        'downloading',
-                                        0.0,
-                                        0.0,
-                                        0,
-                                      );
-                                    }
-
-                                    await api.downloadVideo(
-                                      videoId: video.id,
-                                      outputPath: outputPath,
-                                      quality: quality,
-                                      audioOnly: audioOnly,
-                                    );
-
-                                    if (id != null) {
-                                      final fileSize = await File(outputPath)
-                                          .length()
-                                          .catchError((_) => 0);
-                                      await api.completeDownload(id, fileSize);
-                                    }
-
-                                    if (context.mounted) {
-                                      ScaffoldMessenger.of(context).showSnackBar(
-                                        SnackBar(content: Text('Download complete: $outputPath')),
-                                      );
-                                    }
-                                  } catch (e) {
-                                    if (id != null) {
-                                      await api.failDownload(id, e.toString());
-                                    }
-                                    if (context.mounted) {
-                                      ScaffoldMessenger.of(context).showSnackBar(
-                                        SnackBar(
-                                          content: Text('Download failed: $e'),
-                                          backgroundColor: Colors.red[700],
-                                        ),
-                                      );
-                                    }
+                                  if (context.mounted) {
+                                    await _showQualitySelectionDialog(context, ref, video, safeDetails);
                                   }
                                 },
                               ),
@@ -8219,6 +8249,249 @@ class VideoDetailsScreen extends ConsumerWidget {
     final ext = audioOnly ? '.m4a' : '.mp4';
     return '$basePath/$safeTitle$ext';
   }
+
+  Future<void> _showQualitySelectionDialog(
+    BuildContext context,
+    WidgetRef ref,
+    Video video,
+    VideoDetails details,
+  ) async {
+    final selectedQuality = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => _QualitySelectionDialog(
+        currentQuality: ref.read(preferredQualityProvider),
+      ),
+    );
+
+    if (selectedQuality != null && context.mounted) {
+      await _performDownload(
+        context,
+        ref,
+        video,
+        details,
+        selectedQuality,
+      );
+    }
+  }
+
+  Future<void> _performDownload(
+    BuildContext context,
+    WidgetRef ref,
+    Video video,
+    VideoDetails details,
+    String quality,
+  ) async {
+    final api = ref.read(apiServiceProvider);
+    final audioOnly = quality == 'audio';
+    final folder = ref.read(downloadFolderProvider);
+    final outputPath = _buildOutputPath(
+      folder,
+      details,
+      audioOnly: audioOnly,
+    );
+    int? id;
+
+    try {
+      await File(outputPath).parent.create(recursive: true);
+
+      id = await api.createDownload(
+        video.id,
+        details.title,
+        outputPath,
+        quality,
+      );
+
+      if (id != null) {
+        await api.updateDownloadProgress(
+          id,
+          'downloading',
+          0.0,
+          0.0,
+          0,
+        );
+      }
+
+      await api.downloadVideo(
+        videoId: video.id,
+        outputPath: outputPath,
+        quality: quality,
+        audioOnly: audioOnly,
+      );
+
+      if (id != null) {
+        final fileSize = await File(outputPath)
+            .length()
+            .catchError((_) => 0);
+        await api.completeDownload(id, fileSize);
+      }
+
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Download complete: $outputPath')),
+        );
+      }
+    } catch (e) {
+      if (id != null) {
+        await api.failDownload(id, e.toString());
+      }
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Download failed: $e'),
+            backgroundColor: Colors.red[700],
+          ),
+        );
+      }
+    }
+  }
+
+}
+
+class _QualitySelectionDialog extends StatefulWidget {
+  final String currentQuality;
+
+  const _QualitySelectionDialog({required this.currentQuality});
+
+  @override
+  State<_QualitySelectionDialog> createState() => _QualitySelectionDialogState();
+}
+
+class _QualitySelectionDialogState extends State<_QualitySelectionDialog> {
+  late String _selectedQuality;
+
+  static const List<QualityOption> qualityOptions = [
+    QualityOption('best', 'Best (Auto)', Icons.auto_awesome, true),
+    QualityOption('1080p', '1080p (Full HD)', Icons.high_quality, false),
+    QualityOption('720p', '720p (HD)', Icons.high_quality, false),
+    QualityOption('480p', '480p (SD)', Icons.high_quality, false),
+    QualityOption('360p', '360p (Low)', Icons.high_quality, false),
+    QualityOption('audio', 'Audio Only', Icons.headphones, false),
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedQuality = widget.currentQuality;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Row(
+        children: [
+          Icon(Icons.file_download, color: Colors.red),
+          SizedBox(width: 8),
+          Text('Select Download Quality'),
+        ],
+      ),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ...qualityOptions.map((option) {
+              final isSelected = _selectedQuality == option.value;
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: () {
+                      setState(() => _selectedQuality = option.value);
+                    },
+                    borderRadius: BorderRadius.circular(8),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 10,
+                      ),
+                      decoration: BoxDecoration(
+                        border: Border.all(
+                          color: isSelected
+                              ? Colors.red[700]!
+                              : Colors.grey[600]!,
+                          width: isSelected ? 2 : 1,
+                        ),
+                        borderRadius: BorderRadius.circular(8),
+                        color: isSelected
+                            ? Colors.red[700]!.withValues(alpha: 0.1)
+                            : Colors.transparent,
+                      ),
+                      child: Row(
+                        children: [
+                          if (isSelected)
+                            Padding(
+                              padding: const EdgeInsets.only(right: 8),
+                              child: Icon(
+                                Icons.check_circle,
+                                color: Colors.red[700],
+                                size: 22,
+                              ),
+                            )
+                          else
+                            const SizedBox(width: 22 + 8),
+                          Icon(option.icon, size: 20),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  option.label,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                                if (option.isRecommended)
+                                  const Padding(
+                                    padding: EdgeInsets.only(top: 2),
+                                    child: Text(
+                                      'Recommended',
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        color: Colors.green,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            }).toList(),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        FilledButton.tonal(
+          onPressed: () => Navigator.pop(context, _selectedQuality),
+          child: const Text('Download'),
+        ),
+      ],
+    );
+  }
+}
+
+class QualityOption {
+  final String value;
+  final String label;
+  final IconData icon;
+  final bool isRecommended;
+
+  const QualityOption(
+    this.value,
+    this.label,
+    this.icon,
+    this.isRecommended,
+  );
 }
 
 ```

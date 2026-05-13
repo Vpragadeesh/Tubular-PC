@@ -3,7 +3,12 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:file_picker/file_picker.dart';
 import '../providers.dart';
+import 'keyboard_shortcuts_screen.dart';
+import 'theme_customization_screen.dart';
+import '../widgets/cloud_sync_dialog.dart';
+import '../widgets/screen_sharing_dialog.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({Key? key}) : super(key: key);
@@ -144,7 +149,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           t == 'light' ? ThemeMode.light : (t == 'system' ? ThemeMode.system : ThemeMode.dark);
     }
     if (settings.containsKey('amoled_dark')) {
-      ref.read(amoledDarkProvider.notifier).state = settings['amoled_dark'] == 'true';
+      final currentTheme = ref.read(customThemeProvider);
+      ref.read(customThemeProvider.notifier).state = currentTheme.copyWith(
+        isAmoled: settings['amoled_dark'] == 'true',
+      );
     }
     if (settings.containsKey('preferred_quality')) {
       ref.read(preferredQualityProvider.notifier).state = settings['preferred_quality']!;
@@ -180,6 +188,27 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     if (settings.containsKey('playback_speed')) {
       final v = double.tryParse(settings['playback_speed'] ?? '1.0') ?? 1.0;
       ref.read(playbackSpeedProvider.notifier).state = v;
+    }
+    if (settings.containsKey('save_watch_history')) {
+      ref.read(saveWatchHistoryProvider.notifier).state = settings['save_watch_history'] == 'true';
+    }
+    if (settings.containsKey('save_search_history')) {
+      ref.read(saveSearchHistoryProvider.notifier).state = settings['save_search_history'] == 'true';
+    }
+    if (settings.containsKey('track_usage')) {
+      ref.read(trackUsageProvider.notifier).state = settings['track_usage'] == 'true';
+    }
+    if (settings.containsKey('send_crash_reports')) {
+      ref.read(sendCrashReportsProvider.notifier).state = settings['send_crash_reports'] == 'true';
+    }
+    if (settings.containsKey('auto_download_quality')) {
+      ref.read(autoDownloadQualityProvider.notifier).state = settings['auto_download_quality']!;
+    }
+    if (settings.containsKey('resume_incomplete_downloads')) {
+      ref.read(resumeIncompleteDownloadsProvider.notifier).state = settings['resume_incomplete_downloads'] == 'true';
+    }
+    if (settings.containsKey('delete_source_after_download')) {
+      ref.read(deleteSourceAfterDownloadProvider.notifier).state = settings['delete_source_after_download'] == 'true';
     }
   }
 
@@ -239,7 +268,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   @override
   Widget build(BuildContext context) {
     final themeMode = ref.watch(themeModeProvider);
-    final amoledDark = ref.watch(amoledDarkProvider);
+    final customTheme = ref.watch(customThemeProvider);
+    final amoledDark = customTheme.isAmoled;
     final preferredQuality = ref.watch(preferredQualityProvider);
     final preferredFormat = ref.watch(preferredFormatProvider);
     final audioOnly = ref.watch(audioOnlyModeProvider);
@@ -251,6 +281,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final dislikeCounts = ref.watch(enableDislikeCountsProvider);
     final subtitles = ref.watch(enableSubtitlesProvider);
     final notifications = ref.watch(enableNotificationsProvider);
+    final saveWatchHistory = ref.watch(saveWatchHistoryProvider);
+    final saveSearchHistory = ref.watch(saveSearchHistoryProvider);
+    final trackUsage = ref.watch(trackUsageProvider);
+    final sendCrashReports = ref.watch(sendCrashReportsProvider);
+    final autoDownloadQuality = ref.watch(autoDownloadQualityProvider);
+    final resumeIncompleteDownloads = ref.watch(resumeIncompleteDownloadsProvider);
+    final deleteSourceAfterDownload = ref.watch(deleteSourceAfterDownloadProvider);
 
     return Scaffold(
       appBar: AppBar(
@@ -286,12 +323,26 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 },
               ),
               const Divider(height: 1),
+              ListTile(
+                title: const Text('Customize Theme'),
+                subtitle: const Text('Choose colors, presets, and AMOLED mode'),
+                trailing: const Icon(Icons.color_lens),
+                onTap: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => const ThemeCustomizationScreen(),
+                    ),
+                  );
+                },
+              ),
+              const Divider(height: 1),
               _buildSwitchTile(
                 'AMOLED Dark',
                 'Use pure black surfaces in dark theme',
                 amoledDark,
                 (value) {
-                  ref.read(amoledDarkProvider.notifier).state = value;
+                  final updatedTheme = customTheme.copyWith(isAmoled: value);
+                  ref.read(customThemeProvider.notifier).state = updatedTheme;
                   _saveSetting('amoled_dark', value.toString());
                 },
               ),
@@ -460,6 +511,18 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 trailing: const Icon(Icons.download_for_offline),
                 onTap: _importSettingsConfig,
               ),
+              const Divider(height: 1),
+              ListTile(
+                title: const Text('Keyboard Shortcuts'),
+                subtitle: const Text('View keyboard shortcuts (Press H in app)'),
+                trailing: const Icon(Icons.keyboard),
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const KeyboardShortcutsScreen()),
+                  );
+                },
+              ),
             ],
           ),
           const SizedBox(height: 12),
@@ -472,14 +535,71 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 title: const Text('Download Folder'),
                 subtitle: Text(downloadFolder),
                 trailing: const Icon(Icons.folder_open),
-                onTap: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Folder picker coming soon')),
-                  );
+                onTap: () async {
+                  final selectedDirectory = await FilePicker.platform.getDirectoryPath();
+                  if (selectedDirectory != null) {
+                    ref.read(downloadFolderProvider.notifier).state = selectedDirectory;
+                    _saveSetting('download_folder', selectedDirectory);
+                    
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Download folder set to: $selectedDirectory'),
+                          duration: const Duration(seconds: 2),
+                          backgroundColor: Colors.green[700],
+                        ),
+                      );
+                    }
+                  }
+                },
+              ),
+              const Divider(height: 1),
+              _buildDropdownTile(
+                context,
+                'Auto-Download Quality',
+                autoDownloadQuality,
+                autoDownloadQuality,
+                items: const [
+                  DropdownMenuItem(value: 'best', child: Text('Best Available')),
+                  DropdownMenuItem(value: '1080p', child: Text('1080p')),
+                  DropdownMenuItem(value: '720p', child: Text('720p')),
+                  DropdownMenuItem(value: '480p', child: Text('480p')),
+                  DropdownMenuItem(value: 'audio', child: Text('Audio Only')),
+                ],
+                onChanged: (value) {
+                  if (value != null) {
+                    ref.read(autoDownloadQualityProvider.notifier).state = value;
+                    _saveSetting('auto_download_quality', value);
+                  }
+                },
+              ),
+              const Divider(height: 1),
+              _buildSwitchTile(
+                'Resume Incomplete',
+                'Resume partial downloads',
+                resumeIncompleteDownloads,
+                (value) {
+                  ref.read(resumeIncompleteDownloadsProvider.notifier).state = value;
+                  _saveSetting('resume_incomplete_downloads', value.toString());
+                },
+              ),
+              const Divider(height: 1),
+              _buildSwitchTile(
+                'Delete Source After Download',
+                'Remove video from history after downloading',
+                deleteSourceAfterDownload,
+                (value) {
+                  ref.read(deleteSourceAfterDownloadProvider.notifier).state = value;
+                  _saveSetting('delete_source_after_download', value.toString());
                 },
               ),
             ],
           ),
+          const SizedBox(height: 12),
+
+          // =========== CACHE MANAGEMENT ===========
+          _buildSectionHeader(context, 'Storage & Cache', Icons.storage),
+          _buildCacheSectionCard(),
           const SizedBox(height: 12),
 
           // =========== PRIVACY & NOTIFICATIONS ===========
@@ -487,11 +607,42 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           _buildSectionCard(
             children: [
               _buildSwitchTile(
+                'Save Watch History',
+                'Keep track of watched videos',
+                saveWatchHistory,
+                (value) {
+                  ref.read(saveWatchHistoryProvider.notifier).state = value;
+                  _saveSetting('save_watch_history', value.toString());
+                },
+              ),
+              const Divider(height: 1),
+              _buildSwitchTile(
+                'Save Search History',
+                'Keep track of searches',
+                saveSearchHistory,
+                (value) {
+                  ref.read(saveSearchHistoryProvider.notifier).state = value;
+                  _saveSetting('save_search_history', value.toString());
+                },
+              ),
+              const Divider(height: 1),
+              _buildSwitchTile(
                 'Notifications',
                 'Show download and update notifications',
                 notifications,
                 (value) {
                   ref.read(enableNotificationsProvider.notifier).state = value;
+                  _saveSetting('enable_notifications', value.toString());
+                },
+              ),
+              const Divider(height: 1),
+              _buildSwitchTile(
+                'Send Crash Reports',
+                'Help improve the app by sending crash data',
+                sendCrashReports,
+                (value) {
+                  ref.read(sendCrashReportsProvider.notifier).state = value;
+                  _saveSetting('send_crash_reports', value.toString());
                 },
               ),
               const Divider(height: 1),
@@ -556,6 +707,48 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 onTap: () {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(content: Text('Opening issue tracker')),
+                  );
+                },
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+
+          // =========== DESKTOP FEATURES ===========
+          _buildSectionHeader(context, 'Desktop Features', Icons.desktop_mac),
+          _buildSectionCard(
+            children: [
+              ListTile(
+                title: const Text('Screen Recording'),
+                subtitle: const Text('Record video playback with audio'),
+                trailing: const Icon(Icons.fiber_manual_record_outlined),
+                onTap: () {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Enable recording in player')),
+                  );
+                },
+              ),
+              const Divider(height: 1),
+              ListTile(
+                title: const Text('Screen Sharing'),
+                subtitle: const Text('Stream to Discord, OBS, or Twitch'),
+                trailing: const Icon(Icons.screen_share),
+                onTap: () {
+                  showDialog(
+                    context: context,
+                    builder: (context) => const ScreenSharingDialog(),
+                  );
+                },
+              ),
+              const Divider(height: 1),
+              ListTile(
+                title: const Text('Cloud Sync'),
+                subtitle: const Text('Backup subscriptions and playlists'),
+                trailing: const Icon(Icons.cloud_sync),
+                onTap: () {
+                  showDialog(
+                    context: context,
+                    builder: (context) => const CloudSyncDialog(),
                   );
                 },
               ),
@@ -649,6 +842,112 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       value: value,
       onChanged: onChanged,
       activeColor: Colors.red[700],
+    );
+  }
+
+  Widget _buildCacheSectionCard() {
+    return _buildSectionCard(
+      children: [
+        ListTile(
+          title: const Text('Cache Statistics'),
+          subtitle: const Text('Tap to view cache size and count'),
+          trailing: const Icon(Icons.info),
+          onTap: () async {
+            final api = ref.read(apiServiceProvider);
+            final result = await api.getCacheStats();
+            
+            if (mounted) {
+              showDialog(
+                context: context,
+                builder: (context) => AlertDialog(
+                  title: const Text('Cache Statistics'),
+                  content: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'Videos Cached: ${result.data?['count'] ?? 'Unknown'}',
+                        style: const TextStyle(fontSize: 14),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Cache Size: ${result.data?['size'] ?? 'Unknown'}',
+                        style: const TextStyle(fontSize: 14),
+                      ),
+                    ],
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text('Close'),
+                    ),
+                  ],
+                ),
+              );
+            }
+          },
+        ),
+        const Divider(height: 1),
+        ListTile(
+          title: const Text('Clear Cache'),
+          subtitle: const Text('Delete all cached metadata'),
+          trailing: const Icon(Icons.delete),
+          onTap: () {
+            showDialog(
+              context: context,
+              builder: (context) => AlertDialog(
+                title: const Text('Clear Cache'),
+                content: const Text('Are you sure you want to delete all cached metadata?'),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('Cancel'),
+                  ),
+                  TextButton(
+                    onPressed: () async {
+                      final api = ref.read(apiServiceProvider);
+                      await api.clearCache();
+                      
+                      if (mounted) {
+                        Navigator.pop(context);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Cache cleared'),
+                            duration: Duration(seconds: 2),
+                            backgroundColor: Colors.green,
+                          ),
+                        );
+                      }
+                    },
+                    child: const Text('Delete'),
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
+        const Divider(height: 1),
+        ListTile(
+          title: const Text('Cleanup Old Cache'),
+          subtitle: const Text('Delete cache older than 30 days'),
+          trailing: const Icon(Icons.cleaning_services),
+          onTap: () async {
+            final api = ref.read(apiServiceProvider);
+            final result = await api.cleanupOldCache(30);
+            
+            if (mounted) {
+              final deleted = result.data?['deleted'] ?? 0;
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Deleted $deleted old cache entries'),
+                  duration: const Duration(seconds: 2),
+                  backgroundColor: Colors.blue[700],
+                ),
+              );
+            }
+          },
+        ),
+      ],
     );
   }
 }

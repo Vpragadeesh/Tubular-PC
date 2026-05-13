@@ -6,10 +6,12 @@ import '../models/video.dart';
 import '../services/api_service.dart';
 import '../providers.dart';
 import '../widgets/video_card.dart';
+import '../widgets/search_filters.dart';
 import 'video_details_screen.dart';
 import '../widgets/error_widget.dart';
 
 final searchQueryProvider = StateProvider<String>((ref) => '');
+final searchPageProvider = StateProvider<int>((ref) => 1); // Pagination: current page
 
 /// Track if backend is warmed up (yt-dlp cache initialized)
 final backendWarmupProvider = FutureProvider<bool>((ref) async {
@@ -28,6 +30,7 @@ final searchResultsProvider = FutureProvider.autoDispose<ApiResult<List<Video>>>
   ref,
 ) async {
   final query = ref.watch(searchQueryProvider);
+  final page = ref.watch(searchPageProvider); // Watch page changes
   if (query.isEmpty) {
     return (
       success: true,
@@ -37,8 +40,18 @@ final searchResultsProvider = FutureProvider.autoDispose<ApiResult<List<Video>>>
     );
   }
 
+  final sort = ref.watch(searchSortProvider);
+  final duration = ref.watch(searchDurationProvider);
+  final uploadDate = ref.watch(searchUploadDateProvider);
+
   final apiService = ref.watch(apiServiceProvider);
-  return await apiService.searchVideos(query);
+  return await apiService.searchVideos(
+    query,
+    sort: sort,
+    duration: duration,
+    uploadDate: uploadDate,
+    page: page, // Pass page number
+  );
 });
 
 class HomeScreen extends ConsumerStatefulWidget {
@@ -71,6 +84,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final query = _searchController.text.trim();
     if (query.isNotEmpty && query != _lastSearchQuery) {
       _lastSearchQuery = query;
+      ref.read(searchPageProvider.notifier).state = 1; // Reset to page 1 on new search
       ref.read(searchQueryProvider.notifier).state = query;
     }
   }
@@ -78,6 +92,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   void _clearSearch() {
     _searchController.clear();
     _lastSearchQuery = '';
+    ref.read(searchPageProvider.notifier).state = 1; // Reset page
     ref.read(searchQueryProvider.notifier).state = '';
   }
 
@@ -127,50 +142,55 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         backgroundColor: Colors.red[700],
         foregroundColor: Colors.white,
         bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(70),
-          child: Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _searchController,
-                    style: const TextStyle(color: Colors.black),
-                    decoration: InputDecoration(
-                      hintText: 'Search videos...',
-                      hintStyle: TextStyle(color: Colors.grey[600]),
-                      filled: true,
-                      fillColor: Colors.white,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                        borderSide: BorderSide.none,
-                      ),
-                      prefixIcon: const Icon(Icons.search, color: Colors.grey),
-                      suffixIcon: IconButton(
-                        icon: const Icon(Icons.clear, color: Colors.grey),
-                        onPressed: _clearSearch,
-                        tooltip: 'Clear',
-                      ),
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 12,
+          preferredSize: const Size.fromHeight(120),
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(8.0),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _searchController,
+                        style: const TextStyle(color: Colors.black),
+                        decoration: InputDecoration(
+                          hintText: 'Search videos...',
+                          hintStyle: TextStyle(color: Colors.grey[600]),
+                          filled: true,
+                          fillColor: Colors.white,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: BorderSide.none,
+                          ),
+                          prefixIcon: const Icon(Icons.search, color: Colors.grey),
+                          suffixIcon: IconButton(
+                            icon: const Icon(Icons.clear, color: Colors.grey),
+                            onPressed: _clearSearch,
+                            tooltip: 'Clear',
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                          ),
+                        ),
+                        onSubmitted: (_) => _performSearch(),
                       ),
                     ),
-                    onSubmitted: (_) => _performSearch(),
-                  ),
+                    const SizedBox(width: 8),
+                    ElevatedButton.icon(
+                      onPressed: _performSearch,
+                      icon: const Icon(Icons.search),
+                      label: const Text('Search'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.red[600],
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 8),
-                ElevatedButton.icon(
-                  onPressed: _performSearch,
-                  icon: const Icon(Icons.search),
-                  label: const Text('Search'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.red[600],
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                  ),
-                ),
-              ],
-            ),
+              ),
+              const SearchFiltersWidget(),
+            ],
           ),
         ),
       ),
@@ -199,8 +219,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             mainAxisSpacing: 8,
             crossAxisSpacing: 8,
             padding: const EdgeInsets.all(8),
-            itemCount: videos.length,
+            itemCount: videos.length + 1, // +1 for load more button
             itemBuilder: (context, index) {
+              // Last item is "Load More" button
+              if (index == videos.length) {
+                return _buildLoadMoreButton();
+              }
+              
               final video = videos[index];
               return VideoCard(
                 video: video,
@@ -488,6 +513,32 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildLoadMoreButton() {
+    return Consumer(
+      builder: (context, ref, child) {
+        final currentPage = ref.watch(searchPageProvider);
+        
+        return Padding(
+          padding: const EdgeInsets.all(16),
+          child: ElevatedButton.icon(
+            onPressed: () {
+              // Increment page and fetch next results
+              ref.read(searchPageProvider.notifier).state = currentPage + 1;
+            },
+            icon: const Icon(Icons.expand_more),
+            label: const Text('Load More Videos'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red[700],
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+              minimumSize: const Size(double.infinity, 50),
+            ),
+          ),
+        );
+      },
     );
   }
 }

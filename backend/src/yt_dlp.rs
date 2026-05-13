@@ -58,6 +58,348 @@ pub struct StreamUrl {
     pub quality: String,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct SubtitleTrack {
+    pub language: String,
+    pub language_name: String,
+    pub url: String,
+    pub ext: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct Chapter {
+    pub title: String,
+    pub start_time: u64,  // in seconds
+    pub end_time: Option<u64>,
+    pub thumbnail: Option<String>,
+}
+
+/// Get available subtitles for a video using yt-dlp JSON metadata
+pub async fn get_subtitles(video_id: &str) -> Result<Vec<SubtitleTrack>> {
+    use tokio::process::Command;
+
+    let url = format!("https://www.youtube.com/watch?v={}", video_id);
+
+    tracing::info!("📝 Fetching subtitles for: {}", video_id);
+
+    let mut cmd = Command::new("yt-dlp");
+    cmd.arg("--no-warnings")
+        .arg("--no-playlist")
+        .arg("--skip-download")
+        .arg("-j")  // dump JSON metadata
+        .arg(&url);
+
+    let output = cmd.output().await
+        .map_err(|e| anyhow::anyhow!("Failed to execute yt-dlp for subtitles: {}", e))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(anyhow::anyhow!("yt-dlp subtitle fetch failed: {}", stderr));
+    }
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let json: serde_json::Value = serde_json::from_str(&stdout)
+        .map_err(|e| anyhow::anyhow!("Failed to parse yt-dlp JSON: {}", e))?;
+
+    let mut tracks = Vec::new();
+
+    // Parse "subtitles" (manually uploaded captions)
+    if let Some(subs) = json.get("subtitles").and_then(|s| s.as_object()) {
+        for (lang, entries) in subs {
+            if let Some(arr) = entries.as_array() {
+                // Prefer vtt format, fallback to first available
+                let vtt_entry = arr.iter().find(|e| {
+                    e.get("ext").and_then(|v| v.as_str()) == Some("vtt")
+                });
+                let entry = vtt_entry.or_else(|| arr.first());
+
+                if let Some(entry) = entry {
+                    if let Some(url) = entry.get("url").and_then(|u| u.as_str()) {
+                        let ext = entry.get("ext").and_then(|v| v.as_str()).unwrap_or("vtt");
+                        let lang_name = entry.get("name").and_then(|v| v.as_str()).unwrap_or(lang.as_str());
+                        tracks.push(SubtitleTrack {
+                            language: lang.clone(),
+                            language_name: lang_name.to_string(),
+                            url: url.to_string(),
+                            ext: ext.to_string(),
+                        });
+                    }
+                }
+            }
+        }
+    }
+
+    // Parse "automatic_captions" (auto-generated)
+    if let Some(auto_caps) = json.get("automatic_captions").and_then(|s| s.as_object()) {
+        // Only include auto captions for common languages to avoid hundreds of entries
+        let common_langs = ["en", "es", "fr", "de", "pt", "ja", "ko", "zh", "hi", "ar", "ru", "it"];
+        for (lang, entries) in auto_caps {
+            if !common_langs.contains(&lang.as_str()) {
+                continue;
+            }
+            // Skip if we already have a manual subtitle for this language
+            if tracks.iter().any(|t| t.language == *lang) {
+                continue;
+            }
+            if let Some(arr) = entries.as_array() {
+                let vtt_entry = arr.iter().find(|e| {
+                    e.get("ext").and_then(|v| v.as_str()) == Some("vtt")
+                });
+                let entry = vtt_entry.or_else(|| arr.first());
+
+                if let Some(entry) = entry {
+                    if let Some(url) = entry.get("url").and_then(|u| u.as_str()) {
+                        let ext = entry.get("ext").and_then(|v| v.as_str()).unwrap_or("vtt");
+                        let lang_name = entry.get("name").and_then(|v| v.as_str())
+                            .map(|n| format!("{} (auto)", n))
+                            .unwrap_or_else(|| format!("{} (auto)", lang));
+                        tracks.push(SubtitleTrack {
+                            language: lang.clone(),
+                            language_name: lang_name,
+                            url: url.to_string(),
+                            ext: ext.to_string(),
+                        });
+                    }
+                }
+            }
+        }
+    }
+
+    tracing::info!("📝 Found {} subtitle tracks for {}", tracks.len(), video_id);
+    Ok(tracks)
+}
+
+/// Get video chapters using yt-dlp JSON metadata
+pub async fn get_chapters(video_id: &str) -> Result<Vec<Chapter>> {
+    use tokio::process::Command;
+
+    let url = format!("https://www.youtube.com/watch?v={}", video_id);
+
+    tracing::info!("📚 Fetching chapters for: {}", video_id);
+
+    let mut cmd = Command::new("yt-dlp");
+    cmd.arg("--no-warnings")
+        .arg("--no-playlist")
+        .arg("--skip-download")
+        .arg("-j")  // dump JSON metadata
+        .arg(&url);
+
+    let output = cmd.output().await
+        .map_err(|e| anyhow::anyhow!("Failed to execute yt-dlp for chapters: {}", e))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(anyhow::anyhow!("yt-dlp chapter fetch failed: {}", stderr));
+    }
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let json: serde_json::Value = serde_json::from_str(&stdout)
+        .map_err(|e| anyhow::anyhow!("Failed to parse yt-dlp JSON: {}", e))?;
+
+    let mut chapters = Vec::new();
+
+    // Extract chapters from JSON
+    if let Some(chapters_arr) = json.get("chapters").and_then(|c| c.as_array()) {
+        for chapter in chapters_arr {
+            if let Some(title) = chapter.get("title").and_then(|t| t.as_str()) {
+                if let Some(start_time) = chapter.get("start_time").and_then(|t| t.as_u64()) {
+                    let end_time = chapter.get("end_time").and_then(|t| t.as_u64());
+                    let thumbnail = chapter.get("image").and_then(|i| i.as_str()).map(|s| s.to_string());
+                    
+                    chapters.push(Chapter {
+                        title: title.to_string(),
+                        start_time,
+                        end_time,
+                        thumbnail,
+                    });
+                }
+            }
+        }
+    }
+
+    tracing::info!("📚 Found {} chapters for {}", chapters.len(), video_id);
+    Ok(chapters)
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct SubtitleSearchResult {
+    pub text: String,
+    pub start_time: f64,  // in seconds
+    pub end_time: f64,
+    pub line_number: u32,
+}
+
+/// Search within subtitle text for a query string
+pub async fn search_subtitles(video_id: &str, query: &str) -> Result<Vec<SubtitleSearchResult>> {
+    use tokio::process::Command;
+
+    if query.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let url = format!("https://www.youtube.com/watch?v={}", video_id);
+    let query_lower = query.to_lowercase();
+
+    tracing::info!("🔍 Searching subtitles for: {} in {}", query, video_id);
+
+    let mut cmd = Command::new("yt-dlp");
+    cmd.arg("--no-warnings")
+        .arg("--no-playlist")
+        .arg("--skip-download")
+        .arg("-j")  // dump JSON metadata
+        .arg(&url);
+
+    let output = cmd.output().await
+        .map_err(|e| anyhow::anyhow!("Failed to execute yt-dlp for subtitle search: {}", e))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(anyhow::anyhow!("yt-dlp subtitle search failed: {}", stderr));
+    }
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let json: serde_json::Value = serde_json::from_str(&stdout)
+        .map_err(|e| anyhow::anyhow!("Failed to parse yt-dlp JSON: {}", e))?;
+
+    let mut results = Vec::new();
+    let mut used_language: Option<String> = None;
+
+    // Try to get English subtitles first, fallback to first available
+    if let Some(subs) = json.get("subtitles").and_then(|s| s.as_object()) {
+        // Prefer English
+        let lang = if subs.contains_key("en") {
+            "en"
+        } else if let Some(first_lang) = subs.keys().next() {
+            first_lang.as_str()
+        } else {
+            return Ok(Vec::new());
+        };
+
+        used_language = Some(lang.to_string());
+
+        if let Some(entries) = subs.get(lang).and_then(|e| e.as_array()) {
+            if let Some(entry) = entries.iter().find(|e| e.get("ext").and_then(|v| v.as_str()) == Some("vtt"))
+                .or_else(|| entries.first()) {
+                if let Some(url) = entry.get("url").and_then(|u| u.as_str()) {
+                    if let Ok(subtitle_text) = fetch_subtitle_file(url).await {
+                        results = search_vtt_content(&subtitle_text, &query_lower)?;
+                    }
+                }
+            }
+        }
+    }
+
+    // Fallback to auto-generated captions if no manual subtitles
+    if results.is_empty() {
+        if let Some(auto_caps) = json.get("automatic_captions").and_then(|s| s.as_object()) {
+            if let Some(entries) = auto_caps.get("en").and_then(|e| e.as_array()) {
+                if let Some(entry) = entries.iter().find(|e| e.get("ext").and_then(|v| v.as_str()) == Some("vtt"))
+                    .or_else(|| entries.first()) {
+                    if let Some(url) = entry.get("url").and_then(|u| u.as_str()) {
+                        if let Ok(subtitle_text) = fetch_subtitle_file(url).await {
+                            results = search_vtt_content(&subtitle_text, &query_lower)?;
+                            used_language = Some("en (auto)".to_string());
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    tracing::info!("🔍 Found {} matches in subtitles{}",
+        results.len(),
+        used_language.map(|l| format!(" (language: {})", l)).unwrap_or_default()
+    );
+
+    Ok(results)
+}
+
+/// Fetch VTT subtitle file from URL
+async fn fetch_subtitle_file(url: &str) -> Result<String> {
+    let client = reqwest::Client::new();
+    let text = client.get(url)
+        .timeout(std::time::Duration::from_secs(30))
+        .send()
+        .await
+        .map_err(|e| anyhow::anyhow!("Failed to fetch subtitle file: {}", e))?
+        .text()
+        .await
+        .map_err(|e| anyhow::anyhow!("Failed to read subtitle content: {}", e))?;
+
+    Ok(text)
+}
+
+/// Parse VTT format and search for query
+fn search_vtt_content(content: &str, query_lower: &str) -> Result<Vec<SubtitleSearchResult>> {
+    let mut results = Vec::new();
+    let mut current_line_num = 0;
+
+    let lines: Vec<&str> = content.lines().collect();
+    let mut i = 0;
+
+    while i < lines.len() {
+        let line = lines[i].trim();
+
+        // VTT timestamp format: 00:00:00.000 --> 00:00:05.000
+        if line.contains("-->") {
+            let timestamp_parts: Vec<&str> = line.split("-->").collect();
+            if timestamp_parts.len() == 2 {
+                if let (Ok(start), Ok(end)) = (
+                    parse_vtt_timestamp(timestamp_parts[0].trim()),
+                    parse_vtt_timestamp(timestamp_parts[1].trim()),
+                ) {
+                    // Collect text lines until next timestamp or empty line
+                    let mut text_lines = Vec::new();
+                    i += 1;
+                    while i < lines.len() {
+                        let text_line = lines[i].trim();
+                        if text_line.is_empty() || text_line.contains("-->") {
+                            break;
+                        }
+                        if !text_line.starts_with("WEBVTT") && !text_line.starts_with("NOTE") {
+                            text_lines.push(text_line);
+                        }
+                        i += 1;
+                    }
+
+                    let text = text_lines.join(" ");
+                    let text_lower = text.to_lowercase();
+
+                    // Check if query matches
+                    if text_lower.contains(query_lower) {
+                        current_line_num += 1;
+                        results.push(SubtitleSearchResult {
+                            text,
+                            start_time: start,
+                            end_time: end,
+                            line_number: current_line_num,
+                        });
+                    }
+                    continue;
+                }
+            }
+        }
+
+        i += 1;
+    }
+
+    Ok(results)
+}
+
+/// Parse VTT timestamp format: HH:MM:SS.mmm
+fn parse_vtt_timestamp(timestamp: &str) -> Result<f64> {
+    let parts: Vec<&str> = timestamp.split(':').collect();
+    if parts.len() != 3 {
+        return Err(anyhow::anyhow!("Invalid timestamp format: {}", timestamp));
+    }
+
+    let hours = parts[0].parse::<f64>().unwrap_or(0.0);
+    let minutes = parts[1].parse::<f64>().unwrap_or(0.0);
+    let seconds = parts[2].parse::<f64>().unwrap_or(0.0);
+
+    Ok(hours * 3600.0 + minutes * 60.0 + seconds)
+}
+
 /// Search for videos using rusty_ytdl
 pub async fn search_videos(query: &str, limit: u32) -> Result<Vec<SearchResult>> {
     let cache_key = format!("{}:{}", query, limit);

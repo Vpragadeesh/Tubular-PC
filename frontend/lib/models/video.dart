@@ -37,16 +37,16 @@ class Video {
   Video({
     required this.id,
     required this.title,
-    required this.channelName,
-    required this.channelId,
-    required this.thumbnail,
-    required this.duration,
-    required this.views,
-    required this.uploadDate,
-    required this.description,
-    required this.likes,
-    required this.dislikes,
-  });
+    this.channelName = 'Unknown',
+    this.channelId = '',
+    this.thumbnail = '',
+    this.duration = Duration.zero,
+    this.views = 0,
+    DateTime? uploadDate,
+    this.description = '',
+    this.likes = 0,
+    this.dislikes = 0,
+  }) : uploadDate = uploadDate ?? DateTime.now();
 
   factory Video.fromJson(Map<String, dynamic> json) => _$VideoFromJson(json);
   Map<String, dynamic> toJson() => _$VideoToJson(this);

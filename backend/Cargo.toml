@@ -2,6 +2,7 @@
 name = "tubular_backend"
 version = "0.1.0"
 edition = "2021"
+default-run = "tubular_backend"
 
 [dependencies]
 tokio = { version = "1.35", features = ["full"] }
@@ -20,6 +21,7 @@ lazy_static = "1.4"
 rusty_ytdl = { version = "0.7", features = ["search"] }
 futures = "0.3"
 urlencoding = "2.1"
+clap = { version = "4.4", features = ["derive"] }
 
 [lib]
 name = "tubular_backend"
@@ -28,3 +30,7 @@ path = "src/lib.rs"
 [[bin]]
 name = "tubular_backend"
 path = "src/main.rs"
+
+[[bin]]
+name = "tubular"
+path = "src/bin/cli.rs"

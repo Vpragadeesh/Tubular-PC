@@ -51,6 +51,12 @@ pub struct InvidiousVideo {
     pub length_seconds: u64,
     #[serde(rename = "viewCount")]
     pub view_count: u64,
+    #[serde(default)]
+    pub description: Option<String>,
+    #[serde(default)]
+    pub published: Option<u64>,
+    #[serde(rename = "publishedText", default)]
+    pub published_text: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -79,6 +85,8 @@ pub struct InvidiousVideoInfo {
     pub format_streams: Vec<InvidiousFormat>,
     #[serde(rename = "adaptiveFormats")]
     pub adaptive_formats: Vec<InvidiousFormat>,
+    #[serde(default)]
+    pub recommended: Option<Vec<InvidiousVideo>>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -99,6 +107,20 @@ pub struct InvidiousCommentItem {
     pub content: String,
     pub published_text: String,
     pub like_count: i64,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct InvidiousPlaylist {
+    #[serde(rename = "playlistId")]
+    pub playlist_id: String,
+    pub title: String,
+    pub playlist_thumbnail: Option<String>,
+    pub author: Option<String>,
+    #[serde(rename = "authorId", default)]
+    pub author_id: Option<String>,
+    #[serde(rename = "videoCount")]
+    pub video_count: u32,
+    pub videos: Option<Vec<InvidiousVideo>>,
 }
 
 /// Search videos using Invidious API
@@ -124,6 +146,52 @@ pub async fn search_videos(query: &str, limit: u32) -> Result<Vec<InvidiousVideo
     let limited: Vec<InvidiousVideo> = videos.into_iter().take(limit as usize).collect();
     
     tracing::info!("✅ Found {} results from Invidious", limited.len());
+    Ok(limited)
+}
+
+pub async fn search_videos_with_filters(
+    query: &str,
+    limit: u32,
+    sort: &str,
+    date: &str,
+    duration: &str,
+) -> Result<Vec<InvidiousVideo>> {
+    let instance = CURRENT_INSTANCE.read().await;
+    
+    let mut params = vec![
+        format!("q={}", urlencoding::encode(query)),
+        "type=video".to_string(),
+        format!("sort={}", urlencoding::encode(sort)),
+    ];
+    
+    // Add optional filter parameters only if not "all" or "any"
+    if date != "all" {
+        params.push(format!("date={}", urlencoding::encode(date)));
+    }
+    if duration != "all" {
+        params.push(format!("duration={}", urlencoding::encode(duration)));
+    }
+    
+    let url = format!("{}/api/v1/search?{}", instance, params.join("&"));
+    
+    tracing::info!("🔍 Searching Invidious with filters: {} (sort={}, date={}, duration={}, limit: {})", 
+        query, sort, date, duration, limit);
+    
+    let client = reqwest::Client::new();
+    let response = client
+        .get(&url)
+        .timeout(std::time::Duration::from_secs(30))
+        .send()
+        .await?;
+    
+    if !response.status().is_success() {
+        return Err(anyhow::anyhow!("Invidious API error: {}", response.status()));
+    }
+    
+    let videos: Vec<InvidiousVideo> = response.json().await?;
+    let limited: Vec<InvidiousVideo> = videos.into_iter().take(limit as usize).collect();
+    
+    tracing::info!("✅ Found {} filtered results from Invidious", limited.len());
     Ok(limited)
 }
 
@@ -439,4 +507,131 @@ pub async fn get_comments(video_id: &str) -> Result<Vec<InvidiousCommentItem>> {
         .collect();
 
     Ok(comments)
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct InvidiousChannelInfo {
+    pub author: String,
+    pub author_id: String,
+    pub author_banners: Vec<InvidiousThumbnail>,
+    pub author_thumbnails: Vec<InvidiousThumbnail>,
+    pub sub_count: u64,
+    pub description: String,
+}
+
+pub async fn get_channel_info(channel_id: &str) -> Result<InvidiousChannelInfo> {
+    let instance = CURRENT_INSTANCE.read().await.clone();
+    let url = format!("{}/api/v1/channels/{}", instance, channel_id);
+
+    tracing::info!("📺 Fetching channel info from Invidious: {}", channel_id);
+
+    let client = reqwest::Client::new();
+    let response = client
+        .get(&url)
+        .timeout(std::time::Duration::from_secs(30))
+        .send()
+        .await?;
+
+    if !response.status().is_success() {
+        return Err(anyhow::anyhow!("Invidious API error: {}", response.status()));
+    }
+
+    let info: InvidiousChannelInfo = response.json().await?;
+    Ok(info)
+}
+
+pub async fn get_channel_videos(channel_id: &str, page: u32) -> Result<Vec<InvidiousVideo>> {
+    let instance = CURRENT_INSTANCE.read().await.clone();
+    let url = format!("{}/api/v1/channels/{}/videos?page={}", instance, channel_id, page);
+
+    tracing::info!("📺 Fetching channel videos from Invidious: {}", channel_id);
+
+    let client = reqwest::Client::new();
+    let response = client
+        .get(&url)
+        .timeout(std::time::Duration::from_secs(30))
+        .send()
+        .await?;
+
+    if !response.status().is_success() {
+        return Err(anyhow::anyhow!("Invidious API error: {}", response.status()));
+    }
+
+    let videos: Vec<InvidiousVideo> = response.json().await?;
+    Ok(videos)
+}
+
+pub async fn get_trending(region: Option<&str>, trend_type: Option<&str>) -> Result<Vec<InvidiousVideo>> {
+    let instance = CURRENT_INSTANCE.read().await.clone();
+    let mut url = format!("{}/api/v1/trending", instance);
+
+    let mut params = Vec::new();
+    if let Some(region) = region.filter(|value| !value.trim().is_empty()) {
+        params.push(format!("region={}", urlencoding::encode(region.trim())));
+    }
+    if let Some(trend_type) = trend_type.filter(|value| !value.trim().is_empty()) {
+        params.push(format!("type={}", urlencoding::encode(trend_type.trim())));
+    }
+    if !params.is_empty() {
+        url.push('?');
+        url.push_str(&params.join("&"));
+    }
+
+    tracing::info!("📈 Fetching trending videos from Invidious");
+
+    let client = reqwest::Client::new();
+    let response = client
+        .get(&url)
+        .timeout(std::time::Duration::from_secs(30))
+        .send()
+        .await?;
+
+    if !response.status().is_success() {
+        return Err(anyhow::anyhow!("Invidious API error: {}", response.status()));
+    }
+
+    let videos: Vec<InvidiousVideo> = response.json().await?;
+    Ok(videos)
+}
+
+pub async fn get_recommended(video_id: &str, limit: u32) -> Result<Vec<InvidiousVideo>> {
+    // Fetch the video info which includes recommended videos from Invidious
+    let video_info = get_video_info(video_id).await?;
+    
+    let recommended: Vec<InvidiousVideo> = video_info
+        .recommended
+        .unwrap_or_default()
+        .into_iter()
+        .take(limit as usize)
+        .collect();
+    
+    tracing::info!("📌 Retrieved {} recommended videos for {}", recommended.len(), video_id);
+    Ok(recommended)
+}
+
+pub async fn get_playlist(playlist_id: &str, page: u32) -> Result<InvidiousPlaylist> {
+    let instance = CURRENT_INSTANCE.read().await.clone();
+    let url = format!(
+        "{}/api/v1/playlists/{}?page={}",
+        instance,
+        urlencoding::encode(playlist_id),
+        page
+    );
+    
+    tracing::info!("📋 Fetching playlist from Invidious: {} (page: {})", playlist_id, page);
+    
+    let client = reqwest::Client::new();
+    let response = client
+        .get(&url)
+        .timeout(std::time::Duration::from_secs(30))
+        .send()
+        .await?;
+    
+    if !response.status().is_success() {
+        return Err(anyhow::anyhow!("Invidious API error: {}", response.status()));
+    }
+    
+    let playlist: InvidiousPlaylist = response.json().await?;
+    tracing::info!("✅ Fetched playlist: {} with {} videos", playlist.title, playlist.video_count);
+    Ok(playlist)
 }

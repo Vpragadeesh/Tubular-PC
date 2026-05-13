@@ -3,11 +3,18 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:media_kit/media_kit.dart';
 import 'providers.dart';
 import 'screens/home_screen.dart';
+import 'screens/trending_screen.dart';
+import 'screens/playlists_screen.dart';
 import 'screens/subscriptions_screen.dart';
 import 'screens/history_screen.dart';
+import 'screens/bookmarks_screen.dart';
 import 'screens/downloads_screen.dart';
+import 'screens/notifications_screen.dart';
 import 'screens/settings_screen.dart';
 import 'widgets/player_shell.dart';
+import 'widgets/drag_drop_target.dart';
+import 'services/keyboard_shortcut_listener.dart';
+import 'services/theme_builder.dart';
 
 final navigationIndexProvider = StateProvider<int>((ref) => 0);
 
@@ -46,8 +53,44 @@ class _TubularAppState extends ConsumerState<TubularApp> {
             t == 'light' ? ThemeMode.light : (t == 'system' ? ThemeMode.system : ThemeMode.dark);
         print('DEBUG: Set theme to $t');
       }
-      if (settings.containsKey('amoled_dark')) {
-        ref.read(amoledDarkProvider.notifier).state = settings['amoled_dark'] == 'true';
+      
+      // Load custom theme settings
+      if (settings.containsKey('dark_mode') || settings.containsKey('amoled_dark') || 
+          settings.containsKey('primary_color_hex') || settings.containsKey('preset_theme')) {
+        final isDark = settings['dark_mode'] != 'false';
+        final isAmoled = settings['amoled_dark'] == 'true';
+        final primaryColorHex = settings['primary_color_hex'];
+        final presetName = settings['preset_theme'];
+        
+        Color primaryColor = Colors.red;
+        if (primaryColorHex != null && primaryColorHex.startsWith('0x')) {
+          try {
+            primaryColor = Color(int.parse(primaryColorHex));
+          } catch (e) {
+            // Keep default
+          }
+        }
+        
+        PresetTheme preset = PresetTheme.dark;
+        if (presetName != null) {
+          try {
+            preset = PresetTheme.values.firstWhere(
+              (p) => p.name == presetName,
+              orElse: () => PresetTheme.dark,
+            );
+          } catch (e) {
+            // Keep default
+          }
+        }
+        
+        final customTheme = CustomTheme(
+          preset: preset,
+          primaryColor: primaryColor,
+          secondaryColor: const Color(0xFFB71C1C),
+          isDark: isDark,
+          isAmoled: isAmoled,
+        );
+        ref.read(customThemeProvider.notifier).state = customTheme;
       }
 
       if (settings.containsKey('preferred_quality')) {
@@ -103,46 +146,42 @@ class _TubularAppState extends ConsumerState<TubularApp> {
 
   @override
   Widget build(BuildContext context) {
-    final amoledDark = ref.watch(amoledDarkProvider);
-
-    final darkScaffold = amoledDark ? Colors.black : Colors.grey[900];
-    final darkSurface = amoledDark ? const Color(0xFF000000) : const Color(0xFF1E1E1E);
-    final darkCard = amoledDark ? const Color(0xFF0A0A0A) : const Color(0xFF222222);
+    final customTheme = ref.watch(customThemeProvider);
 
     return MaterialApp(
       title: 'Tubular PC',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        primarySwatch: Colors.red,
-        useMaterial3: true,
-        brightness: Brightness.light,
-        scaffoldBackgroundColor: Colors.grey[100],
-        cardTheme: CardThemeData(
-          elevation: 2,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-        ),
+      theme: ThemeBuilder.buildTheme(
+        customTheme.copyWith(isDark: false),
       ),
-      darkTheme: ThemeData(
-        primarySwatch: Colors.red,
-        useMaterial3: true,
-        brightness: Brightness.dark,
-        scaffoldBackgroundColor: darkScaffold,
-        colorScheme: ColorScheme.dark(
-          primary: Colors.red[700]!,
-          secondary: Colors.red[400]!,
-          surface: darkSurface,
-        ),
-        cardTheme: CardThemeData(
-          elevation: 2,
-          color: darkCard,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-        ),
-      ),
+      darkTheme: ThemeBuilder.buildTheme(customTheme),
       themeMode: ref.watch(themeModeProvider),
-      home: const PlayerShell(child: MainNavigation()),
+      home: KeyboardShortcutListener(
+        onSearch: (_) {
+          // This will be handled by individual screens
+        },
+        onHelp: (_) {
+          // Show keyboard shortcuts help
+          final context = _navigatorKey.currentContext;
+          if (context != null) {
+            showKeyboardShortcutsDialog(context);
+          }
+        },
+        onNavigationPageSelected: (pageNum) {
+          ref.read(navigationIndexProvider.notifier).state = pageNum;
+        },
+        child: PlayerShell(
+          child: DragDropTarget(
+            child: MainNavigation(),
+          ),
+        ),
+      ),
+      navigatorKey: _navigatorKey,
     );
   }
 }
+
+final _navigatorKey = GlobalKey<NavigatorState>();
 
 class MainNavigation extends ConsumerWidget {
   const MainNavigation({super.key});
@@ -153,9 +192,13 @@ class MainNavigation extends ConsumerWidget {
 
     final screens = [
       const HomeScreen(),
+      const TrendingScreen(),
+      const PlaylistsScreen(),
       const SubscriptionsScreen(),
       const HistoryScreen(),
+      const BookmarksScreen(),
       const DownloadsScreen(),
+      const NotificationsScreen(),
     ];
 
     return Scaffold(
@@ -177,6 +220,14 @@ class MainNavigation extends ConsumerWidget {
                 label: Text('Home'),
               ),
               NavigationRailDestination(
+                icon: Icon(Icons.whatshot),
+                label: Text('Trending'),
+              ),
+              NavigationRailDestination(
+                icon: Icon(Icons.playlist_play),
+                label: Text('Playlists'),
+              ),
+              NavigationRailDestination(
                 icon: Icon(Icons.subscriptions),
                 label: Text('Subscriptions'),
               ),
@@ -185,8 +236,16 @@ class MainNavigation extends ConsumerWidget {
                 label: Text('History'),
               ),
               NavigationRailDestination(
+                icon: Icon(Icons.bookmark),
+                label: Text('Bookmarks'),
+              ),
+              NavigationRailDestination(
                 icon: Icon(Icons.download),
                 label: Text('Downloads'),
+              ),
+              NavigationRailDestination(
+                icon: Icon(Icons.notifications),
+                label: Text('Notifications'),
               ),
             ],
             trailing: Expanded(

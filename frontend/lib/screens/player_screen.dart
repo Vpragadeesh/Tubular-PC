@@ -1,16 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:dio/dio.dart';
 import '../models/video.dart';
 import '../models/sponsorblock.dart';
 import '../models/dislike.dart';
 import '../providers.dart';
+import '../controllers/player_controller.dart';
 
 final sponsorBlockProvider = FutureProvider.family<List<SponsorBlockSegment>, String>((ref, videoId) async {
   final apiService = ref.watch(apiServiceProvider);
   try {
-    // TODO: Fetch from backend API
-    // return await apiService.getSponsorBlockSegments(videoId);
-    return [];
+    final data = await apiService.getSponsorBlockSegments(videoId);
+    return data.map((json) => SponsorBlockSegment.fromJson(json)).toList();
   } catch (e) {
     return [];
   }
@@ -19,18 +20,44 @@ final sponsorBlockProvider = FutureProvider.family<List<SponsorBlockSegment>, St
 final dislikeProvider = FutureProvider.family<DislikeData?, String>((ref, videoId) async {
   final apiService = ref.watch(apiServiceProvider);
   try {
-    // TODO: Fetch from backend API
-    // return await apiService.getDislikeData(videoId);
+    final data = await apiService.getDislikeData(videoId);
+    if (data != null) {
+      return DislikeData.fromJson(data);
+    }
     return null;
   } catch (e) {
     return null;
   }
 });
 
+/// Provider to fetch available subtitle tracks for a video
+final subtitleTracksProvider = FutureProvider.family<List<Map<String, String>>, String>((ref, videoId) async {
+  final apiService = ref.watch(apiServiceProvider);
+  final result = await apiService.getSubtitles(videoId);
+  if (result.success && result.data != null) {
+    return result.data!;
+  }
+  return [];
+});
+
+/// Currently selected subtitle language (null = off)
+final selectedSubtitleProvider = StateProvider<String?>((ref) => null);
+
+/// Parsed VTT cues for the currently selected subtitle
+final subtitleCuesProvider = StateProvider<List<SubtitleCue>>((ref) => []);
+
+/// A single parsed VTT cue
+class SubtitleCue {
+  final Duration start;
+  final Duration end;
+  final String text;
+
+  SubtitleCue({required this.start, required this.end, required this.text});
+}
+
 final playerPositionProvider = StateProvider<Duration>((ref) => Duration.zero);
 final playerDurationProvider = StateProvider<Duration>((ref) => const Duration(minutes: 10));
 final isPlayingProvider = StateProvider<bool>((ref) => false);
-final autoSkipSponsorProvider = StateProvider<bool>((ref) => true);
 
 class PlayerScreen extends ConsumerStatefulWidget {
   final Video video;
@@ -45,6 +72,160 @@ class PlayerScreen extends ConsumerStatefulWidget {
 }
 
 class _PlayerScreenState extends ConsumerState<PlayerScreen> {
+  /// Parse a VTT timestamp like "00:01:23.456" to Duration
+  Duration _parseVttTimestamp(String ts) {
+    ts = ts.trim();
+    final parts = ts.split(':');
+    if (parts.length == 3) {
+      final hours = int.tryParse(parts[0]) ?? 0;
+      final minutes = int.tryParse(parts[1]) ?? 0;
+      final secParts = parts[2].split('.');
+      final seconds = int.tryParse(secParts[0]) ?? 0;
+      final millis = secParts.length > 1 ? int.tryParse(secParts[1].padRight(3, '0').substring(0, 3)) ?? 0 : 0;
+      return Duration(hours: hours, minutes: minutes, seconds: seconds, milliseconds: millis);
+    } else if (parts.length == 2) {
+      final minutes = int.tryParse(parts[0]) ?? 0;
+      final secParts = parts[1].split('.');
+      final seconds = int.tryParse(secParts[0]) ?? 0;
+      final millis = secParts.length > 1 ? int.tryParse(secParts[1].padRight(3, '0').substring(0, 3)) ?? 0 : 0;
+      return Duration(minutes: minutes, seconds: seconds, milliseconds: millis);
+    }
+    return Duration.zero;
+  }
+
+  /// Parse VTT content into a list of SubtitleCue
+  List<SubtitleCue> _parseVtt(String vttContent) {
+    final cues = <SubtitleCue>[];
+    final lines = vttContent.split('\n');
+    int i = 0;
+
+    // Skip header
+    while (i < lines.length && !lines[i].contains('-->')) {
+      i++;
+    }
+
+    while (i < lines.length) {
+      final line = lines[i].trim();
+      if (line.contains('-->')) {
+        final timeParts = line.split('-->');
+        if (timeParts.length == 2) {
+          final start = _parseVttTimestamp(timeParts[0]);
+          // Remove position styling after the end timestamp
+          final endStr = timeParts[1].split(' ').first;
+          final end = _parseVttTimestamp(endStr);
+
+          // Collect text lines
+          i++;
+          final textLines = <String>[];
+          while (i < lines.length && lines[i].trim().isNotEmpty && !lines[i].contains('-->')) {
+            // Strip HTML tags from cue text
+            textLines.add(lines[i].trim().replaceAll(RegExp(r'<[^>]*>'), ''));
+            i++;
+          }
+
+          if (textLines.isNotEmpty) {
+            cues.add(SubtitleCue(
+              start: start,
+              end: end,
+              text: textLines.join('\n'),
+            ));
+          }
+        } else {
+          i++;
+        }
+      } else {
+        i++;
+      }
+    }
+    return cues;
+  }
+
+  /// Load and parse VTT from a URL
+  Future<void> _loadSubtitle(String url) async {
+    try {
+      final dio = Dio();
+      final response = await dio.get(url);
+      if (response.statusCode == 200) {
+        final cues = _parseVtt(response.data.toString());
+        ref.read(subtitleCuesProvider.notifier).state = cues;
+      }
+    } catch (e) {
+      debugPrint('Failed to load subtitle: $e');
+      ref.read(subtitleCuesProvider.notifier).state = [];
+    }
+  }
+
+  /// Get the current subtitle cue text for a given position
+  String? _getCurrentCueText(List<SubtitleCue> cues, Duration position) {
+    for (final cue in cues) {
+      if (position >= cue.start && position <= cue.end) {
+        return cue.text;
+      }
+    }
+    return null;
+  }
+
+  /// Show subtitle track selection dialog
+  void _showSubtitlePicker(List<Map<String, String>> tracks) {
+    final selectedLang = ref.read(selectedSubtitleProvider);
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Colors.grey[900],
+        title: const Text('Subtitles', style: TextStyle(color: Colors.white)),
+        content: SizedBox(
+          width: 300,
+          child: ListView(
+            shrinkWrap: true,
+            children: [
+              // "Off" option
+              ListTile(
+                leading: Icon(
+                  selectedLang == null ? Icons.radio_button_checked : Icons.radio_button_unchecked,
+                  color: selectedLang == null ? Colors.red[700] : Colors.grey[400],
+                ),
+                title: const Text('Off', style: TextStyle(color: Colors.white)),
+                onTap: () {
+                  ref.read(selectedSubtitleProvider.notifier).state = null;
+                  ref.read(subtitleCuesProvider.notifier).state = [];
+                  Navigator.pop(ctx);
+                },
+              ),
+              const Divider(color: Colors.grey),
+              // Available tracks
+              ...tracks.map((track) {
+                final isSelected = selectedLang == track['language'];
+                return ListTile(
+                  leading: Icon(
+                    isSelected ? Icons.radio_button_checked : Icons.radio_button_unchecked,
+                    color: isSelected ? Colors.red[700] : Colors.grey[400],
+                  ),
+                  title: Text(
+                    track['language_name'] ?? track['language'] ?? '??',
+                    style: const TextStyle(color: Colors.white),
+                  ),
+                  subtitle: Text(
+                    track['language'] ?? '',
+                    style: TextStyle(color: Colors.grey[500], fontSize: 11),
+                  ),
+                  onTap: () {
+                    ref.read(selectedSubtitleProvider.notifier).state = track['language'];
+                    final url = track['url'];
+                    if (url != null && url.isNotEmpty) {
+                      _loadSubtitle(url);
+                    }
+                    Navigator.pop(ctx);
+                  },
+                );
+              }),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final sponsorBlockAsync = ref.watch(sponsorBlockProvider(widget.video.id));
@@ -52,10 +233,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     final isPlaying = ref.watch(isPlayingProvider);
     final position = ref.watch(playerPositionProvider);
     final duration = ref.watch(playerDurationProvider);
+    final viewMode = ref.watch(playerViewModeProvider);
 
     return Scaffold(
       backgroundColor: Colors.black,
-      appBar: AppBar(
+      appBar: viewMode == PlayerViewMode.fullscreen 
+        ? null  // Hide AppBar in fullscreen
+        : AppBar(
         backgroundColor: Colors.black87,
         title: const Text('Now Playing'),
         actions: [
@@ -71,122 +255,159 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       ),
       body: Column(
         children: [
-          // Video player area
+          // Video player area with dynamic flex based on view mode
           Expanded(
-            flex: 3,
+            flex: viewMode == PlayerViewMode.normal 
+              ? 3 
+              : (viewMode == PlayerViewMode.theater ? 6 : 1),
             child: Container(
               color: Colors.black,
-              child: Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      Icons.play_circle_outline,
-                      size: 80,
-                      color: Colors.red[700],
+              child: Stack(
+                children: [
+                  Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.play_circle_outline,
+                          size: 80,
+                          color: Colors.red[700],
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          widget.video.title,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          widget.video.channelName,
+                          style: TextStyle(
+                            color: Colors.grey[400],
+                            fontSize: 14,
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 16),
-                    Text(
-                      widget.video.title,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
+                  ),
+                  // Subtitle overlay
+                  Positioned(
+                    bottom: 20,
+                    left: 20,
+                    right: 20,
+                    child: Builder(
+                      builder: (context) {
+                        final cues = ref.watch(subtitleCuesProvider);
+                        final cueText = _getCurrentCueText(cues, position);
+                        if (cueText == null) return const SizedBox.shrink();
+                        return Center(
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: Colors.black.withOpacity(0.75),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              cueText,
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 16,
+                                height: 1.4,
+                              ),
+                            ),
+                          ),
+                        );
+                      },
                     ),
-                    const SizedBox(height: 8),
-                    Text(
-                      widget.video.channelName,
-                      style: TextStyle(
-                        color: Colors.grey[400],
-                        fontSize: 14,
-                      ),
-                    ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
           ),
 
-          // Progress bar with SponsorBlock segments
-          Container(
-            color: Colors.black87,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // SponsorBlock segments timeline
-                sponsorBlockAsync.when(
-                  data: (segments) {
-                    if (segments.isNotEmpty) {
-                      return Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Skip Segments',
-                            style: TextStyle(
-                              color: Colors.grey[400],
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
+          // Progress bar with SponsorBlock segments - hidden in fullscreen
+          if (viewMode != PlayerViewMode.fullscreen)
+            Container(
+              color: Colors.black87,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // SponsorBlock segments timeline
+                  sponsorBlockAsync.when(
+                    data: (segments) {
+                      if (segments.isNotEmpty) {
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Skip Segments',
+                              style: TextStyle(
+                                color: Colors.grey[400],
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
-                          ),
-                          const SizedBox(height: 8),
-                          _buildSponsorBlockTimeline(segments, duration),
-                          const SizedBox(height: 12),
-                        ],
-                      );
-                    }
-                    return const SizedBox.shrink();
-                  },
-                  loading: () => const SizedBox.shrink(),
-                  error: (_, __) => const SizedBox.shrink(),
-                ),
-
-                // Progress bar
-                SliderTheme(
-                  data: SliderThemeData(
-                    trackHeight: 4,
-                    thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
-                    overlayShape: const RoundSliderOverlayShape(overlayRadius: 12),
-                  ),
-                  child: Slider(
-                    value: position.inSeconds.toDouble(),
-                    max: duration.inSeconds.toDouble(),
-                    onChanged: (value) {
-                      ref.read(playerPositionProvider.notifier).state =
-                          Duration(seconds: value.toInt());
+                            const SizedBox(height: 8),
+                            _buildSponsorBlockTimeline(segments, duration),
+                            const SizedBox(height: 12),
+                          ],
+                        );
+                      }
+                      return const SizedBox.shrink();
                     },
-                    activeColor: Colors.red[700],
-                    inactiveColor: Colors.grey[700],
+                    loading: () => const SizedBox.shrink(),
+                    error: (_, __) => const SizedBox.shrink(),
                   ),
-                ),
 
-                // Time display
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      _formatDuration(position),
-                      style: TextStyle(
-                        color: Colors.grey[400],
-                        fontSize: 12,
-                      ),
+                  // Progress bar
+                  SliderTheme(
+                    data: SliderThemeData(
+                      trackHeight: 4,
+                      thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
+                      overlayShape: const RoundSliderOverlayShape(overlayRadius: 12),
                     ),
-                    Text(
-                      _formatDuration(duration),
-                      style: TextStyle(
-                        color: Colors.grey[400],
-                        fontSize: 12,
-                      ),
+                    child: Slider(
+                      value: position.inSeconds.toDouble(),
+                      max: duration.inSeconds.toDouble(),
+                      onChanged: (value) {
+                        ref.read(playerPositionProvider.notifier).state =
+                            Duration(seconds: value.toInt());
+                      },
+                      activeColor: Colors.red[700],
+                      inactiveColor: Colors.grey[700],
                     ),
-                  ],
-                ),
-              ],
+                  ),
+
+                  // Time display
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        _formatDuration(position),
+                        style: TextStyle(
+                          color: Colors.grey[400],
+                          fontSize: 12,
+                        ),
+                      ),
+                      Text(
+                        _formatDuration(duration),
+                        style: TextStyle(
+                          color: Colors.grey[400],
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
-          ),
 
-          // Player controls
           Container(
             color: Colors.black87,
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -196,8 +417,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                 IconButton(
                   icon: const Icon(Icons.skip_previous, color: Colors.white),
                   onPressed: () {
-                    ref.read(playerPositionProvider.notifier).state =
-                        Duration(seconds: (position.inSeconds - 10).clamp(0, double.infinity).toInt());
+                    ref.read(playerPositionProvider.notifier).state = Duration(
+                      seconds: (position.inSeconds - 10).clamp(0, position.inSeconds),
+                    );
                   },
                 ),
                 IconButton(
@@ -218,36 +440,65 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                   },
                 ),
                 IconButton(
-                  icon: const Icon(Icons.volume_up, color: Colors.white),
-                  onPressed: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Volume control coming soon')),
-                    );
+                  icon: Icon(
+                    Icons.headphones,
+                    color: ref.watch(audioOnlyModeProvider) ? Colors.red[700] : Colors.white,
+                  ),
+                  tooltip: ref.watch(audioOnlyModeProvider)
+                      ? 'Audio-only mode (ON)'
+                      : 'Audio-only mode (OFF)',
+                  onPressed: () async {
+                    final newMode = !ref.read(audioOnlyModeProvider);
+                    ref.read(audioOnlyModeProvider.notifier).state = newMode;
+                    final currentQuality = ref.read(preferredQualityProvider);
+                    await ref.read(playerControllerProvider.notifier).playVideo(
+                          widget.video,
+                          quality: newMode ? 'audio' : currentQuality,
+                        );
                   },
                 ),
+                ref.watch(subtitleTracksProvider(widget.video.id)).when(
+                      data: (tracks) => IconButton(
+                        icon: Icon(
+                          Icons.subtitles,
+                          color: ref.watch(selectedSubtitleProvider) != null
+                              ? Colors.red[700]
+                              : (tracks.isNotEmpty ? Colors.white : Colors.grey[700]),
+                        ),
+                        tooltip: tracks.isNotEmpty ? 'Subtitles' : 'No subtitles available',
+                        onPressed: tracks.isNotEmpty ? () => _showSubtitlePicker(tracks) : null,
+                      ),
+                      loading: () => const IconButton(
+                        icon: Icon(Icons.subtitles_outlined, color: Colors.grey),
+                        onPressed: null,
+                      ),
+                      error: (_, __) => const IconButton(
+                        icon: Icon(Icons.subtitles_off, color: Colors.grey),
+                        onPressed: null,
+                      ),
+                    ),
                 IconButton(
                   icon: const Icon(Icons.fullscreen, color: Colors.white),
                   onPressed: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Fullscreen coming soon')),
-                    );
+                    final currentMode = ref.read(playerViewModeProvider);
+                    ref.read(playerViewModeProvider.notifier).state =
+                        currentMode == PlayerViewMode.normal
+                            ? PlayerViewMode.theater
+                            : currentMode == PlayerViewMode.theater
+                                ? PlayerViewMode.fullscreen
+                                : PlayerViewMode.normal;
                   },
                 ),
               ],
             ),
           ),
-
-          // Video info with dislikes
-          Expanded(
-            flex: 2,
-            child: Container(
-              color: Colors.black87,
+          if (viewMode != PlayerViewMode.fullscreen)
+            Expanded(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.all(16),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Title
                     Text(
                       widget.video.title,
                       style: const TextStyle(
@@ -256,167 +507,117 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                         fontWeight: FontWeight.bold,
                       ),
                     ),
-                    const SizedBox(height: 12),
-
-                    // Channel and stats
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          widget.video.channelName,
-                          style: TextStyle(
-                            color: Colors.red[700],
-                            fontSize: 14,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        dislikeAsync.when(
-                          data: (dislike) {
-                            if (dislike != null) {
-                              return Row(
-                                children: [
-                                  Row(
-                                    children: [
-                                      Icon(Icons.thumb_up, color: Colors.grey[400], size: 16),
-                                      const SizedBox(width: 4),
-                                      Text(
-                                        dislike.formattedLikes,
-                                        style: TextStyle(color: Colors.grey[400], fontSize: 12),
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(width: 12),
-                                  Row(
-                                    children: [
-                                      Icon(Icons.thumb_down, color: Colors.grey[400], size: 16),
-                                      const SizedBox(width: 4),
-                                      Text(
-                                        dislike.formattedDislikes,
-                                        style: TextStyle(color: Colors.grey[400], fontSize: 12),
-                                      ),
-                                    ],
-                                  ),
-                                ],
-                              );
-                            }
-                            return const SizedBox.shrink();
-                          },
-                          loading: () => const SizedBox.shrink(),
-                          error: (_, __) => const SizedBox.shrink(),
-                        ),
-                      ],
+                    const SizedBox(height: 8),
+                    Text(
+                      widget.video.channelName,
+                      style: TextStyle(
+                        color: Colors.red[700],
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      '${widget.video.formattedViews} views • ${widget.video.uploadedAgo}',
+                      style: TextStyle(color: Colors.grey[400], fontSize: 12),
                     ),
                     const SizedBox(height: 12),
-
-                    // View count and upload date
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          '${widget.video.formattedViews} views',
-                          style: TextStyle(color: Colors.grey[400], fontSize: 12),
-                        ),
-                        Text(
-                          widget.video.uploadedAgo,
-                          style: TextStyle(color: Colors.grey[400], fontSize: 12),
-                        ),
-                      ],
+                    dislikeAsync.when(
+                      data: (dislike) => dislike == null
+                          ? const SizedBox.shrink()
+                          : Text(
+                              '${dislike.formattedLikes} likes • ${dislike.formattedDislikes} dislikes',
+                              style: TextStyle(color: Colors.grey[400], fontSize: 12),
+                            ),
+                      loading: () => const SizedBox.shrink(),
+                      error: (_, __) => const SizedBox.shrink(),
                     ),
                     const SizedBox(height: 16),
-
-                    // Description
                     Text(
-                      'Description coming soon',
+                      widget.video.description.isEmpty
+                          ? 'No description available.'
+                          : widget.video.description,
                       style: TextStyle(
                         color: Colors.grey[400],
                         fontSize: 12,
                         height: 1.5,
                       ),
                     ),
+                    sponsorBlockAsync.when(
+                      data: (segments) => segments.isEmpty
+                          ? const SizedBox.shrink()
+                          : Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const SizedBox(height: 16),
+                                const Text(
+                                  'Sponsor Segments',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                ...segments.map((segment) => _buildSegmentTile(segment, context)),
+                              ],
+                            ),
+                      loading: () => const SizedBox.shrink(),
+                      error: (_, __) => const SizedBox.shrink(),
+                    ),
                   ],
                 ),
               ),
             ),
-          ),
-          // SponsorBlock segments (outside of Column for AsyncValue handling)
-          Expanded(
-            flex: 1,
-            child: sponsorBlockAsync.when(
-              data: (segments) {
-                if (segments.isEmpty) {
-                  return const SizedBox.shrink();
-                }
-                return SingleChildScrollView(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Sponsor Segments',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Column(
-                        children: segments
-                            .map((segment) =>
-                                _buildSegmentTile(segment, context))
-                            .toList(),
-                      ),
-                    ],
-                  ),
-                );
-              },
-              loading: () => const SizedBox.shrink(),
-              error: (_, __) => const SizedBox.shrink(),
-            ),
-          ),
         ],
       ),
     );
   }
 
   Widget _buildSponsorBlockTimeline(List<SponsorBlockSegment> segments, Duration duration) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(4),
-      child: SizedBox(
-        height: 24,
-        child: Stack(
-          children: [
-            // Background bar
-            Container(
-              color: Colors.grey[800],
-            ),
-            // Segments
-            Row(
-              children: segments.map((segment) {
-                final totalDuration = duration.inMilliseconds.toDouble();
-                final startPercent = (segment.startTime * 1000) / totalDuration;
-                final widthPercent =
-                    ((segment.endTime - segment.startTime) * 1000) / totalDuration;
+    if (duration == Duration.zero) return const SizedBox.shrink();
 
-                return Expanded(
-                  flex: 0,
-                  child: Padding(
-                    padding: EdgeInsets.only(left: startPercent.toStringAsFixed(0) as double? ?? 0),
-                    child: Container(
-                      width: (widthPercent * 100).toStringAsFixed(0) as double? ?? 0,
-                      color: segment.categoryColor,
-                      child: Tooltip(
-                        message: '${segment.categoryLabel} (${segment.durationText})',
-                        child: const SizedBox.expand(),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final totalWidth = constraints.maxWidth;
+        final totalMs = duration.inMilliseconds.toDouble();
+
+        return ClipRRect(
+          borderRadius: BorderRadius.circular(4),
+          child: SizedBox(
+            height: 12,
+            child: Stack(
+              children: [
+                // Background bar
+                Container(
+                  color: Colors.grey[800],
+                ),
+                // Segments
+                ...segments.map((segment) {
+                  final startMs = segment.startTime * 1000;
+                  final endMs = segment.endTime * 1000;
+                  
+                  final left = (startMs / totalMs) * totalWidth;
+                  final width = ((endMs - startMs) / totalMs) * totalWidth;
+
+                  return Positioned(
+                    left: left,
+                    top: 0,
+                    bottom: 0,
+                    width: width.clamp(1.0, totalWidth),
+                    child: Tooltip(
+                      message: '${segment.categoryLabel} (${segment.durationText})',
+                      child: Container(
+                        color: segment.categoryColor,
                       ),
                     ),
-                  ),
-                );
-              }).toList(),
+                  );
+                }),
+              ],
             ),
-          ],
-        ),
-      ),
+          ),
+        );
+      }
     );
   }
 

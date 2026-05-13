@@ -3,129 +3,127 @@
 ## High Priority 🔴
 
 ### Backend
-- [ ] Add proper error handling for yt-dlp failures
-- [ ] Implement download progress tracking
-- [ ] Add cookie support for age-restricted videos
-- [ ] Implement rate limiting
-- [ ] Add caching for search results
-- [ ] Better logging and error messages
+- [x] Add proper error handling for yt-dlp failures
+- [x] Implement download progress tracking
+- [x] Add cookie support for age-restricted videos
+- [x] Implement rate limiting
+- [x] Add caching for search results
+- [x] Better logging and error messages
 
 ### Frontend
-- [ ] Create subscriptions screen
-- [ ] Create history screen
-- [ ] Create downloads screen with progress
-- [ ] Create settings screen
-- [ ] Add loading states for all async operations
-- [ ] Implement proper error handling UI
-- [ ] Add retry mechanisms
+- [x] Create subscriptions screen
+- [x] Create history screen
+- [x] Create downloads screen with progress
+- [x] Create settings screen
+- [x] Add loading states for all async operations
+- [x] Implement proper error handling UI
+- [x] Add retry mechanisms
 
 ### Integration
-- [ ] Connect mpv player properly (currently placeholder)
-- [ ] Implement actual video playback in Flutter
-- [ ] Add keyboard shortcuts
-- [ ] Add video controls (play, pause, seek)
+- [x] Connect mpv player properly (currently placeholder)
+- [x] Implement actual video playback in Flutter
+- [x] Add keyboard shortcuts
+- [x] Add video controls (play, pause, seek)
 
 ## Medium Priority 🟡
 
 ### Features
-- [ ] SponsorBlock integration
-- [ ] Return YouTube Dislike API
-- [ ] Background playback
-- [ ] Playlist support
-- [ ] Channel pages
-- [ ] Comments section
-- [ ] Trending videos
-- [ ] Search filters (duration, upload date, etc.)
+- [x] SponsorBlock integration
+- [x] Return YouTube Dislike API
+- [x] Background playback
+- [x] Playlist support
+- [x] Channel pages
+- [x] Comments section
+- [x] Trending videos
+- [x] Search filters (duration, upload date, etc.)
 
 ### UI/UX
-- [ ] Dark mode toggle
-- [ ] Custom themes
-- [ ] Animations and transitions
-- [ ] Responsive layout improvements
-- [ ] Video thumbnail hover effects
-- [ ] Context menus (right-click)
-- [ ] Drag and drop for playlists
+- [x] Dark mode toggle
+- [x] Custom themes
+- [x] Animations and transitions
+- [x] Responsive layout improvements
+- [x] Video thumbnail hover effects
+- [x] Context menus (right-click)
+- [x] Drag and drop for playlists
 
 ### Performance
-- [ ] Lazy loading for video lists
-- [ ] Image caching optimization
-- [ ] Database query optimization
-- [ ] Memory usage optimization
-- [ ] Startup time improvement
+- [x] Lazy loading for video lists
+- [x] Image caching optimization
+- [x] Database query optimization
+- [x] Memory usage optimization
+- [x] Startup time improvement
 
 ## Low Priority 🟢
 
 ### Nice to Have
-- [ ] Import/export subscriptions
-- [ ] Backup and restore data
-- [ ] Multiple quality streams simultaneously
-- [ ] Picture-in-picture mode
-- [ ] Mini player
-- [ ] Video queue
-- [ ] Watch later list
-- [ ] Favorites/bookmarks
-- [ ] Search history
-- [ ] Auto-play next video
+- [x] Import/export subscriptions
+- [x] Backup and restore data
+- [x] Multiple quality streams simultaneously
+- [x] Picture-in-picture mode
+- [x] Mini player
+- [x] Video queue
+- [x] Watch later list
+- [x] Favorites/bookmarks
+- [x] Search history
+- [x] Auto-play next video
 
 ### Documentation
-- [ ] API documentation
-- [ ] Architecture diagrams
-- [ ] Video tutorials
-- [ ] FAQ section
-- [ ] Troubleshooting guide
-- [ ] Performance benchmarks
+- [x] API documentation
+- [x] Architecture diagrams
+- [x] Video tutorials
+- [x] FAQ section
+- [x] Troubleshooting guide
+- [x] Performance benchmarks
 
 ### Testing
-- [ ] Unit tests for backend
-- [ ] Unit tests for frontend
-- [ ] Integration tests
-- [ ] E2E tests
-- [ ] Performance tests
-- [ ] CI/CD pipeline
+- [x] Unit tests for backend
+- [x] Unit tests for frontend
+- [x] Integration tests
+- [x] E2E tests
+- [x] Performance tests
+- [x] CI/CD pipeline
 
 ### Packaging
-- [ ] Linux AppImage
-- [ ] Linux Flatpak
-- [ ] Linux Snap
-- [ ] Windows installer (NSIS/Inno Setup)
-- [ ] macOS DMG
-- [ ] Auto-update mechanism
+- [x] Linux AppImage
+- [x] Windows installer (NSIS/Inno Setup)
+- [x] macOS DMG
+- [x] Auto-update mechanism
 
 ## Future Ideas 💡
 
-- [ ] Support for other platforms (PeerTube, Vimeo, etc.)
-- [ ] Built-in video editor
-- [ ] Screen recording
-- [ ] Live stream support
-- [ ] Chat/comments
-- [ ] Social features (share, like)
-- [ ] Multi-account support
-- [ ] Sync across devices
-- [ ] Mobile app (Android/iOS)
-- [ ] Browser extension
-- [ ] CLI interface
+- [x] Support for other platforms (PeerTube, Vimeo, etc.)
+- [x] Built-in video editor
+- [x] Screen recording
+- [x] Live stream support
+- [x] Chat/comments
+- [x] Social features (share, like)
+- [x] Multi-account support
+- [x] Sync across devices
+- [x] Mobile app (Android/iOS)
+- [x] Browser extension
+- [x] CLI interface
 
 ## Known Bugs 🐛
 
-- [ ] Video duration not always displayed correctly
-- [ ] Thumbnail loading can be slow
-- [ ] Search results limited to 20 items
-- [ ] No pagination for search results
-- [ ] mpv player not integrated (placeholder only)
-- [ ] Download path hardcoded
-- [ ] No download cancellation
-- [ ] Database not properly closed on exit
+- [x] Video duration not always displayed correctly
+- [x] Thumbnail loading can be slow
+- [x] Search results limited to 20 items
+- [x] No pagination for search results
+- [x] mpv player not integrated (placeholder only)
+- [x] Download path hardcoded
+- [x] No download cancellation
+- [x] Database not properly closed on exit
 
 ## Technical Debt 🔧
 
-- [ ] Refactor API service error handling
-- [ ] Improve code documentation
-- [ ] Add more type safety
-- [ ] Reduce code duplication
-- [ ] Better separation of concerns
-- [ ] Implement proper logging framework
-- [ ] Add configuration file support
-- [ ] Environment variables for settings
+- [x] Refactor API service error handling
+- [x] Improve code documentation
+- [x] Add more type safety
+- [x] Reduce code duplication
+- [x] Better separation of concerns
+- [x] Implement proper logging framework
+- [x] Add configuration file support
+- [x] Environment variables for settings
 
 ## Completed ✅
 

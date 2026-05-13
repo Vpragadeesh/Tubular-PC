@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/download.dart';
 import '../providers.dart';
+import '../widgets/batch_download_dialog.dart';
 
 // Sort options
 final downloadsSortProvider = StateProvider<String>((ref) => 'date_desc');
@@ -74,15 +77,22 @@ class DownloadsScreen extends ConsumerStatefulWidget {
 class _DownloadsScreenState extends ConsumerState<DownloadsScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
+  Timer? _refreshTimer;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
+    _refreshTimer = Timer.periodic(const Duration(seconds: 2), (_) {
+      if (mounted) {
+        ref.invalidate(downloadsProvider);
+      }
+    });
   }
 
   @override
   void dispose() {
+    _refreshTimer?.cancel();
     _tabController.dispose();
     super.dispose();
   }
@@ -99,6 +109,32 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen>
         foregroundColor: Colors.white,
         elevation: 0,
         actions: [
+          Tooltip(
+            message: 'Batch download multiple videos',
+            child: IconButton(
+              icon: const Icon(Icons.download_for_offline),
+              onPressed: () async {
+                final selectedVideoIds = ref.read(selectedVideosProvider);
+                if (selectedVideoIds.isEmpty) {
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Select videos to download')),
+                    );
+                  }
+                  return;
+                }
+                
+                if (context.mounted) {
+                  showDialog(
+                    context: context,
+                    builder: (context) => BatchDownloadDialog(
+                      selectedVideoIds: selectedVideoIds,
+                    ),
+                  );
+                }
+              },
+            ),
+          ),
           PopupMenuButton<String>(
             icon: const Icon(Icons.sort),
             tooltip: 'Sort',

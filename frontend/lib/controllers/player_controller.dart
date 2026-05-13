@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/video.dart';
+import '../models/sponsorblock.dart';
 import '../providers.dart';
 import '../services/api_service.dart';
 import '../services/player_service.dart';
@@ -22,6 +23,9 @@ class TubularPlayerState {
     this.duration = Duration.zero,
     this.backgroundAudio = false,
     this.errorMessage,
+    this.sponsorBlockSegments = const [],
+    this.autoSkipSponsors = true,
+    this.volume = 100.0,
   });
 
   final Video? video;
@@ -33,6 +37,9 @@ class TubularPlayerState {
   final Duration duration;
   final bool backgroundAudio;
   final String? errorMessage;
+  final List<SponsorBlockSegment> sponsorBlockSegments;
+  final bool autoSkipSponsors;
+  final double volume;
 
   bool get hasVideo => video != null;
   bool get isPlaying => status == PlaybackStatus.playing;
@@ -49,12 +56,15 @@ class TubularPlayerState {
     Duration? duration,
     bool? backgroundAudio,
     String? errorMessage,
-    bool clearStreamUrl = false,
     bool clearError = false,
+    bool clearStreamUrl = false,
+    List<SponsorBlockSegment>? sponsorBlockSegments,
+    bool? autoSkipSponsors,
+    double? volume,
   }) {
     return TubularPlayerState(
       video: video ?? this.video,
-      streamUrl: clearStreamUrl ? null : streamUrl ?? this.streamUrl,
+      streamUrl: clearStreamUrl ? null : (streamUrl ?? this.streamUrl),
       quality: quality ?? this.quality,
       status: status ?? this.status,
       surface: surface ?? this.surface,
@@ -62,6 +72,9 @@ class TubularPlayerState {
       duration: duration ?? this.duration,
       backgroundAudio: backgroundAudio ?? this.backgroundAudio,
       errorMessage: clearError ? null : errorMessage ?? this.errorMessage,
+      sponsorBlockSegments: sponsorBlockSegments ?? this.sponsorBlockSegments,
+      autoSkipSponsors: autoSkipSponsors ?? this.autoSkipSponsors,
+      volume: volume ?? this.volume,
     );
   }
 
@@ -82,6 +95,7 @@ class PlayerController extends StateNotifier<TubularPlayerState> {
   final ApiService _apiService;
   final PlayerService _playerService;
   int _playRequestSerial = 0;
+  DateTime? _lastProgressSave;
 
   Future<void> playVideo(
     Video video, {
@@ -89,22 +103,27 @@ class PlayerController extends StateNotifier<TubularPlayerState> {
     PlayerSurface surface = PlayerSurface.fullscreen,
   }) async {
     final requestSerial = ++_playRequestSerial;
+    final resumePosition = await _getResumePosition(video);
 
     print('🎬 playVideo called: ${video.title}');
     print('   quality: $quality');
     
+    _lastProgressSave = null;
+
     state = state.copyWith(
       video: video,
       quality: quality,
       status: PlaybackStatus.loading,
       surface: surface,
-      position: Duration.zero,
+      position: resumePosition,
       duration: video.duration,
       clearStreamUrl: true,
       clearError: true,
+      sponsorBlockSegments: [], // Reset segments
     );
 
     unawaited(_recordHistory(video));
+    unawaited(_fetchSponsorBlock(video.id));
 
     try {
       print('📡 Fetching stream URL...');
@@ -247,6 +266,10 @@ class PlayerController extends StateNotifier<TubularPlayerState> {
     await setQuality('audio');
   }
 
+  void setVolume(double volume) {
+    state = state.copyWith(volume: volume.clamp(0.0, 100.0));
+  }
+
   Future<void> stop() async {
     _playRequestSerial++;
     state = TubularPlayerState.initial.copyWith(status: PlaybackStatus.stopped);
@@ -262,6 +285,25 @@ class PlayerController extends StateNotifier<TubularPlayerState> {
       );
     } catch (_) {
       // History should never block playback.
+    }
+  }
+
+  Future<Duration> _getResumePosition(Video video) async {
+    try {
+      final progressSeconds = await _apiService.getVideoProgress(video.id);
+      if (progressSeconds <= 0 || !progressSeconds.isFinite) {
+        return Duration.zero;
+      }
+
+      final raw = Duration(seconds: progressSeconds.round());
+      if (video.duration > Duration.zero &&
+          video.duration - raw <= const Duration(seconds: 5)) {
+        return Duration.zero;
+      }
+
+      return _clampDuration(raw, Duration.zero, video.duration);
+    } catch (_) {
+      return Duration.zero;
     }
   }
 
@@ -281,8 +323,46 @@ class PlayerController extends StateNotifier<TubularPlayerState> {
   // Methods for media_kit player to update state
   void updatePosition(Duration position) {
     if (state.video != null) {
+      // Handle SponsorBlock auto-skip
+      if (state.autoSkipSponsors && state.sponsorBlockSegments.isNotEmpty) {
+        for (final segment in state.sponsorBlockSegments) {
+          if (position >= segment.startDuration &&
+              position < segment.endDuration) {
+            print('⏭️ Auto-skipping ${segment.category}: ${segment.startTime} - ${segment.endTime}');
+            seek(segment.endDuration);
+            return; // Skip this update, seek will trigger another one
+          }
+        }
+      }
+
       state = state.copyWith(position: position);
+
+      // Save progress to backend every 10 seconds
+      final now = DateTime.now();
+      if (_lastProgressSave == null ||
+          now.difference(_lastProgressSave!) > const Duration(seconds: 10)) {
+        _lastProgressSave = now;
+        final progressSeconds = position.inSeconds.toDouble();
+        if (progressSeconds > 0) {
+          unawaited(_apiService.saveVideoProgress(state.video!.id, progressSeconds));
+        }
+      }
     }
+  }
+
+  Future<void> _fetchSponsorBlock(String videoId) async {
+    try {
+      final data = await _apiService.getSponsorBlockSegments(videoId);
+      final segments = data.map((json) => SponsorBlockSegment.fromJson(json)).toList();
+      state = state.copyWith(sponsorBlockSegments: segments);
+      print('📊 Loaded ${segments.length} SponsorBlock segments');
+    } catch (e) {
+      print('⚠️ Failed to fetch SponsorBlock segments: $e');
+    }
+  }
+
+  void setAutoSkipSponsors(bool enabled) {
+    state = state.copyWith(autoSkipSponsors: enabled);
   }
 
   void updateDuration(Duration duration) {

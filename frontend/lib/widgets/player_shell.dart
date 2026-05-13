@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
@@ -9,6 +10,10 @@ import 'package:media_kit_video/media_kit_video.dart';
 import '../controllers/player_controller.dart';
 import '../providers.dart';
 import '../services/media_player_holder.dart';
+import '../services/keyboard_shortcuts.dart';
+import 'picture_in_picture.dart';
+import 'multi_player_layout.dart';
+import 'multi_player_controls.dart';
 
 class PlayerShell extends ConsumerWidget {
   const PlayerShell({super.key, required this.child});
@@ -18,9 +23,65 @@ class PlayerShell extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final playerState = ref.watch(playerControllerProvider);
+    final controller = ref.read(playerControllerProvider.notifier);
 
-    return Stack(
-      children: [child, if (playerState.isVisible) const _PlayerOverlay()],
+    return Focus(
+      autofocus: true,
+      onKeyEvent: (node, event) {
+        if (!playerState.isVisible) return KeyEventResult.ignored;
+        
+        // Handle shortcuts
+        final key = event.logicalKey;
+        
+        if (key == LogicalKeyboardKey.space || key == LogicalKeyboardKey.keyK) {
+          controller.togglePlayPause();
+          return KeyEventResult.handled;
+        } else if (key == LogicalKeyboardKey.arrowLeft) {
+          controller.seek(playerState.position - const Duration(seconds: 5));
+          return KeyEventResult.handled;
+        } else if (key == LogicalKeyboardKey.arrowRight) {
+          controller.seek(playerState.position + const Duration(seconds: 5));
+          return KeyEventResult.handled;
+        } else if (key == LogicalKeyboardKey.keyJ) {
+          controller.seek(playerState.position - const Duration(seconds: 10));
+          return KeyEventResult.handled;
+        } else if (key == LogicalKeyboardKey.keyL) {
+          controller.seek(playerState.position + const Duration(seconds: 10));
+          return KeyEventResult.handled;
+        } else if (key == LogicalKeyboardKey.arrowUp) {
+          controller.setVolume(playerState.volume + 5);
+          return KeyEventResult.handled;
+        } else if (key == LogicalKeyboardKey.arrowDown) {
+          controller.setVolume(playerState.volume - 5);
+          return KeyEventResult.handled;
+        } else if (key == LogicalKeyboardKey.keyF) {
+          if (playerState.surface == PlayerSurface.fullscreen) {
+            controller.showMiniPlayer();
+          } else {
+            controller.showFullscreen();
+          }
+          return KeyEventResult.handled;
+        } else if (key == LogicalKeyboardKey.escape) {
+          if (playerState.surface == PlayerSurface.fullscreen) {
+            controller.showMiniPlayer();
+            return KeyEventResult.handled;
+          }
+        } else if (event.logicalKey == LogicalKeyboardKey.keyP &&
+            HardwareKeyboard.instance.isControlPressed) {
+          ref.read(pipEnabledProvider.notifier).state =
+              !ref.read(pipEnabledProvider);
+          return KeyEventResult.handled;
+        }
+        
+        return KeyEventResult.ignored;
+      },
+      child: Stack(
+        children: [
+          child,
+          if (playerState.isVisible) const _PlayerOverlay(),
+          if (playerState.isVisible) const PictureInPictureWindow(),
+        ],
+      ),
     );
   }
 }
@@ -31,6 +92,27 @@ class _PlayerOverlay extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final playerState = ref.watch(playerControllerProvider);
+    final activePlayers = ref.watch(activePlayersProvider);
+    
+    // If multiple players are active, show multi-window layout
+    if (activePlayers.length > 1) {
+      return Column(
+        children: [
+          MultiPlayerControls(
+            onOpenNewWindow: () {
+              // This would typically be called from video details screen
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Open a video in details screen and click "New Window"')),
+              );
+            },
+          ),
+          Expanded(child: MultiPlayerLayoutWidget()),
+          if (playerState.isVisible && const PictureInPictureWindow() != null)
+            const PictureInPictureWindow(),
+        ],
+      );
+    }
+
     final showHiddenEngine =
         playerState.hasVideo && playerState.surface != PlayerSurface.fullscreen;
 
@@ -99,6 +181,10 @@ class _FullscreenPlayer extends ConsumerWidget {
               _PlayerTopBar(
                 title: video.title,
                 onMinimize: controller.showMiniPlayer,
+                onPipToggle: () {
+                  ref.read(pipEnabledProvider.notifier).state =
+                      !ref.read(pipEnabledProvider);
+                },
               ),
               Expanded(child: _PlayerStage(playerState: playerState)),
               _FullscreenControls(playerState: playerState),
@@ -111,10 +197,15 @@ class _FullscreenPlayer extends ConsumerWidget {
 }
 
 class _PlayerTopBar extends StatelessWidget {
-  const _PlayerTopBar({required this.title, required this.onMinimize});
+  const _PlayerTopBar({
+    required this.title,
+    required this.onMinimize,
+    this.onPipToggle,
+  });
 
   final String title;
   final VoidCallback onMinimize;
+  final VoidCallback? onPipToggle;
 
   @override
   Widget build(BuildContext context) {
@@ -141,6 +232,12 @@ class _PlayerTopBar extends StatelessWidget {
                 ),
               ),
             ),
+            if (onPipToggle != null)
+              IconButton(
+                tooltip: 'Picture in Picture',
+                onPressed: onPipToggle,
+                icon: const Icon(Icons.picture_in_picture, color: Colors.white),
+              ),
             const SizedBox(width: 12),
           ],
         ),
@@ -161,6 +258,7 @@ class _PlayerStage extends ConsumerStatefulWidget {
 class _PlayerStageState extends ConsumerState<_PlayerStage> {
   String? _currentStreamUrl;
   double _appliedSpeed = 1.0;
+  double _appliedVolume = 100.0;
   bool _listenersAttached = false;
 
   @override
@@ -241,6 +339,16 @@ class _PlayerStageState extends ConsumerState<_PlayerStage> {
     } catch (e) {
       print('DEBUG: Failed to set initial playback speed (holder): $e');
     }
+
+    // Apply current volume
+    final volume = widget.playerState.volume;
+    _appliedVolume = volume;
+    try {
+      _player.setVolume(volume);
+      print('DEBUG: Applied volume $volume at init (holder)');
+    } catch (e) {
+      print('DEBUG: Failed to set initial volume (holder): $e');
+    }
   }
 
   @override
@@ -264,6 +372,16 @@ class _PlayerStageState extends ConsumerState<_PlayerStage> {
       print('🎥 Opening NEW stream: $streamUrl');
       print('   Will play: true');
       _player?.open(Media(streamUrl), play: true);
+      final resumePosition = widget.playerState.position;
+      if (resumePosition > Duration.zero) {
+        Future.microtask(() {
+          if (!mounted) {
+            return;
+          }
+          print('⏩ Resuming from: $resumePosition');
+          _player?.seek(resumePosition);
+        });
+      }
       return; // Let the player handle state changes
     }
     
@@ -328,6 +446,17 @@ class _PlayerStageState extends ConsumerState<_PlayerStage> {
         print('DEBUG: Applied playback speed $playbackSpeed in build');
       } catch (e) {
         print('DEBUG: Failed to apply playback speed $playbackSpeed in build: $e');
+      }
+    }
+
+    // Apply volume updates if it changed
+    if (_player != null && widget.playerState.volume != _appliedVolume) {
+      try {
+        _player.setVolume(widget.playerState.volume);
+        _appliedVolume = widget.playerState.volume;
+        print('DEBUG: Applied volume ${widget.playerState.volume} in build');
+      } catch (e) {
+        print('DEBUG: Failed to apply volume ${widget.playerState.volume} in build: $e');
       }
     }
 
@@ -754,6 +883,15 @@ class _MiniPlayer extends ConsumerWidget {
                     icon: Icon(
                       playerState.isPlaying ? Icons.pause : Icons.play_arrow,
                     ),
+                  ),
+                  IconButton(
+                    tooltip: 'Picture in Picture',
+                    onPressed: () {
+                      ref.read(pipEnabledProvider.notifier).state =
+                          !ref.read(pipEnabledProvider);
+                    },
+                    color: Colors.white,
+                    icon: const Icon(Icons.picture_in_picture),
                   ),
                   IconButton(
                     tooltip: 'Close',

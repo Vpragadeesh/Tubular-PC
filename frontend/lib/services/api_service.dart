@@ -5,9 +5,11 @@ import '../models/video_details.dart';
 import '../models/subscription.dart';
 import '../models/history_entry.dart';
 import '../models/download.dart';
+import '../models/notification.dart';
+import '../models/subtitle_search.dart';
 
 /// Result type for API calls
-typedef ApiResult<T> = ({bool success, T? data, String? error, String? details});
+typedef ApiResult<T> = ({bool success, dynamic data, dynamic error, dynamic details});
 
 class ApiService {
   /// Match backend bind ([127.0.0.1]:3030) — `localhost` may resolve to ::1 and fail or delay.
@@ -45,8 +47,15 @@ class ApiService {
     }
   }
 
-  Future<ApiResult<List<Video>>> searchVideos(String query, {int limit = 10}) async {
-    _logger.i('Searching for: $query');
+  Future<ApiResult<List<Video>>> searchVideos(
+    String query, {
+    int limit = 10,
+    String sort = 'relevance',
+    String duration = 'any',
+    String uploadDate = 'any',
+    int page = 1,
+  }) async {
+    _logger.i('Searching for: $query (page=$page, sort=$sort, duration=$duration, uploadDate=$uploadDate)');
     
     if (query.trim().isEmpty) {
       return (
@@ -60,7 +69,14 @@ class ApiService {
     try {
       final response = await _dio.get(
         '/search',
-        queryParameters: {'q': query, 'limit': limit},
+        queryParameters: {
+          'q': query,
+          'limit': limit,
+          'offset': (page - 1) * limit, // Convert page to offset for API
+          'sort': sort,
+          'duration': duration,
+          'upload_date': uploadDate,
+        },
       );
 
       if (response.data['success'] == true) {
@@ -469,6 +485,37 @@ class ApiService {
     }
   }
 
+  Future<void> saveVideoProgress(String videoId, double progress) async {
+    try {
+      final response = await _dio.post(
+        '/history/progress',
+        data: {
+          'video_id': videoId,
+          'progress': progress,
+        },
+      );
+
+      if (response.data['success'] != true) {
+        throw Exception(response.data['error'] ?? 'Failed to save progress');
+      }
+    } catch (e) {
+      _logger.w('Save progress error: $e');
+    }
+  }
+
+  Future<double> getVideoProgress(String videoId) async {
+    try {
+      final response = await _dio.get('/history/progress/$videoId');
+      if (response.data['success'] == true) {
+        final progress = response.data['data']['progress'];
+        return (progress is num) ? progress.toDouble() : 0.0;
+      }
+    } catch (e) {
+      _logger.w('Get video progress error: $e');
+    }
+    return 0.0;
+  }
+
   Future<void> removeFromHistory(int id) async {
     try {
       final response = await _dio.post(
@@ -599,7 +646,13 @@ class ApiService {
     }
   }
 
-  Future<int?> createDownload(String videoId, String title, String outputPath, String quality) async {
+  Future<int?> createDownload(
+    String videoId,
+    String title,
+    String outputPath,
+    String quality, {
+    bool audioOnly = false,
+  }) async {
     try {
       final response = await _dio.post(
         '/downloads/create',
@@ -608,7 +661,7 @@ class ApiService {
           'title': title,
           'output_path': outputPath,
           'quality': quality,
-          'audio_only': false,
+          'audio_only': audioOnly,
         },
       );
 
@@ -744,5 +797,1017 @@ class ApiService {
       channelName: channelName,
       thumbnail: thumbnail,
     );
+  }
+
+  // --- Channel API endpoints ---
+
+  Future<ApiResult<Map<String, dynamic>>> getChannelInfo(String channelId) async {
+    try {
+      final response = await _dio.get('/channel/$channelId');
+
+      if (response.data['success'] == true) {
+        return (
+          success: true,
+          data: response.data['data'] as Map<String, dynamic>,
+          error: null,
+          details: null,
+        );
+      } else {
+        return (
+          success: false,
+          data: null,
+          error: response.data['error'] ?? 'Failed to get channel info',
+          details: null,
+        );
+      }
+    } catch (e) {
+      _logger.w('Get channel info error: $e');
+      return (
+        success: false,
+        data: null,
+        error: 'Network error',
+        details: e.toString(),
+      );
+    }
+  }
+
+  Future<ApiResult<List<Video>>> getChannelVideos(String channelId, {int page = 1}) async {
+    try {
+      final response = await _dio.get(
+        '/channel/$channelId/videos',
+        queryParameters: {'page': page.toString()},
+      );
+
+      if (response.data['success'] == true) {
+        final List<dynamic> data = response.data['data'];
+        final videos = data.map((json) {
+          final mapped = json as Map<String, dynamic>;
+          return Video(
+            id: mapped['id'] ?? '',
+            title: mapped['title'] ?? '',
+            channelName: mapped['channel'] ?? mapped['author'] ?? 'Unknown',
+            channelId: channelId, // we know the channel ID
+            thumbnail: mapped['thumbnail'] ?? '',
+            duration: Duration(seconds: mapped['duration'] is int ? mapped['duration'] : 0),
+            views: mapped['view_count'] is int ? mapped['view_count'] : 0,
+            uploadDate: DateTime.now(), // fallback
+            description: mapped['description'] ?? '',
+          );
+        }).toList();
+
+        return (
+          success: true,
+          data: videos,
+          error: null,
+          details: null,
+        );
+      } else {
+        return (
+          success: false,
+          data: null,
+          error: response.data['error'] ?? 'Failed to get channel videos',
+          details: null,
+        );
+      }
+    } catch (e) {
+      _logger.w('Get channel videos error: $e');
+      return (
+        success: false,
+        data: null,
+        error: 'Network error',
+        details: e.toString(),
+      );
+    }
+  }
+
+  /// Fetch available subtitle tracks for a video
+  Future<ApiResult<List<Map<String, String>>>> getSubtitles(String videoId) async {
+    try {
+      final response = await _dio.get('/subtitles/$videoId');
+
+      if (response.data['success'] == true) {
+        final List<dynamic> data = response.data['data'];
+        final tracks = data.map((json) {
+          final mapped = json as Map<String, dynamic>;
+          return {
+            'language': (mapped['language'] ?? '').toString(),
+            'language_name': (mapped['language_name'] ?? '').toString(),
+            'url': (mapped['url'] ?? '').toString(),
+            'ext': (mapped['ext'] ?? 'vtt').toString(),
+          };
+        }).toList();
+
+        return (
+          success: true,
+          data: tracks,
+          error: null,
+          details: null,
+        );
+      } else {
+        return (
+          success: false,
+          data: null,
+          error: response.data['error'] ?? 'Failed to get subtitles',
+          details: null,
+        );
+      }
+    } catch (e) {
+      _logger.w('Get subtitles error: $e');
+      return (
+        success: false,
+        data: null,
+        error: 'Network error',
+        details: e.toString(),
+      );
+    }
+  }
+
+  /// Fetch SponsorBlock segments for a video
+  Future<List<Map<String, dynamic>>> getSponsorBlockSegments(String videoId) async {
+    try {
+      final response = await _dio.get('/sponsorblock/$videoId');
+
+      if (response.data['success'] == true) {
+        final List<dynamic> data = response.data['data'];
+        // Backend returns: { segment: [start, end], category, UUID }
+        // Frontend model expects: { startTime, endTime, category, votes }
+        return data.map((json) {
+          final mapped = json as Map<String, dynamic>;
+          final segment = mapped['segment'] as List<dynamic>?;
+          return <String, dynamic>{
+            'startTime': segment != null && segment.length >= 2
+                ? (segment[0] as num).toDouble()
+                : 0.0,
+            'endTime': segment != null && segment.length >= 2
+                ? (segment[1] as num).toDouble()
+                : 0.0,
+            'category': mapped['category'] ?? 'sponsor',
+            'votes': 0,
+            'isVoted': false,
+          };
+        }).toList();
+      }
+    } catch (e) {
+      _logger.w('Get SponsorBlock segments error: $e');
+    }
+    return [];
+  }
+
+  /// Fetch dislike data for a video
+  Future<Map<String, dynamic>?> getDislikeData(String videoId) async {
+    try {
+      final response = await _dio.get('/dislikes/$videoId');
+
+      if (response.data['success'] == true) {
+        final Map<String, dynamic> data = response.data['data'];
+        return {
+          'videoId': videoId,
+          'likes': data['likes'] ?? 0,
+          'dislikes': data['dislikes'] ?? 0,
+          'rating': (data['rating'] as num?)?.toDouble() ?? 0.0,
+          'viewCount': data['view_count'] ?? 0,
+        };
+      }
+    } catch (e) {
+      _logger.w('Get dislike data error: $e');
+    }
+    return null;
+  }
+
+  /// Add a video to bookmarks
+  Future<ApiResult<String>> addBookmark({
+    required String videoId,
+    required String title,
+    required String channel,
+    required String thumbnail,
+    required int duration,
+  }) async {
+    try {
+      final response = await _dio.post(
+        '/bookmarks',
+        data: {
+          'video_id': videoId,
+          'title': title,
+          'channel': channel,
+          'thumbnail': thumbnail,
+          'duration': duration,
+        },
+      );
+
+      if (response.data['success'] == true) {
+        _logger.i('✅ Bookmark added: $videoId');
+        return (
+          success: true,
+          data: 'Bookmark added',
+          error: null,
+          details: null,
+        );
+      } else {
+        return (
+          success: false,
+          data: null,
+          error: response.data['error'] ?? 'Failed to add bookmark',
+          details: null,
+        );
+      }
+    } catch (e) {
+      _logger.w('Add bookmark error: $e');
+      return (
+        success: false,
+        data: null,
+        error: 'Network error',
+        details: e.toString(),
+      );
+    }
+  }
+
+  /// Remove a video from bookmarks
+  Future<ApiResult<String>> removeBookmark(String videoId) async {
+    try {
+      final response = await _dio.delete('/bookmarks/$videoId');
+
+      if (response.data['success'] == true) {
+        _logger.i('❌ Bookmark removed: $videoId');
+        return (
+          success: true,
+          data: 'Bookmark removed',
+          error: null,
+          details: null,
+        );
+      } else {
+        return (
+          success: false,
+          data: null,
+          error: response.data['error'] ?? 'Failed to remove bookmark',
+          details: null,
+        );
+      }
+    } catch (e) {
+      _logger.w('Remove bookmark error: $e');
+      return (
+        success: false,
+        data: null,
+        error: 'Network error',
+        details: e.toString(),
+      );
+    }
+  }
+
+  /// Get all bookmarked videos
+  Future<ApiResult<List<Map<String, dynamic>>>> getBookmarks() async {
+    try {
+      final response = await _dio.get('/bookmarks');
+
+      if (response.data['success'] == true) {
+        final List<dynamic> data = response.data['data'];
+        final bookmarks = data.map((json) {
+          final mapped = json as Map<String, dynamic>;
+          return {
+            'id': mapped['id'] ?? 0,
+            'video_id': mapped['video_id'] ?? '',
+            'title': mapped['title'] ?? '',
+            'channel': mapped['channel'] ?? '',
+            'thumbnail': mapped['thumbnail'] ?? '',
+            'duration': mapped['duration'] ?? 0,
+            'bookmarked_at': mapped['bookmarked_at'] ?? '',
+          };
+        }).toList();
+
+        return (
+          success: true,
+          data: bookmarks,
+          error: null,
+          details: null,
+        );
+      } else {
+        return (
+          success: false,
+          data: null,
+          error: response.data['error'] ?? 'Failed to get bookmarks',
+          details: null,
+        );
+      }
+    } catch (e) {
+      _logger.w('Get bookmarks error: $e');
+      return (
+        success: false,
+        data: null,
+        error: 'Network error',
+        details: e.toString(),
+      );
+    }
+  }
+
+  /// Check if a video is bookmarked
+  Future<ApiResult<bool>> isBookmarked(String videoId) async {
+    try {
+      final response = await _dio.get('/bookmarks/$videoId/check');
+
+      if (response.data['success'] == true) {
+        final bool isBookmarked = response.data['data'] ?? false;
+        return (
+          success: true,
+          data: isBookmarked,
+          error: null,
+          details: null,
+        );
+      } else {
+        return (
+          success: false,
+          data: null,
+          error: response.data['error'] ?? 'Failed to check bookmark',
+          details: null,
+        );
+      }
+    } catch (e) {
+      _logger.w('Check bookmark error: $e');
+      return (
+        success: false,
+        data: null,
+        error: 'Network error',
+        details: e.toString(),
+      );
+    }
+  }
+
+  /// Get subscription feed - videos from all subscribed channels
+  Future<ApiResult<List<Video>>> getSubscriptionFeed() async {
+    try {
+      final response = await _dio.get('/feed');
+
+      if (response.data['success'] == true) {
+        final List<dynamic> data = response.data['data'] ?? <dynamic>[];
+        final videos = data
+            .map((json) => Video.fromJson(Map<String, dynamic>.from(json as Map)))
+            .toList();
+
+        return (
+          success: true,
+          data: videos,
+          error: null,
+          details: null,
+        );
+      } else {
+        return (
+          success: false,
+          data: null,
+          error: response.data['error'] ?? 'Failed to get subscription feed',
+          details: null,
+        );
+      }
+    } catch (e) {
+      _logger.w('Get subscription feed error: $e');
+      return (
+        success: false,
+        data: null,
+        error: 'Network error',
+        details: e.toString(),
+      );
+    }
+  }
+
+  /// Get trending videos
+  Future<ApiResult<List<Video>>> getTrendingVideos({
+    String region = 'US',
+    String trendType = 'default',
+  }) async {
+    try {
+      final response = await _dio.get(
+        '/trending',
+        queryParameters: {'region': region, 'type': trendType},
+      );
+
+      if (response.data['success'] == true) {
+        final List<dynamic> data = response.data['data'] ?? <dynamic>[];
+        final videos = data
+            .map((json) => Video.fromJson(Map<String, dynamic>.from(json as Map)))
+            .toList();
+
+        return (
+          success: true,
+          data: videos,
+          error: null,
+          details: null,
+        );
+      } else {
+        return (
+          success: false,
+          data: null,
+          error: response.data['error'] ?? 'Failed to get trending videos',
+          details: null,
+        );
+      }
+    } catch (e) {
+      _logger.w('Get trending videos error: $e');
+      return (
+        success: false,
+        data: null,
+        error: 'Network error',
+        details: e.toString(),
+      );
+    }
+  }
+
+  /// Get recommended videos for a specific video
+  Future<ApiResult<List<Video>>> getRecommendedVideos({
+    required String videoId,
+    int limit = 20,
+  }) async {
+    try {
+      final response = await _dio.get(
+        '/recommended/$videoId',
+        queryParameters: {'limit': limit},
+      );
+
+      if (response.data['success'] == true) {
+        final List<dynamic> data = response.data['data'] ?? <dynamic>[];
+        final videos = data
+            .map((json) => Video.fromJson(Map<String, dynamic>.from(json as Map)))
+            .toList();
+
+        return (
+          success: true,
+          data: videos,
+          error: null,
+          details: null,
+        );
+      } else {
+        return (
+          success: false,
+          data: null,
+          error: response.data['error'] ?? 'Failed to get recommended videos',
+          details: null,
+        );
+      }
+    } catch (e) {
+      _logger.w('Get recommended videos error: $e');
+      return (
+        success: false,
+        data: null,
+        error: 'Network error',
+        details: e.toString(),
+      );
+    }
+  }
+
+  /// Get playlist info and videos
+  Future<ApiResult<Map<String, dynamic>>> getPlaylist({
+    required String playlistId,
+    int page = 1,
+  }) async {
+    try {
+      final response = await _dio.get(
+        '/playlists/$playlistId',
+        queryParameters: {'page': page},
+      );
+
+      if (response.data['success'] == true) {
+        final data = response.data['data'] as Map<String, dynamic>;
+        
+        return (
+          success: true,
+          data: data,
+          error: null,
+          details: null,
+        );
+      } else {
+        return (
+          success: false,
+          data: null,
+          error: response.data['error'] ?? 'Failed to get playlist',
+          details: null,
+        );
+      }
+    } catch (e) {
+      _logger.w('Get playlist error: $e');
+      return (
+        success: false,
+        data: null,
+        error: 'Network error',
+        details: e.toString(),
+      );
+    }
+  }
+
+  /// Format view count for display
+  String _formatViews(dynamic count) {
+    final num = int.tryParse(count.toString()) ?? 0;
+    if (num >= 1000000) {
+      return '${(num / 1000000).toStringAsFixed(1)}M views';
+    } else if (num >= 1000) {
+      return '${(num / 1000).toStringAsFixed(1)}K views';
+    } else {
+      return '$num views';
+    }
+  }
+
+  /// Get notifications
+  Future<ApiResult<List<Notification>>> getNotifications({
+    bool unreadOnly = false,
+  }) async {
+    try {
+      final response = await _dio.get(
+        '/notifications',
+        queryParameters: {'unread_only': unreadOnly},
+      );
+
+      if (response.data['success'] == true) {
+        final List<dynamic> data = response.data['data'] ?? [];
+        final notifications = data
+            .map((json) => Notification.fromJson(json as Map<String, dynamic>))
+            .toList();
+
+        return (
+          success: true,
+          data: notifications,
+          error: null,
+          details: null,
+        );
+      } else {
+        return (
+          success: false,
+          data: null,
+          error: response.data['error'] ?? 'Failed to get notifications',
+          details: null,
+        );
+      }
+    } catch (e) {
+      _logger.w('Get notifications error: $e');
+      return (
+        success: false,
+        data: null,
+        error: 'Network error',
+        details: e.toString(),
+      );
+    }
+  }
+
+  /// Mark notification as read
+  Future<ApiResult<bool>> markNotificationAsRead(int notificationId) async {
+    try {
+      final response = await _dio.post(
+        '/notifications/read',
+        data: {'notification_id': notificationId},
+      );
+
+      if (response.data['success'] == true) {
+        return (
+          success: true,
+          data: true,
+          error: null,
+          details: null,
+        );
+      } else {
+        return (
+          success: false,
+          data: null,
+          error: response.data['error'] ?? 'Failed to mark notification as read',
+          details: null,
+        );
+      }
+    } catch (e) {
+      _logger.w('Mark notification as read error: $e');
+      return (
+        success: false,
+        data: null,
+        error: 'Network error',
+        details: e.toString(),
+      );
+    }
+  }
+
+  /// Mark all notifications as read
+  Future<ApiResult<bool>> markAllNotificationsAsRead() async {
+    try {
+      final response = await _dio.post('/notifications/read-all');
+
+      if (response.data['success'] == true) {
+        return (
+          success: true,
+          data: true,
+          error: null,
+          details: null,
+        );
+      } else {
+        return (
+          success: false,
+          data: null,
+          error: response.data['error'] ?? 'Failed to mark all notifications as read',
+          details: null,
+        );
+      }
+    } catch (e) {
+      _logger.w('Mark all notifications as read error: $e');
+      return (
+        success: false,
+        data: null,
+        error: 'Network error',
+        details: e.toString(),
+      );
+    }
+  }
+
+  /// Delete notification
+  Future<ApiResult<bool>> deleteNotification(int notificationId) async {
+    try {
+      final response = await _dio.delete('/notifications/$notificationId');
+
+      if (response.data['success'] == true) {
+        return (
+          success: true,
+          data: true,
+          error: null,
+          details: null,
+        );
+      } else {
+        return (
+          success: false,
+          data: null,
+          error: response.data['error'] ?? 'Failed to delete notification',
+          details: null,
+        );
+      }
+    } catch (e) {
+      _logger.w('Delete notification error: $e');
+      return (
+        success: false,
+        data: null,
+        error: 'Network error',
+        details: e.toString(),
+      );
+    }
+  }
+
+  /// Get unread notification count
+  Future<ApiResult<int>> getUnreadNotificationCount() async {
+    try {
+      final response = await _dio.get('/notifications/count');
+
+      if (response.data['success'] == true) {
+        final count = response.data['data'] as int;
+        return (
+          success: true,
+          data: count,
+          error: null,
+          details: null,
+        );
+      } else {
+        return (
+          success: false,
+          data: null,
+          error: response.data['error'] ?? 'Failed to get notification count',
+          details: null,
+        );
+      }
+    } catch (e) {
+      _logger.w('Get unread notification count error: $e');
+      return (
+        success: false,
+        data: null,
+        error: 'Network error',
+        details: e.toString(),
+      );
+    }
+  }
+
+  /// Search within video subtitles
+  Future<ApiResult<List<SubtitleSearchResult>>> searchSubtitles(
+    String videoId,
+    String query,
+  ) async {
+    try {
+      final response = await _dio.get(
+        '/subtitles/$videoId/search',
+        queryParameters: {'q': query},
+      );
+
+      if (response.data['success'] == true) {
+        final List<dynamic> data = response.data['data'] ?? [];
+        final results = data
+            .map((json) =>
+                SubtitleSearchResult.fromJson(json as Map<String, dynamic>))
+            .toList();
+
+        return (
+          success: true,
+          data: results,
+          error: null,
+          details: null,
+        );
+      } else {
+        return (
+          success: false,
+          data: null,
+          error: response.data['error'] ?? 'Failed to search subtitles',
+          details: null,
+        );
+      }
+    } catch (e) {
+      _logger.w('Search subtitles error: $e');
+      return (
+        success: false,
+        data: null,
+        error: 'Network error',
+        details: e.toString(),
+      );
+    }
+  }
+
+  // Cache management methods for offline support
+  Future<ApiResult<Map<String, dynamic>>> getCacheStats() async {
+    try {
+      final response = await _dio.get('/cache/stats');
+
+      if (response.data['success'] == true) {
+        final data = response.data['data'] ?? {};
+        return (
+          success: true,
+          data: data is Map ? data.cast<String, dynamic>() : {},
+          error: null,
+          details: null,
+        );
+      } else {
+        return (
+          success: false,
+          data: null,
+          error: response.data['error'] ?? 'Failed to get cache stats',
+          details: null,
+        );
+      }
+    } catch (e) {
+      _logger.w('Get cache stats error: $e');
+      return (
+        success: false,
+        data: null,
+        error: 'Network error',
+        details: e.toString(),
+      );
+    }
+  }
+
+  Future<ApiResult<Map<String, dynamic>>> clearCache() async {
+    try {
+      final response = await _dio.delete('/cache');
+
+      if (response.data['success'] == true) {
+        final data = response.data['data'] ?? {};
+        return (
+          success: true,
+          data: data is Map ? data.cast<String, dynamic>() : {},
+          error: null,
+          details: null,
+        );
+      } else {
+        return (
+          success: false,
+          data: null,
+          error: response.data['error'] ?? 'Failed to clear cache',
+          details: null,
+        );
+      }
+    } catch (e) {
+      _logger.w('Clear cache error: $e');
+      return (
+        success: false,
+        data: null,
+        error: 'Network error',
+        details: e.toString(),
+      );
+    }
+  }
+
+  Future<ApiResult<Map<String, dynamic>>> cleanupOldCache(int days) async {
+    try {
+      final response = await _dio.post(
+        '/cache/cleanup',
+        data: {'days': days},
+      );
+
+      if (response.data['success'] == true) {
+        final data = response.data['data'] ?? {};
+        return (
+          success: true,
+          data: data is Map ? data.cast<String, dynamic>() : {},
+          error: null,
+          details: null,
+        );
+      } else {
+        return (
+          success: false,
+          data: null,
+          error: response.data['error'] ?? 'Failed to cleanup cache',
+          details: null,
+        );
+      }
+    } catch (e) {
+      _logger.w('Cleanup cache error: $e');
+      return (
+        success: false,
+        data: null,
+        error: 'Network error',
+        details: e.toString(),
+      );
+    }
+  }
+
+  /// Format Unix timestamp for display
+  String _formatTimestamp(dynamic timestamp) {
+    try {
+      final time = DateTime.fromMillisecondsSinceEpoch(int.parse(timestamp.toString()) * 1000);
+      final now = DateTime.now();
+      final diff = now.difference(time);
+
+      if (diff.inDays > 365) {
+        return '${(diff.inDays / 365).toStringAsFixed(0)} years ago';
+      } else if (diff.inDays > 30) {
+        return '${(diff.inDays / 30).toStringAsFixed(0)} months ago';
+      } else if (diff.inDays > 0) {
+        return '${diff.inDays} days ago';
+      } else if (diff.inHours > 0) {
+        return '${diff.inHours}h ago';
+      } else if (diff.inMinutes > 0) {
+        return '${diff.inMinutes}m ago';
+      } else {
+        return 'Just now';
+      }
+    } catch (e) {
+      return 'Unknown';
+    }
+  }
+
+  /// Get list of screen recordings
+  Future<ApiResult<List<Map<String, dynamic>>>> getRecordings() async {
+    try {
+      final response = await _dio.get('/recordings');
+
+      if (response.data['success'] == true) {
+        final List<dynamic> data = response.data['data'] ?? [];
+        final recordings = data.cast<Map<String, dynamic>>();
+        return (
+          success: true,
+          data: recordings,
+          error: null,
+          details: null,
+        );
+      } else {
+        return (
+          success: false,
+          data: null,
+          error: response.data['error'] ?? 'Failed to get recordings',
+          details: null,
+        );
+      }
+    } catch (e) {
+      _logger.w('Get recordings error: $e');
+      return (
+        success: false,
+        data: null,
+        error: 'Network error',
+        details: e.toString(),
+      );
+    }
+  }
+
+  /// Get cloud sync history
+  Future<ApiResult<List<Map<String, dynamic>>>> getSyncHistory() async {
+    try {
+      final response = await _dio.get('/cloud-sync/history');
+
+      if (response.data['success'] == true) {
+        final List<dynamic> data = response.data['data'] ?? [];
+        final history = data.cast<Map<String, dynamic>>();
+        return (
+          success: true,
+          data: history,
+          error: null,
+          details: null,
+        );
+      } else {
+        return (
+          success: false,
+          data: null,
+          error: response.data['error'] ?? 'Failed to get sync history',
+          details: null,
+        );
+      }
+    } catch (e) {
+      _logger.w('Get sync history error: $e');
+      return (
+        success: false,
+        data: null,
+        error: 'Network error',
+        details: e.toString(),
+      );
+    }
+  }
+
+  /// Start screen sharing/streaming
+  Future<ApiResult<Map<String, dynamic>>> startStreaming({
+    required String platform,
+    required String resolution,
+    required String bitrate,
+    required bool includeAudio,
+    String? streamUrl,
+    String? streamKey,
+  }) async {
+    try {
+      final response = await _dio.post(
+        '/streaming/start',
+        data: {
+          'platform': platform,
+          'resolution': resolution,
+          'bitrate': bitrate,
+          'include_audio': includeAudio,
+          'stream_url': streamUrl,
+          'stream_key': streamKey,
+        },
+      );
+
+      if (response.data['success'] == true) {
+        return (
+          success: true,
+          data: response.data['data'] ?? {},
+          error: null,
+          details: null,
+        );
+      } else {
+        return (
+          success: false,
+          data: null,
+          error: response.data['error'] ?? 'Failed to start streaming',
+          details: null,
+        );
+      }
+    } catch (e) {
+      _logger.w('Start streaming error: $e');
+      return (
+        success: false,
+        data: null,
+        error: 'Network error',
+        details: e.toString(),
+      );
+    }
+  }
+
+  /// Stop screen sharing/streaming
+  Future<ApiResult<Map<String, dynamic>>> stopStreaming() async {
+    try {
+      final response = await _dio.post('/streaming/stop');
+
+      if (response.data['success'] == true) {
+        return (
+          success: true,
+          data: response.data['data'] ?? {},
+          error: null,
+          details: null,
+        );
+      } else {
+        return (
+          success: false,
+          data: null,
+          error: response.data['error'] ?? 'Failed to stop streaming',
+          details: null,
+        );
+      }
+    } catch (e) {
+      _logger.w('Stop streaming error: $e');
+      return (
+        success: false,
+        data: null,
+        error: 'Network error',
+        details: e.toString(),
+      );
+    }
+  }
+
+  /// Get streaming status
+  Future<ApiResult<Map<String, dynamic>>> getStreamingStatus() async {
+    try {
+      final response = await _dio.get('/streaming/status');
+
+      if (response.data['success'] == true) {
+        return (
+          success: true,
+          data: response.data['data'] ?? {},
+          error: null,
+          details: null,
+        );
+      } else {
+        return (
+          success: false,
+          data: null,
+          error: response.data['error'] ?? 'Failed to get streaming status',
+          details: null,
+        );
+      }
+    } catch (e) {
+      _logger.w('Get streaming status error: $e');
+      return (
+        success: false,
+        data: null,
+        error: 'Network error',
+        details: e.toString(),
+      );
+    }
   }
 }
